@@ -1,16 +1,17 @@
 require 'json'
 require 'yaml'
+require 'erb'
 require 'net/http'
 require 'net/https'
 require 'openssl'
 require 'logger'
 Dir["./service/*.rb"].each { |file| require_relative file }
 
-# version number of qBop
+# version number of qbop
 # get config
 def parse_version
   if File.exist?("version.yml")
-    YAML.load_file("version.yml")
+    YAML.load(ERB.new(File.read("version.yml")).result)
   end
 end
 
@@ -18,10 +19,10 @@ script_version = parse_version["version"]
 
 # LOGGER
 @logger = Logger.new("log/qbop.log", 10, 1_024_000)
-@logger.info("starting qBop v#{script_version}")
+@logger.info("starting qbop v#{script_version}")
 
 def exit_script
-  @logger.info("qBop completed at #{Time.now}")
+  @logger.info("qbop completed at #{Time.now}")
   @logger.info("----------")
   @logger.close
   exit
@@ -32,7 +33,7 @@ end
 # get config
 def parse_config
   if File.exist?("config.yml")
-    YAML.load_file("config.yml")
+    YAML.load(ERB.new(File.read("config.yml")).result)
   end
 end
 

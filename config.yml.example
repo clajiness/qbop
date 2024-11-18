@@ -3,7 +3,7 @@
 loop_freq: 45
 
 # Proton
-proton_gateway:
+proton_gateway: 10.2.0.1
 
 # OPNsense
 opnsense_interface_addr: https://
