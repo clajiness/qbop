@@ -1,0 +1,22 @@
+services:
+  qbop:
+    image: ghcr.io/clajiness/qbop
+    container_name: qbop
+    restart: unless-stopped
+    volumes:
+      - log:/opt/qbop/log/
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - LOOP_FREQ=
+      - PROTON_GATEWAY=
+      - OPN_INTERFACE_ADDR=
+      - OPN_API_KEY=
+      - OPN_API_SECRET= 
+      - OPN_PROTON_ALIAS_NAME=
+      - QBIT_ADDR= 
+      - QBIT_USER=
+      - QBIT_PASS=
+
+volumes:
+  log:
