@@ -7,6 +7,8 @@ This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNse
 ## Docker Install
 I recommend using the provided Docker container to simplify the set up of qbop. An example Docker Compose file is provided.
 
+The Docker container is available here: https://github.com/clajiness/qbop/pkgs/container/qbop
+
 #### Requirements
 * Docker Engine - https://docs.docker.com/engine/install/
 * OPNsense - This is the tutorial I used to set up selective routing to ProtonVPN. https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html
