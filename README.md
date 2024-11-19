@@ -1,6 +1,9 @@
 # qbop
 A tool for keeping ProtonVPN, OPNsense, and qBittorrent ports in sync.
 
+> [!WARNING]
+> I'm not responsible for what you do with this script.
+
 ## Purpose
 This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the given forwarded port, checks the port set in OPNsense and qBittorrent, and updates it if necessary.
 
@@ -53,6 +56,3 @@ Clone the qbop repo to your machine. Remove the existing file `config.yml`. Copy
 9. `qbit_pass:` Your qBittorrent password
 
 Next, you must start the script. You can manually start it, if you wish, with `ruby qbop.rb`. I'd recommend setting it up to start on boot, though. I've included an example systemd service file for those on Linux.
-
-> [!WARNING]
-> Needless to say, I'm not responsible for what you use this script for.
