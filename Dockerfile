@@ -17,5 +17,8 @@ RUN \
 apt update; \
 apt install -y natpmpc;
 
+# set repo label
+LABEL org.opencontainers.image.source https://github.com/clajiness/qbop
+
 # 
 ENTRYPOINT ["ruby", "/opt/qbop/qbop.rb"]
