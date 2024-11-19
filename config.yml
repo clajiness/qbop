@@ -3,10 +3,10 @@
 # use the contents of the config.yml.example file to configure a native installation.
 
 # loop config
-loop_freq: <%= ENV["LOOP_FREQ"] || 45 %>
+loop_freq: <%= ENV["LOOP_FREQ"] %>
 
 # Proton
-proton_gateway: <%= ENV["PROTON_GATEWAY"] || 10.2.0.1 %>
+proton_gateway: <%= ENV["PROTON_GATEWAY"] %>
 
 # OPNsense
 opnsense_interface_addr: <%= ENV["OPN_INTERFACE_ADDR"] %>
