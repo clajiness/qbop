@@ -16,8 +16,6 @@ module Service
 
       response = http.request(req)
       response["set-cookie"].split(";")[0]
-    rescue StandardError => e
-      @logger.error("qbt_auth_login - HTTP Request failed - (#{e.message})")
     end
 
     def qbt_app_preferences(config, sid)
@@ -30,8 +28,6 @@ module Service
       response = http.request(req)
 
       JSON.parse(response.body)["listen_port"]
-    rescue StandardError => e
-      @logger.error("qbt_app_preferences - HTTP Request failed - (#{e.message})")
     end
 
     def qbt_app_set_preferences(config, forwarded_port, sid)
@@ -49,8 +45,6 @@ module Service
       req.body = body
 
       http.request(req)
-    rescue StandardError => e
-      @logger.error("qbt_app_set_preferences - HTTP Request failed - (#{e.message})")
     end
   end
 end

@@ -15,8 +15,6 @@ module Service
       # Fetch Request
       res = http.request(req)
       JSON.parse(res.body)["uuid"]
-    rescue StandardError => e
-      @logger.error("get_alias_uuid - HTTP Request failed - (#{e.message})")
     end
 
     def get_alias_value(config, uuid)
@@ -36,8 +34,6 @@ module Service
 
       alias_content = JSON.parse(res.body).dig("alias", "aliases", "alias", uuid, "content")
       alias_content.values[0]["value"].to_i
-    rescue StandardError => e
-      @logger.error("get_alias_value - HTTP Request failed - (#{e.message})")
     end
 
     def set_alias_value(config, forwarded_port, uuid)
@@ -60,8 +56,6 @@ module Service
 
       # Fetch Request
       http.request(req)
-    rescue StandardError => e
-      @logger.error("set_alias_value - HTTP Request failed - (#{e.message})")
     end
 
     def apply_changes(config)
@@ -79,8 +73,6 @@ module Service
 
       # Fetch Request
       http.request(req)
-    rescue StandardError => e
-      @logger.error("apply_changes - HTTP Request failed - (#{e.message})")
     end
   end
 end
