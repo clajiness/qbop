@@ -147,7 +147,10 @@ loop do
   end
 
   # qBit section
-  unless config["qbit_skip"].nil? || config["qbit_skip"].to_s.downcase == "true"
+  if config["qbit_skip"]&.to_s&.downcase == "true"
+    # ignore qBit section
+    @logger.info("qBit check skipped")
+  else
     begin
       # create qBit object
       qbit ||= Service::Qbit.new
@@ -200,8 +203,6 @@ loop do
       sleep config["loop_freq"].to_i
       next
     end
-  else
-    @logger.info("qBit check skipped")
   end
 
   # sleep before looping again
