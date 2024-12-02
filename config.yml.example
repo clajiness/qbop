@@ -12,6 +12,7 @@ opnsense_api_secret:
 opnsense_alias_name: proton_vpn_forwarded_port
 
 # qBit
+qbit_skip: [true/false]
 qbit_addr: http://
 qbit_user:
 qbit_pass:

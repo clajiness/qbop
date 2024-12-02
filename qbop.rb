@@ -147,57 +147,61 @@ loop do
   end
 
   # qBit section
-  begin
-    # create qBit object
-    qbit ||= Service::Qbit.new
+  unless config["qbit_skip"].nil? || config["qbit_skip"].to_s.downcase == "true"
+    begin
+      # create qBit object
+      qbit ||= Service::Qbit.new
 
-    # get sid from qBit
-    sid = qbit.qbt_auth_login(config)
+      # get sid from qBit
+      sid = qbit.qbt_auth_login(config)
 
-    # get port from qBit
-    qbt_port = qbit.qbt_app_preferences(config, sid)
+      # get port from qBit
+      qbt_port = qbit.qbt_app_preferences(config, sid)
 
-    if qbt_port != forwarded_port
-      @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:qbit_attempt]} of 3.")
+      if qbt_port != forwarded_port
+        @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:qbit_attempt]} of 3.")
 
-      # after 3 attempts, if the ports still don't match, set the qBit port to be updated
-      if counter[:port] == forwarded_port && counter[:qbit_attempt] > 2
-        counter[:qbit_change] = true
-      end
-    else
-      # reset counter if ports match
-      counter[:qbit_attempt] = 1 if counter[:qbit_attempt] != 1
-      @logger.info("qBit port #{qbt_port} matches Proton forwarded port #{forwarded_port}")
-    end
-
-    # keep track of how many times the qBit and Proton ports don't match
-    if qbt_port != forwarded_port
-      counter[:port] = forwarded_port
-      counter[:qbit_attempt] += 1
-    end
-
-    # set qBit port if counter is set to true
-    if counter[:qbit_change] == true
-      # set qBit port
-      response = qbit.qbt_app_set_preferences(config, forwarded_port, sid)
-
-      if response.code == "200"
-        @logger.info("qBit's port has been updated to #{forwarded_port}")
-
-        # reset counter
-        counter[:qbit_change] = false
-        counter[:qbit_attempt] = 1
+        # after 3 attempts, if the ports still don't match, set the qBit port to be updated
+        if counter[:port] == forwarded_port && counter[:qbit_attempt] > 2
+          counter[:qbit_change] = true
+        end
       else
-        @logger.error("qBit's port was not updated")
+        # reset counter if ports match
+        counter[:qbit_attempt] = 1 if counter[:qbit_attempt] != 1
+        @logger.info("qBit port #{qbt_port} matches Proton forwarded port #{forwarded_port}")
       end
-    end
-  rescue Exception => e
-    @logger.error("qBit has returned an error:")
-    @logger.error(e)
 
-    @logger.info("sleeping for #{config['loop_freq'].to_i} seconds and trying again")
-    sleep config["loop_freq"].to_i
-    next
+      # keep track of how many times the qBit and Proton ports don't match
+      if qbt_port != forwarded_port
+        counter[:port] = forwarded_port
+        counter[:qbit_attempt] += 1
+      end
+
+      # set qBit port if counter is set to true
+      if counter[:qbit_change] == true
+        # set qBit port
+        response = qbit.qbt_app_set_preferences(config, forwarded_port, sid)
+
+        if response.code == "200"
+          @logger.info("qBit's port has been updated to #{forwarded_port}")
+
+          # reset counter
+          counter[:qbit_change] = false
+          counter[:qbit_attempt] = 1
+        else
+          @logger.error("qBit's port was not updated")
+        end
+      end
+    rescue Exception => e
+      @logger.error("qBit has returned an error:")
+      @logger.error(e)
+
+      @logger.info("sleeping for #{config['loop_freq'].to_i} seconds and trying again")
+      sleep config["loop_freq"].to_i
+      next
+    end
+  else
+    @logger.info("qBit check skipped")
   end
 
   # sleep before looping again

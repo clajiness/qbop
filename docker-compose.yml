@@ -12,9 +12,10 @@ services:
       - PROTON_GATEWAY=
       - OPN_INTERFACE_ADDR=
       - OPN_API_KEY=
-      - OPN_API_SECRET= 
+      - OPN_API_SECRET=
       - OPN_PROTON_ALIAS_NAME=
-      - QBIT_ADDR= 
+      - QBIT_SKIP=
+      - QBIT_ADDR=
       - QBIT_USER=
       - QBIT_PASS=
 
