@@ -18,3 +18,4 @@ opnsense_alias_name: <%= ENV["OPN_PROTON_ALIAS_NAME"] %>
 qbit_addr: <%= ENV["QBIT_ADDR"] %>
 qbit_user: <%= ENV["QBIT_USER"] %>
 qbit_pass: <%= ENV["QBIT_PASS"] %>
+qbit_skip: <%= ENV["QBIT_SKIP"] %>
