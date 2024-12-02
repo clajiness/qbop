@@ -147,7 +147,7 @@ loop do
   end
 
   # qBit section
-  unless config["qbit_skip"].nil? || config["qbit_skip"] == "true"
+  unless config["qbit_skip"].nil? || config["qbit_skip"].to_s.downcase == "true"
     begin
       # create qBit object
       qbit ||= Service::Qbit.new

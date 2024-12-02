@@ -14,10 +14,10 @@ services:
       - OPN_API_KEY=
       - OPN_API_SECRET=
       - OPN_PROTON_ALIAS_NAME=
+      - QBIT_SKIP=
       - QBIT_ADDR=
       - QBIT_USER=
       - QBIT_PASS=
-      - QBIT_SKIP=
 
 volumes:
   log:
