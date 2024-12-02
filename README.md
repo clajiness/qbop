@@ -30,7 +30,7 @@ I'd recommend using Docker Compose to configure and run your instance of qbop. T
 4. `OPN_API_KEY:` Your OPNsense API key - https://docs.opnsense.org/development/how-tos/api.html
 5. `OPN_API_SECRET:` Your OPNsense API secret
 6. `OPN_PROTON_ALIAS_NAME:` The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`.
-7. `QBIT_SKIP:` Skip qBittorrent. Subsequent qBit environment variables are not necessary.
+7. `QBIT_SKIP:` [true/false] Skip qBittorrent. If true, subsequent qBit environment variables are not necessary.
 8. `QBIT_ADDR:` The IP address of your qBittorrent app. For example, `http://10.1.1.100:8080`.
 9. `QBIT_USER:` Your qBittorrent username
 10. `QBIT_PASS:` Your qBittorrent password
@@ -54,7 +54,7 @@ Clone the qbop repo to your machine. Remove the existing file `config.yml`. Copy
 4. `opnsense_api_key:` Your OPNsense API key - https://docs.opnsense.org/development/how-tos/api.html
 5. `opnsense_api_secret:` Your OPNsense API secret
 6. `opnsense_alias_name:` The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`.
-7. `qbit_skip:` Skip qBittorrent. Subsequent qBit environment variables are not necessary.
+7. `qbit_skip:` [true/false] Skip qBittorrent. If true, subsequent qBit environment variables are not necessary.
 8. `qbit_addr:` The IP address of your qBittorrent app. For example, `http://10.1.1.100:8080`.
 9. `qbit_user:` Your qBittorrent username
 10. `qbit_pass:` Your qBittorrent password
