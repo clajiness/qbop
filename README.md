@@ -5,11 +5,11 @@ A tool for keeping ProtonVPN, OPNsense, and qBittorrent ports in sync.
 > I'm not responsible for improper use of this script.
 
 ## Purpose
-This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the given forwarded port, checks the port set in OPNsense and qBittorrent, and updates it if necessary.
+This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the given forwarded port, checks the port set in OPNsense and qBittorrent, and updates it if necessary. You can ignore qBittorrent by using the `QBIT_SKIP` environment variable.
 
 Version v0.5 and later allows you to skip qBittorrent and just sync Proton's forwarded port to OPNsense.
 
-## Docker Install
+## Docker Install (recommended)
 I recommend using the provided Docker container to simplify the set up of qbop. An example Docker Compose file is provided.
 
 The Docker container is available here: https://github.com/clajiness/qbop/pkgs/container/qbop
@@ -35,12 +35,12 @@ I'd recommend using Docker Compose to configure and run your instance of qbop. T
 9. `QBIT_USER:` Your qBittorrent username
 10. `QBIT_PASS:` Your qBittorrent password
 
-## Native Install
+## Native Install (not recommended)
 
 #### Requirements
 * Linux distro such as Debian, Ubuntu, etc, or a Mac.
 * Ruby 3+ (tested with 3.3.6)
-* natpmpc (Linux - `apt install natpmpc`) or libnatpmp (Mac - `brew install libnatpmp`)
+* natpmpc (Linux - `apt install natpmpc` or similar) or libnatpmp (Mac - `brew install libnatpmp`)
 * OPNsense - This is the tutorial I used to set up selective routing to ProtonVPN. https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html
 * qBittorrent
 * ProtonVPN subscription
