@@ -35,7 +35,9 @@ I'd recommend using Docker Compose to configure and run your instance of qbop. T
 9. `QBIT_USER:` Your qBittorrent username
 10. `QBIT_PASS:` Your qBittorrent password
 
-## Native Install (not recommended)
+---
+
+## Native Install (not recommended, but go nuts if you're comfortable with Ruby)
 
 #### Requirements
 * Linux distro such as Debian, Ubuntu, etc, or a Mac.
