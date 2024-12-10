@@ -22,7 +22,7 @@ The Docker container is available here: https://github.com/clajiness/qbop/pkgs/c
 
 #### Config
 
-I'd recommend using Docker Compose to configure and run your instance of qbop. The given environemnt variables are required.
+I'd recommend using Docker Compose to configure and run your instance of qbop. The given environment variables are required.
 
 1. `LOOP_FREQ:` This value determines how often the script runs. The default value is 45 seconds. This probably shouldn't be changed.
 2. `PROTON_GATEWAY:` The IP address of your ProtonVPN gateway. For example, `10.2.0.1`.
