@@ -1,5 +1,5 @@
 # qbop
-A tool for keeping ProtonVPN, OPNsense, and qBittorrent ports in sync.
+A tool for keeping ProtonVPN, OPNsense, and qBittorrent forwarded ports in sync.
 
 > [!WARNING]
 > I'm not responsible for improper use of this script.
