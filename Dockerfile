@@ -5,7 +5,7 @@ FROM ruby:3.3.6-slim
 WORKDIR /opt/qbop/
 
 # create necessary directories and copy files
-COPY qbop.rb config.yml version.yml /opt/qbop/
+COPY Gemfile Gemfile.lock qbop.rb version.yml /opt/qbop/
 COPY service/ /opt/qbop/service/
 RUN mkdir -p /opt/qbop/log/
 
@@ -15,7 +15,8 @@ VOLUME /opt/qbop/log/
 # install necessary packages
 RUN \
 apt update; \
-apt install -y natpmpc;
+apt install -y build-essential natpmpc; \
+bundle install;
 
-# 
+# set up entrypoint
 ENTRYPOINT ["ruby", "/opt/qbop/qbop.rb"]

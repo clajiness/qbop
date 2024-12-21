@@ -1,3 +1,5 @@
+require 'bundler/setup'
+Bundler.require(:default)
 require 'json'
 require 'yaml'
 require 'erb'
@@ -5,59 +7,62 @@ require 'net/http'
 require 'net/https'
 require 'openssl'
 require 'logger'
-Dir["./service/*.rb"].each { |file| require_relative file }
+Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
 # version number of qbop
 # get config
 def parse_version
-  if File.exist?("version.yml")
-    YAML.load(ERB.new(File.read("version.yml")).result)
-  end
+  return unless File.exist?('version.yml')
+
+  YAML.safe_load(ERB.new(File.read('version.yml')).result)
 end
 
-script_version = parse_version["version"]
+script_version = parse_version['version']
 
 # LOGGER
-@logger = Logger.new("log/qbop.log", 10, 1_024_000)
+@logger = Logger.new('log/qbop.log', 10, 1_024_000)
 @logger.info("starting qbop v#{script_version}")
 
 def exit_script
   @logger.info("qbop completed at #{Time.now}")
-  @logger.info("----------")
+  @logger.info('----------')
   @logger.close
   exit
 end
 # ----------
 
-# CONFIG
-# get config
-def parse_config
-  if File.exist?("config.yml")
-    YAML.load(ERB.new(File.read("config.yml")).result)
-  end
+# ENV
+# get env
+def parse_env # rubocop:disable Metrics/MethodLength
+  {
+    loop_freq: ENV['LOOP_FREQ'] || 45,
+    proton_gateway: ENV['PROTON_GATEWAY'],
+    opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
+    opnsense_api_key: ENV['OPN_API_KEY'],
+    opnsense_api_secret: ENV['OPN_API_SECRET'],
+    opnsense_alias_name: ENV['OPN_PROTON_ALIAS_NAME'],
+    qbit_skip: ENV['QBIT_SKIP'],
+    qbit_addr: ENV['QBIT_ADDR'],
+    qbit_user: ENV['QBIT_USER'],
+    qbit_pass: ENV['QBIT_PASS']
+  }
 end
 
 # parse config
-config = parse_config
-if config
-  @logger.info("config.yml file found successfully")
-else
-  @logger.error("config.yml file NOT found successfully")
-  exit_script
-end
+config = parse_env
 
-@logger.info("----------")
+@logger.info('----------')
 # ----------
 
 # DO SOME WORK!
 
 # changed port counter
 # if forwarded port from Proton changes, wait for x attempts before actually changing port
-counter = {port: nil, opnsense_attempt: 1, opnsense_change: false, qbit_attempt: 1, qbit_change: false}
+counter = { port: nil, opnsense_attempt: 1, opnsense_change: false, qbit_attempt: 1, qbit_change: false }
 
 # start the loop
 loop do
-  @logger.info("start of loop")
+  @logger.info('start of loop')
 
   # Proton section
   begin
@@ -65,25 +70,27 @@ loop do
     proton ||= Service::Proton.new
 
     # make natpmpc call to proton
-    proton_response = proton.proton_natpmpc(config["proton_gateway"])
+    proton_response = proton.proton_natpmpc(config[:proton_gateway])
 
     # parse natpmpc response
     forwarded_port = proton.parse_proton_response(proton_response)
 
     # sleep and restart loop if forwarded port isn't returned
     if forwarded_port.nil?
-      @logger.error("Proton didn't return a forwarded port. Sleeping for #{config['loop_freq'].to_i} seconds and trying again.")
-      sleep config["loop_freq"].to_i
+      @logger.error(
+        "Proton didn't return a forwarded port. Sleeping for #{config[:loop_freq].to_i} seconds and trying again."
+      )
+      sleep config[:loop_freq].to_i
       next
     else
       @logger.info("Proton returned the forwarded port: #{forwarded_port}")
     end
-  rescue Exception => e
-    @logger.error("Proton has returned an error:")
+  rescue StandardError => e
+    @logger.error('Proton has returned an error:')
     @logger.error(e)
 
-    @logger.info("sleeping for #{config['loop_freq'].to_i} seconds and trying again")
-    sleep config["loop_freq"].to_i
+    @logger.info("sleeping for #{config[:loop_freq].to_i} seconds and trying again")
+    sleep config[:loop_freq].to_i
     next
   end
 
@@ -99,12 +106,10 @@ loop do
     alias_port = opnsense.get_alias_value(config, uuid)
 
     if alias_port != forwarded_port
-      @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:opnsense_attempt]} of 3.")
+      @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:opnsense_attempt]} of 3.") # rubocop:disable Layout/LineLength
 
       # after 3 attempts, if the ports still don't match, set the OPNsense port to be updated
-      if counter[:port] == forwarded_port && counter[:opnsense_attempt] > 2
-        counter[:opnsense_change] = true
-      end
+      counter[:opnsense_change] = true if counter[:port] == forwarded_port && counter[:opnsense_attempt] > 2
     else
       # reset counter if ports match
       counter[:opnsense_attempt] = 1 if counter[:opnsense_attempt] != 1
@@ -122,14 +127,14 @@ loop do
       # set OPNsense port alias
       response = opnsense.set_alias_value(config, forwarded_port, uuid)
 
-      if response.code == "200"
+      if response.code == '200'
         @logger.info("OPNsense alias has been updated to #{forwarded_port}")
 
         # apply changes
         changes = opnsense.apply_changes(config)
 
-        if changes.code == "200"
-          @logger.info("OPNsense alias applied successfully")
+        if changes.code == '200'
+          @logger.info('OPNsense alias applied successfully')
 
           # reset counter
           counter[:opnsense_change] = false
@@ -137,19 +142,19 @@ loop do
         end
       end
     end
-  rescue Exception => e
-    @logger.error("OPNsense has returned an error:")
+  rescue StandardError => e
+    @logger.error('OPNsense has returned an error:')
     @logger.error(e)
 
-    @logger.info("sleeping for #{config['loop_freq'].to_i} seconds and trying again")
-    sleep config["loop_freq"].to_i
+    @logger.info("sleeping for #{config[:loop_freq].to_i} seconds and trying again")
+    sleep config[:loop_freq].to_i
     next
   end
 
   # qBit section
-  if config["qbit_skip"]&.to_s&.downcase == "true"
+  if config[:qbit_skip]&.to_s&.downcase == 'true'
     # ignore qBit section
-    @logger.info("qBit check skipped")
+    @logger.info('qBit check skipped')
   else
     begin
       # create qBit object
@@ -162,12 +167,10 @@ loop do
       qbt_port = qbit.qbt_app_preferences(config, sid)
 
       if qbt_port != forwarded_port
-        @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:qbit_attempt]} of 3.")
+        @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:qbit_attempt]} of 3.") # rubocop:disable Layout/LineLength
 
         # after 3 attempts, if the ports still don't match, set the qBit port to be updated
-        if counter[:port] == forwarded_port && counter[:qbit_attempt] > 2
-          counter[:qbit_change] = true
-        end
+        counter[:qbit_change] = true if counter[:port] == forwarded_port && counter[:qbit_attempt] > 2
       else
         # reset counter if ports match
         counter[:qbit_attempt] = 1 if counter[:qbit_attempt] != 1
@@ -185,7 +188,7 @@ loop do
         # set qBit port
         response = qbit.qbt_app_set_preferences(config, forwarded_port, sid)
 
-        if response.code == "200"
+        if response.code == '200'
           @logger.info("qBit's port has been updated to #{forwarded_port}")
 
           # reset counter
@@ -195,19 +198,19 @@ loop do
           @logger.error("qBit's port was not updated")
         end
       end
-    rescue Exception => e
-      @logger.error("qBit has returned an error:")
+    rescue StandardError => e
+      @logger.error('qBit has returned an error:')
       @logger.error(e)
 
-      @logger.info("sleeping for #{config['loop_freq'].to_i} seconds and trying again")
-      sleep config["loop_freq"].to_i
+      @logger.info("sleeping for #{config[:loop_freq].to_i} seconds and trying again")
+      sleep config[:loop_freq].to_i
       next
     end
   end
 
   # sleep before looping again
-  @logger.info("end of loop. sleeping for #{config['loop_freq'].to_i} seconds.")
-  @logger.info("----------")
-  sleep config["loop_freq"].to_i
+  @logger.info("end of loop. sleeping for #{config[:loop_freq].to_i} seconds.")
+  @logger.info('----------')
+  sleep config[:loop_freq].to_i
 end
 # ----------

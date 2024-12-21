@@ -8,15 +8,25 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     environment:
+      # This value determines how often the script runs. The default value is 45 seconds.
       - LOOP_FREQ=
+      # Usually 10.2.0.1. Do not use http(s):// or a trailing slash.
       - PROTON_GATEWAY=
+      # OPNsense Interface Address. Requires http(s):// and no trailing slash.
       - OPN_INTERFACE_ADDR=
+      # OPNsense API Key
       - OPN_API_KEY=
+      # OPNsense API Secret
       - OPN_API_SECRET=
+      # The firewall alias that you use for ProtonVPN's forwarded port
       - OPN_PROTON_ALIAS_NAME=
+      # [true/false] Skip qBittorrent. If true, subsequent qBit environment variables are not necessary.
       - QBIT_SKIP=
+      # The IP address of your qBittorrent app. Requires http(s):// and no trailing slash.
       - QBIT_ADDR=
+      # Your qBittorrent username
       - QBIT_USER=
+      # Your qBittorrent password
       - QBIT_PASS=
 
 volumes:
