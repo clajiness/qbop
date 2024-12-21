@@ -1,6 +1,9 @@
 # qbop
 A tool for keeping ProtonVPN, OPNsense, and qBittorrent forwarded ports in sync.
 
+> [!WARNING]
+> This is beta software. I'm not responsible for any issues you may encounter.
+
 ## Purpose
 This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the given forwarded port, checks the port set in OPNsense and qBittorrent, and updates it if necessary. You can ignore qBittorrent by using the `QBIT_SKIP` environment variable.
 
@@ -31,6 +34,3 @@ I'd recommend using Docker Compose to configure and run your instance of qbop. T
 8. `QBIT_ADDR:` The IP address of your qBittorrent app. For example, `http://10.1.1.100:8080`.
 9. `QBIT_USER:` Your qBittorrent username
 10. `QBIT_PASS:` Your qBittorrent password
-
-> [!WARNING]
-> I'm not responsible for improper use of this script.
