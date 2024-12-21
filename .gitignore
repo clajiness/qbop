@@ -1,3 +1,4 @@
 local_config/
 log/*.log
+log/*.log.*
 .DS_Store
