@@ -13,8 +13,8 @@ module Service
         req.url "#{@config[:qbit_addr]}/api/v2/auth/login"
         req.headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
         req.body = URI.encode_www_form({
-                                         "username": config[:qbit_user],
-                                         "password": config[:qbit_pass]
+                                         "username": @config[:qbit_user],
+                                         "password": @config[:qbit_pass]
                                        })
       end
 
