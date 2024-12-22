@@ -1,50 +1,42 @@
 module Service
   class Qbit
-    def qbt_auth_login(config) # rubocop:disable Metrics/MethodLength
-      uri = URI("#{config[:qbit_addr]}/api/v2/auth/login")
-      http = Net::HTTP.new(uri.host, uri.port)
+    def initialize(config)
+      @config = config
+      @conn = Faraday.new(
+        url: config[:qbit_addr],
+        ssl: { verify: false }
+      )
+    end
 
-      data = {
-        "username": config[:qbit_user],
-        "password": config[:qbit_pass]
-      }
+    def qbt_auth_login
+      response = @conn.post do |req|
+        req.url "#{@config[:qbit_addr]}/api/v2/auth/login"
+        req.headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
+        req.body = URI.encode_www_form({
+                                         "username": config[:qbit_user],
+                                         "password": config[:qbit_pass]
+                                       })
+      end
 
-      body = URI.encode_www_form(data)
-      req = Net::HTTP::Post.new(uri)
-      req.add_field 'Content-Type', 'application/x-www-form-urlencoded; charset=utf-8'
-      req.body = body
-
-      response = http.request(req)
       response['set-cookie'].split(';')[0]
     end
 
-    def qbt_app_preferences(config, sid)
-      uri = URI("#{config[:qbit_addr]}/api/v2/app/preferences")
-      http = Net::HTTP.new(uri.host, uri.port)
-
-      req = Net::HTTP::Get.new(uri)
-      req.add_field 'Cookie', sid
-
-      response = http.request(req)
+    def qbt_app_preferences(sid)
+      response = @conn.get do |req|
+        req.url "#{@config[:qbit_addr]}/api/v2/app/preferences"
+        req.headers['Cookie'] = sid
+      end
 
       JSON.parse(response.body)['listen_port']
     end
 
-    def qbt_app_set_preferences(config, forwarded_port, sid) # rubocop:disable Metrics/MethodLength
-      uri = URI("#{config[:qbit_addr]}/api/v2/app/setPreferences")
-      http = Net::HTTP.new(uri.host, uri.port)
-
-      data = {
-        "json": "{\"listen_port\": #{forwarded_port.to_i}}"
-      }
-
-      body = URI.encode_www_form(data)
-      req = Net::HTTP::Post.new(uri)
-      req.add_field 'Cookie', sid
-      req.add_field 'Content-Type', 'application/x-www-form-urlencoded; charset=utf-8'
-      req.body = body
-
-      http.request(req)
+    def qbt_app_set_preferences(forwarded_port, sid)
+      @conn.post do |req|
+        req.url "#{@config[:qbit_addr]}/api/v2/app/setPreferences"
+        req.headers = { 'Cookie' => sid }
+        req.headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
+        req.body = URI.encode_www_form({ "json": "{\"listen_port\": #{forwarded_port.to_i}}" })
+      end
     end
   end
 end

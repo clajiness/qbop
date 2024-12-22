@@ -2,21 +2,16 @@ require 'bundler/setup'
 Bundler.require(:default)
 require 'json'
 require 'yaml'
-require 'erb'
-require 'net/http'
-require 'net/https'
-require 'openssl'
 require 'logger'
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
-# version number of qbop
-# get config
 def parse_version
   return unless File.exist?('version.yml')
 
-  YAML.safe_load(ERB.new(File.read('version.yml')).result)
+  YAML.safe_load(File.read('version.yml'))
 end
 
+# get version number of qbop
 script_version = parse_version['version']
 
 # LOGGER
@@ -97,13 +92,13 @@ loop do
   # OPNsense section
   begin
     # create OPNsense object
-    opnsense ||= Service::Opnsense.new
+    opnsense ||= Service::Opnsense.new(config)
 
     # get OPNsense proton alias uuid
-    uuid = opnsense.get_alias_uuid(config)
+    uuid = opnsense.get_alias_uuid
 
     # get OPNsense alias value
-    alias_port = opnsense.get_alias_value(config, uuid)
+    alias_port = opnsense.get_alias_value(uuid)
 
     if alias_port != forwarded_port
       @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:opnsense_attempt]} of 3.") # rubocop:disable Layout/LineLength
@@ -125,13 +120,13 @@ loop do
     # set OPNsense Proton port alias if counter is set to true
     if counter[:opnsense_change] == true
       # set OPNsense port alias
-      response = opnsense.set_alias_value(config, forwarded_port, uuid)
+      response = opnsense.set_alias_value(forwarded_port, uuid)
 
       if response.code == '200'
         @logger.info("OPNsense alias has been updated to #{forwarded_port}")
 
         # apply changes
-        changes = opnsense.apply_changes(config)
+        changes = opnsense.apply_changes
 
         if changes.code == '200'
           @logger.info('OPNsense alias applied successfully')
@@ -158,13 +153,13 @@ loop do
   else
     begin
       # create qBit object
-      qbit ||= Service::Qbit.new
+      qbit ||= Service::Qbit.new(config)
 
       # get sid from qBit
-      sid = qbit.qbt_auth_login(config)
+      sid = qbit.qbt_auth_login
 
       # get port from qBit
-      qbt_port = qbit.qbt_app_preferences(config, sid)
+      qbt_port = qbit.qbt_app_preferences(sid)
 
       if qbt_port != forwarded_port
         @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:qbit_attempt]} of 3.") # rubocop:disable Layout/LineLength
@@ -186,7 +181,7 @@ loop do
       # set qBit port if counter is set to true
       if counter[:qbit_change] == true
         # set qBit port
-        response = qbit.qbt_app_set_preferences(config, forwarded_port, sid)
+        response = qbit.qbt_app_set_preferences(forwarded_port, sid)
 
         if response.code == '200'
           @logger.info("qBit's port has been updated to #{forwarded_port}")

@@ -1,8 +1,11 @@
-Style/FrozenStringLiteralComment:
+Metrics/BlockLength:
+  AllowedMethods: ['loop']
+  
+Naming/AccessorMethodName:
   Enabled: false
 
 Style/Documentation:
   Enabled: false
 
-Metrics/BlockLength:
-  AllowedMethods: ['loop']
+Style/FrozenStringLiteralComment:
+  Enabled: false

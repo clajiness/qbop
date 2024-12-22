@@ -43,7 +43,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  faraday (~> 2.12)
+  faraday (~> 2.12, >= 2.12.2)
   rubocop (~> 1.69, >= 1.69.2)
 
 BUNDLED WITH
