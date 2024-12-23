@@ -1,4 +1,5 @@
 module Service
+  # the Qbit class provides methods for getting and setting the qBit forwarded port
   class Qbit
     def initialize(config)
       @config = config

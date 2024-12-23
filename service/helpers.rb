@@ -1,4 +1,5 @@
 module Service
+  # the Helpers class provides methods for setting environment variables and the script version
   class Helpers
     def initialize
       @env_variables = env_variables

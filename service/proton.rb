@@ -1,4 +1,5 @@
 module Service
+  # the Proton class provides methods for returning the port that Proton has forwarded
   class Proton
     def proton_natpmpc(proton_gateway)
       stdout, stderr, status = Open3.capture3(
