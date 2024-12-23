@@ -8,14 +8,16 @@ module Service
       )
     end
 
-    def qbt_auth_login
+    def qbt_auth_login # rubocop:disable Metrics/MethodLength
       response = @conn.post do |req|
         req.url "#{@config[:qbit_addr]}/api/v2/auth/login"
         req.headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
-        req.body = URI.encode_www_form({
-                                         'username': @config[:qbit_user],
-                                         'password': @config[:qbit_pass]
-                                       })
+        req.body = URI.encode_www_form(
+          {
+            'username': @config[:qbit_user],
+            'password': @config[:qbit_pass]
+          }
+        )
       end
 
       response['set-cookie'].split(';')[0]

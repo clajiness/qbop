@@ -1,53 +1,19 @@
 require 'bundler/setup'
 Bundler.require(:default)
-require 'json'
-require 'yaml'
-require 'logger'
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
-def parse_version
-  return unless File.exist?('version.yml')
+helpers = Service::Helpers.new
 
-  YAML.safe_load(File.read('version.yml'))
-end
+# collect env variables in a config variable
+config = helpers.env_variables
 
-# get version number of qbop
-script_version = parse_version['version']
+# collect version number of qbop in a script_version variable
+script_version = helpers.version
 
-# LOGGER
+# set up logger
 @logger = Logger.new('log/qbop.log', 10, 1_024_000)
 @logger.info("starting qbop v#{script_version}")
-
-def exit_script
-  @logger.info("qbop completed at #{Time.now}")
-  @logger.info('----------')
-  @logger.close
-  exit
-end
-# ----------
-
-# ENV
-# get env
-def parse_env # rubocop:disable Metrics/MethodLength
-  {
-    loop_freq: ENV['LOOP_FREQ'] || 45,
-    proton_gateway: ENV['PROTON_GATEWAY'],
-    opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
-    opnsense_api_key: ENV['OPN_API_KEY'],
-    opnsense_api_secret: ENV['OPN_API_SECRET'],
-    opnsense_alias_name: ENV['OPN_PROTON_ALIAS_NAME'],
-    qbit_skip: ENV['QBIT_SKIP'],
-    qbit_addr: ENV['QBIT_ADDR'],
-    qbit_user: ENV['QBIT_USER'],
-    qbit_pass: ENV['QBIT_PASS']
-  }
-end
-
-# parse config
-config = parse_env
-
 @logger.info('----------')
-# ----------
 
 # DO SOME WORK!
 
@@ -65,10 +31,16 @@ loop do
     proton ||= Service::Proton.new
 
     # make natpmpc call to proton
-    proton_response = proton.proton_natpmpc(config[:proton_gateway])
+    response = proton.proton_natpmpc(config[:proton_gateway])
+
+    # raise error if stderr is not empty
+    raise StandardError, response[:stderr].chomp unless response[:stderr].empty?
+
+    # get proton response from standard output
+    proton_response = response[:stdout]
 
     # parse natpmpc response
-    forwarded_port = proton.parse_proton_response(proton_response)
+    forwarded_port = proton.parse_proton_response(proton_response.chomp)
 
     # sleep and restart loop if forwarded port isn't returned
     if forwarded_port.nil?
@@ -204,7 +176,8 @@ loop do
   end
 
   # sleep before looping again
-  @logger.info("end of loop. sleeping for #{config[:loop_freq].to_i} seconds.")
+  @logger.info('end of loop')
+  @logger.info("sleeping for #{config[:loop_freq].to_i} seconds...")
   @logger.info('----------')
   sleep config[:loop_freq].to_i
 end
