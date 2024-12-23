@@ -1,4 +1,5 @@
 module Service
+  # the Opnsense class provides methods for getting and setting the OPNsense alias value for the Proton forwarded port
   class Opnsense
     def initialize(config)
       @config = config
