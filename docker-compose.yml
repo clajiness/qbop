@@ -10,6 +10,8 @@ services:
     environment:
     # This value determines how often the script runs. The default value is 45 seconds.
       - LOOP_FREQ=
+    # The number of loops with a new forwarded port before updating OPNsense and qBit. The default is 3, min is 1, and max is 10.
+      - REQUIRED_ATTEMPTS=
     # Usually 10.2.0.1. Do not use http(s):// or a trailing slash.
       - PROTON_GATEWAY=
     # OPNsense Interface Address. Requires http(s):// and no trailing slash.
