@@ -20,16 +20,16 @@ The Docker container is available here: https://github.com/clajiness/qbop/pkgs/c
 * qBittorrent
 * ProtonVPN subscription
 
-### Config
-The given environment variables are required.
+### ENV variables for Docker Compose file
 
-1. `LOOP_FREQ:` This value determines how often the script runs. The default value is 45 seconds. This probably shouldn't be changed.
-2. `PROTON_GATEWAY:` Usually 10.2.0.1. Do not use http(s):// or a trailing slash.
-3. `OPN_INTERFACE_ADDR:` OPNsense Interface Address. Requires http(s):// and no trailing slash.
-4. `OPN_API_KEY:` OPNsense API Key - https://docs.opnsense.org/development/how-tos/api.html
-5. `OPN_API_SECRET:` OPNsense API Secret
-6. `OPN_PROTON_ALIAS_NAME:` The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`.
-7. `QBIT_SKIP:` [true/false] Skip qBittorrent. If true, subsequent qBit environment variables are not required.
-8. `QBIT_ADDR:` The IP address of your qBittorrent app. Requires http(s):// and no trailing slash.
-9. `QBIT_USER:` qBittorrent username
-10. `QBIT_PASS:` qBittorrent password
+1. `LOOP_FREQ:` This value determines how often the script runs. The default is 45 seconds. This value is recommended by ProtonVPN
+2. `REQUIRED_ATTEMPTS` The number of loops with a new forwarded port before updating OPNsense and qBit. The default is 3, min is 1, and max is 10.
+3. `PROTON_GATEWAY:` Default is `10.2.0.1`. Do not use http(s):// or a trailing slash.
+4. `OPN_INTERFACE_ADDR:` OPNsense Interface Address. Requires http(s):// and no trailing slash.
+5. `OPN_API_KEY:` OPNsense API Key - https://docs.opnsense.org/development/how-tos/api.html
+6. `OPN_API_SECRET:` OPNsense API Secret
+7. `OPN_PROTON_ALIAS_NAME:` The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`.
+8. `QBIT_SKIP:` [`true`/`false`] Skip qBittorrent. If `true`, subsequent qBit environment variables are not required.
+9. `QBIT_ADDR:` The IP address of your qBittorrent app. Requires http(s):// and no trailing slash.
+10. `QBIT_USER:` qBittorrent username
+11. `QBIT_PASS:` qBittorrent password

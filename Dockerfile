@@ -1,5 +1,5 @@
 # Description: Dockerfile for qbop
-FROM ruby:3.3.6-slim
+FROM ruby:3.4-slim
 
 # set the working directory
 WORKDIR /opt/qbop/

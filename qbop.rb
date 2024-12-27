@@ -10,16 +10,20 @@ config = helpers.env_variables
 # collect version number of qbop in a script_version variable
 script_version = helpers.version
 
+# track the number of attempts to change the port in opnsense and qBit
+counter = Service::Counter.new
+
+# set the required attempts for the counter
+counter.set_required_attempts(config[:required_attempts])
+
+# set loop frequency
+loop_frequency = helpers.parse_loop_frequency(config[:loop_freq])
+
 # set up logger
 @logger = Logger.new('log/qbop.log', 10, 1_024_000)
 @logger.info("starting qbop v#{script_version}")
+@logger.info("the tool will loop every #{loop_frequency} seconds")
 @logger.info('----------')
-
-# DO SOME WORK!
-
-# changed port counter
-# if forwarded port from Proton changes, wait for x attempts before actually changing port
-counter = { port: nil, opnsense_attempt: 1, opnsense_change: false, qbit_attempt: 1, qbit_change: false }
 
 # start the loop
 loop do
@@ -33,10 +37,10 @@ loop do
     # make natpmpc call to proton
     response = proton.proton_natpmpc(config[:proton_gateway])
 
-    # raise error if stderr is not empty
+    # raise error if natmpc call returns an error
     raise StandardError, response[:stderr].chomp unless response[:stderr].empty?
 
-    # get proton response from standard output
+    # get proton response from output
     proton_response = response[:stdout]
 
     # parse natpmpc response
@@ -45,9 +49,9 @@ loop do
     # sleep and restart loop if forwarded port isn't returned
     if forwarded_port.nil?
       @logger.error(
-        "Proton didn't return a forwarded port. Sleeping for #{config[:loop_freq].to_i} seconds and trying again."
+        "Proton didn't return a forwarded port. Sleeping for #{loop_frequency} seconds and trying again."
       )
-      sleep config[:loop_freq].to_i
+      sleep loop_frequency
       next
     else
       @logger.info("Proton returned the forwarded port: #{forwarded_port}")
@@ -56,8 +60,8 @@ loop do
     @logger.error('Proton has returned an error:')
     @logger.error(e)
 
-    @logger.info("sleeping for #{config[:loop_freq].to_i} seconds and trying again")
-    sleep config[:loop_freq].to_i
+    @logger.info("sleeping for #{loop_frequency} seconds and trying again")
+    sleep loop_frequency
     next
   end
 
@@ -73,24 +77,21 @@ loop do
     alias_port = opnsense.get_alias_value(uuid)
 
     if alias_port != forwarded_port
-      @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:opnsense_attempt]} of 3.") # rubocop:disable Layout/LineLength
+      # increment counter
+      counter.increment_opnsense_attempt
 
-      # after 3 attempts, if the ports still don't match, set the OPNsense port to be updated
-      counter[:opnsense_change] = true if counter[:port] == forwarded_port && counter[:opnsense_attempt] > 2
+      # after x attempts, if the ports still don't match, set the OPNsense port to be updated
+      counter.change_opnsense if counter.opnsense_attempt >= counter.required_attempts
+
+      @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.opnsense_attempt} of #{counter.required_attempts}.") # rubocop:disable Layout/LineLength
     else
       # reset counter if ports match
-      counter[:opnsense_attempt] = 1 if counter[:opnsense_attempt] != 1
+      counter.reset_opnsense_attempt if counter.opnsense_attempt != 0
       @logger.info("OPNsense port #{alias_port} matches Proton forwarded port #{forwarded_port}")
     end
 
-    # keep track of how many times the OPNsense and Proton ports don't match
-    if alias_port != forwarded_port
-      counter[:port] = forwarded_port
-      counter[:opnsense_attempt] += 1
-    end
-
     # set OPNsense Proton port alias if counter is set to true
-    if counter[:opnsense_change] == true
+    if counter.opnsense_change
       # set OPNsense port alias
       response = opnsense.set_alias_value(forwarded_port, uuid)
 
@@ -104,8 +105,8 @@ loop do
           @logger.info('OPNsense alias applied successfully')
 
           # reset counter
-          counter[:opnsense_change] = false
-          counter[:opnsense_attempt] = 1
+          counter.reset_opnsense_change
+          counter.reset_opnsense_attempt
         end
       end
     end
@@ -113,13 +114,13 @@ loop do
     @logger.error('OPNsense has returned an error:')
     @logger.error(e)
 
-    @logger.info("sleeping for #{config[:loop_freq].to_i} seconds and trying again")
-    sleep config[:loop_freq].to_i
+    @logger.info("sleeping for #{loop_frequency} seconds and trying again")
+    sleep loop_frequency
     next
   end
 
   # qBit section
-  if config[:qbit_skip]&.to_s&.downcase == 'true'
+  if helpers.skip_qbit?(config[:qbit_skip])
     # ignore qBit section
     @logger.info('qBit check skipped')
   else
@@ -134,24 +135,21 @@ loop do
       qbt_port = qbit.qbt_app_preferences(sid)
 
       if qbt_port != forwarded_port
-        @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter[:qbit_attempt]} of 3.") # rubocop:disable Layout/LineLength
+        # increment counter
+        counter.increment_qbit_attempt
 
-        # after 3 attempts, if the ports still don't match, set the qBit port to be updated
-        counter[:qbit_change] = true if counter[:port] == forwarded_port && counter[:qbit_attempt] > 2
+        # after x attempts, if the ports still don't match, set the qBit port to be updated
+        counter.change_qbit if counter.qbit_attempt >= counter.required_attempts
+
+        @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.qbit_attempt} of #{counter.required_attempts}.") # rubocop:disable Layout/LineLength
       else
         # reset counter if ports match
-        counter[:qbit_attempt] = 1 if counter[:qbit_attempt] != 1
+        counter.reset_qbit_attempt if counter.qbit_attempt != 0
         @logger.info("qBit port #{qbt_port} matches Proton forwarded port #{forwarded_port}")
       end
 
-      # keep track of how many times the qBit and Proton ports don't match
-      if qbt_port != forwarded_port
-        counter[:port] = forwarded_port
-        counter[:qbit_attempt] += 1
-      end
-
       # set qBit port if counter is set to true
-      if counter[:qbit_change] == true
+      if counter.qbit_change
         # set qBit port
         response = qbit.qbt_app_set_preferences(forwarded_port, sid)
 
@@ -159,8 +157,8 @@ loop do
           @logger.info("qBit's port has been updated to #{forwarded_port}")
 
           # reset counter
-          counter[:qbit_change] = false
-          counter[:qbit_attempt] = 1
+          counter.reset_qbit_change
+          counter.reset_qbit_attempt
         else
           @logger.error("qBit's port was not updated")
         end
@@ -169,16 +167,16 @@ loop do
       @logger.error('qBit has returned an error:')
       @logger.error(e)
 
-      @logger.info("sleeping for #{config[:loop_freq].to_i} seconds and trying again")
-      sleep config[:loop_freq].to_i
+      @logger.info("sleeping for #{loop_frequency} seconds and trying again")
+      sleep loop_frequency
       next
     end
   end
 
   # sleep before looping again
   @logger.info('end of loop')
-  @logger.info("sleeping for #{config[:loop_freq].to_i} seconds...")
+  @logger.info("sleeping for #{loop_frequency} seconds...")
   @logger.info('----------')
-  sleep config[:loop_freq].to_i
+  sleep loop_frequency
 end
 # ----------
