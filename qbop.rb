@@ -107,7 +107,11 @@ loop do
           # reset counter
           counter.reset_opnsense_change
           counter.reset_opnsense_attempt
+        else
+          @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
         end
+      else
+        @logger.error("OPNsense's alias was not updated - response code: #{response.status}")
       end
     end
   rescue StandardError => e
@@ -160,7 +164,7 @@ loop do
           counter.reset_qbit_change
           counter.reset_qbit_attempt
         else
-          @logger.error("qBit's port was not updated")
+          @logger.error("qBit's port was not updated - response code: #{response.status}")
         end
       end
     rescue StandardError => e

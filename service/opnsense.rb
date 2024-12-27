@@ -30,7 +30,7 @@ module Service
 
     def set_alias_value(forwarded_port, uuid)
       @conn.post do |req|
-        req.url "#{@config[:opnsense_interface_addr]}/api/firewall/alias/setItem/#{uuid}"
+        req.url "/api/firewall/alias/setItem/#{uuid}"
         req.headers = { 'Content-Type' => 'application/json' }
         req.body = { 'alias': { 'content': forwarded_port } }.to_json
       end
@@ -38,7 +38,7 @@ module Service
 
     def apply_changes
       @conn.post do |req|
-        req.url "#{@config[:opnsense_interface_addr]}/api/firewall/alias/reconfigure"
+        req.url '/api/firewall/alias/reconfigure'
       end
     end
   end
