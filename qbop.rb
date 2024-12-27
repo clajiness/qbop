@@ -95,13 +95,13 @@ loop do
       # set OPNsense port alias
       response = opnsense.set_alias_value(forwarded_port, uuid)
 
-      if response.status == '200'
+      if response.status == 200
         @logger.info("OPNsense alias has been updated to #{forwarded_port}")
 
         # apply changes
         changes = opnsense.apply_changes
 
-        if changes.status == '200'
+        if changes.status == 200
           @logger.info('OPNsense alias applied successfully')
 
           # reset counter
@@ -153,7 +153,7 @@ loop do
         # set qBit port
         response = qbit.qbt_app_set_preferences(forwarded_port, sid)
 
-        if response.status == '200'
+        if response.status == 200
           @logger.info("qBit's port has been updated to #{forwarded_port}")
 
           # reset counter
