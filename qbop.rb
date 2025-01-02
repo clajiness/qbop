@@ -159,13 +159,13 @@ loop do
         response = qbit.qbt_app_set_preferences(forwarded_port, sid)
 
         if response.status == 200
-          @logger.info("qBit's port has been updated to #{forwarded_port}")
+          @logger.info("qBit port has been updated to #{forwarded_port}")
 
           # reset counter
           counter.reset_qbit_change
           counter.reset_qbit_attempt
         else
-          @logger.error("qBit's port was not updated - response code: #{response.status}")
+          @logger.error("qBit port was not updated - response code: #{response.status}")
         end
       end
     rescue StandardError => e
