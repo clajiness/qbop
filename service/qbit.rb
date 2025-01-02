@@ -3,10 +3,7 @@ module Service
   class Qbit
     def initialize(config)
       @config = config
-      @conn = Faraday.new(
-        url: config[:qbit_addr],
-        ssl: { verify: false }
-      )
+      @conn = faraday_conn(config)
     end
 
     def qbt_auth_login # rubocop:disable Metrics/MethodLength
@@ -40,6 +37,15 @@ module Service
         req.headers['Content-Type'] = 'application/x-www-form-urlencoded'
         req.body = URI.encode_www_form({ 'json': "{\"listen_port\": #{forwarded_port.to_i}}" })
       end
+    end
+
+    private
+
+    def faraday_conn(config)
+      Faraday.new(
+        url: config[:qbit_addr],
+        ssl: { verify: false }
+      )
     end
   end
 end
