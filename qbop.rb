@@ -2,6 +2,7 @@ require 'bundler/setup'
 Bundler.require(:default)
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
+# create Helpers object
 helpers = Service::Helpers.new
 
 # collect env variables in a config variable
@@ -37,7 +38,7 @@ loop do
     # make natpmpc call to proton
     response = proton.proton_natpmpc(config[:proton_gateway])
 
-    # raise error if natmpc call returns an error
+    # raise error if natpmpc call returns an error
     raise StandardError, response[:stderr].chomp unless response[:stderr].empty?
 
     # get proton response from output

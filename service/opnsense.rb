@@ -3,12 +3,7 @@ module Service
   class Opnsense
     def initialize(config)
       @config = config
-      @conn = Faraday.new(
-        url: config[:opnsense_interface_addr],
-        ssl: { verify: false }
-      ) do |faraday|
-        faraday.request :authorization, :basic, config[:opnsense_api_key], config[:opnsense_api_secret]
-      end
+      @conn = faraday_conn(config)
     end
 
     def get_alias_uuid
@@ -31,7 +26,7 @@ module Service
     def set_alias_value(forwarded_port, uuid)
       @conn.post do |req|
         req.url "/api/firewall/alias/setItem/#{uuid}"
-        req.headers = { 'Content-Type' => 'application/json' }
+        req.headers['Content-Type'] = 'application/json'
         req.body = { 'alias': { 'content': forwarded_port } }.to_json
       end
     end
@@ -39,6 +34,17 @@ module Service
     def apply_changes
       @conn.post do |req|
         req.url '/api/firewall/alias/reconfigure'
+      end
+    end
+
+    private
+
+    def faraday_conn(config)
+      Faraday.new(
+        url: config[:opnsense_interface_addr],
+        ssl: { verify: false }
+      ) do |faraday|
+        faraday.request :authorization, :basic, config[:opnsense_api_key], config[:opnsense_api_secret]
       end
     end
   end
