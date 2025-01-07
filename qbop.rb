@@ -8,8 +8,8 @@ helpers = Service::Helpers.new
 # collect env variables in a config variable
 config = helpers.env_variables
 
-# collect version number of qbop in a script_version variable
-script_version = helpers.version
+# set loop frequency
+loop_frequency = helpers.parse_loop_frequency(config[:loop_freq])
 
 # track the number of attempts to change the port in opnsense and qBit
 counter = Service::Counter.new
@@ -17,12 +17,9 @@ counter = Service::Counter.new
 # set the required attempts for the counter
 counter.set_required_attempts(config[:required_attempts])
 
-# set loop frequency
-loop_frequency = helpers.parse_loop_frequency(config[:loop_freq])
-
 # set up logger
 @logger = Logger.new('log/qbop.log', 10, 1_024_000)
-@logger.info("starting qbop v#{script_version}")
+@logger.info("starting qbop #{config[:script_version]}")
 @logger.info("the tool will loop every #{loop_frequency} seconds")
 @logger.info('----------')
 

@@ -3,6 +3,7 @@ module Service
   class Helpers
     def env_variables # rubocop:disable Metrics/MethodLength
       {
+        script_version: ENV['VERSION'],
         loop_freq: ENV['LOOP_FREQ'] || 45,
         required_attempts: ENV['REQUIRED_ATTEMPTS'] || 3,
         proton_gateway: ENV['PROTON_GATEWAY'] || '10.2.0.1',
@@ -17,14 +18,8 @@ module Service
       }
     end
 
-    def version
-      return unless File.exist?('version.yml')
-
-      YAML.safe_load(File.read('version.yml'))['version']
-    end
-
     def parse_loop_frequency(loop_freq)
-      loop_freq.to_i if loop_freq.to_i.positive?
+      loop_freq&.to_i if loop_freq&.to_i&.positive?
     end
 
     def skip_qbit?(qbit_skip)
