@@ -1,6 +1,10 @@
 # Description: Dockerfile for qbop
 FROM ruby:3.4-slim
 
+# set the version environment variable
+ARG VERSION
+ENV VERSION=${VERSION}
+
 # set the working directory
 WORKDIR /opt/qbop/
 
