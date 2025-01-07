@@ -9,7 +9,7 @@ ENV VERSION=${VERSION}
 WORKDIR /opt/qbop/
 
 # create necessary directories and copy files
-COPY Gemfile Gemfile.lock qbop.rb version.yml /opt/qbop/
+COPY Gemfile Gemfile.lock qbop.rb /opt/qbop/
 COPY service/ /opt/qbop/service/
 RUN mkdir -p /opt/qbop/log/
 
