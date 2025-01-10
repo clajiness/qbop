@@ -12,10 +12,8 @@ module Service
     end
 
     def set_required_attempts(attempts)
-      attempts = attempts&.to_i
-
-      if !attempts&.nil? && attempts&.between?(1, 10)
-        @required_attempts = attempts
+      if !attempts&.to_i&.nil? && attempts&.to_i&.between?(1, 10)
+        @required_attempts = attempts&.to_i
       else
         @required_attempts
       end
