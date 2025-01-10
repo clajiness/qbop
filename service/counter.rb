@@ -13,9 +13,12 @@ module Service
 
     def set_required_attempts(attempts)
       attempts = attempts&.to_i
-      return if attempts.nil?
 
-      @required_attempts = attempts if attempts.between?(1, 10)
+      if !attempts&.nil? && attempts&.between?(1, 10)
+        @required_attempts = attempts
+      else
+        @required_attempts
+      end
     end
 
     def increment_opnsense_attempt
@@ -47,13 +50,6 @@ module Service
     end
 
     def reset_qbit_change
-      @qbit_change = false
-    end
-
-    def reset_all
-      @opnsense_attempt = 0
-      @opnsense_change = false
-      @qbit_attempt = 0
       @qbit_change = false
     end
   end

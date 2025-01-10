@@ -19,7 +19,11 @@ module Service
     end
 
     def parse_loop_frequency(loop_freq)
-      loop_freq&.to_i if loop_freq&.to_i&.positive?
+      if loop_freq&.to_i&.positive?
+        loop_freq&.to_i
+      else
+        45
+      end
     end
 
     def skip_qbit?(qbit_skip)
