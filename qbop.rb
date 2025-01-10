@@ -25,7 +25,7 @@ counter.set_required_attempts(config[:required_attempts])
 
 # start the loop
 loop do
-  @logger.info('start of loop')
+  @logger.info("start of loop (#{config[:script_version]})")
 
   # Proton section
   begin
@@ -52,7 +52,7 @@ loop do
       sleep loop_frequency
       next
     else
-      @logger.info("Proton returned the forwarded port: #{forwarded_port}")
+      @logger.info("Proton returned the forwarded port #{forwarded_port}")
     end
   rescue StandardError => e
     @logger.error('Proton has returned an error:')
