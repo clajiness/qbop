@@ -12,7 +12,7 @@ You can ignore qBittorrent by using the `QBIT_SKIP` environment variable.
 ## Installation
 I recommend using the provided Docker Compose file to simplify the set up of qbop. This container must be connected to ProtonVPN due to the required `natpmpc` command.
 
-The Docker container is available here: https://github.com/clajiness/qbop/pkgs/container/qbop
+The container image is available here: https://github.com/clajiness/qbop/pkgs/container/qbop
 
 ### Requirements
 * Docker Engine - https://docs.docker.com/engine/install/
