@@ -5,7 +5,7 @@ A tool for keeping ProtonVPN, OPNsense, and qBittorrent forwarded ports in sync.
 > I'm not responsible for any issues you may encounter.
 
 ## Purpose
-This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the given forwarded port, checks the port set in OPNsense and qBittorrent, and updates it if necessary.
+This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the forwarded port, checks the ports set in OPNsense and qBittorrent, and updates them if necessary.
 
 You can ignore qBittorrent by using the `QBIT_SKIP` environment variable.
 
