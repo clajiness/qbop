@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta
+      name="description"
+      content="the qbop ui"
+    />
+    <link rel="stylesheet" href="https://unpkg.com/terminal.css@0.7.4/dist/terminal.min.css" />
+    <style>
+      :root {
+        --background-color: #222225;
+        --font-color: #e8e9ed;
+        --invert-font-color: #222225;
+        --secondary-color: #a3abba;
+        --tertiary-color: #a3abba;
+        --primary-color: #62c4ff;
+        --code-bg-color: #3f3f44;
+      }
+      .primary-color {
+      color: var(--primary-color);
+      }
+      pre{
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+    <title>qbop</title>
+  </head>
+  <body class="terminal">
+    <div class="container">
+      <%= yield %>
+    </div>
+  </body>
+</html>

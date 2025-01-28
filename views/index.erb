@@ -1,0 +1,25 @@
+<div class="terminal-nav">
+  <div class="terminal-logo">
+    <div class="logo terminal-prompt"><a href="/" class="no-style">welcome to qbop</a></div>
+  </div>
+  <nav class="terminal-menu">
+    <ul>
+      <li><a class="menu-item active" href="/">Home</a></li>
+      <li><a class="menu-item" href="/logs">Logs</a></li>
+      <li><a class="menu-item" href="/sidekiq" target="_blank">Sidekiq</a></li>
+      <li><a class="menu-item" href="/api/stats" target="_blank">API</a></li>
+    </ul>
+  </nav>
+</div>
+<hr>
+<h3>stats</h3>
+<blockquote>
+  current port: <%= @stats[1] %><br>
+  last changed: <%= @stats[2] %>
+</blockquote>
+<hr>
+<h3>jobs</h3>
+<blockquote>
+  <%= @jobs_processed %> processed<br>
+  <%= @jobs_failed %> failed
+</blockquote>
