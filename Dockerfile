@@ -32,7 +32,7 @@ apt install -y build-essential natpmpc redis; \
 bundle install; \
 systemctl enable redis-server; \
 systemctl start redis-server; \
-sidekiq -r ./jobs/qbop.rb
+bundle exec sidekiq -d -e production -r ./jobs/qbop.rb
 
 # set up entrypoint
 ENTRYPOINT ["rackup", "/opt/qbop/config.ru"]
