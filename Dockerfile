@@ -31,7 +31,7 @@ echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://pack
 apt update; \
 apt install -y redis; \
 bundle install; \
-systemctl daemon reload; \
+systemctl daemon-reload; \
 systemctl enable redis-server; \
 systemctl start redis-server; \
 systemctl enable sidekiq; \
