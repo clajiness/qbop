@@ -10,6 +10,7 @@ WORKDIR /opt/qbop/
 
 # create necessary directories and copy files
 COPY config.ru Gemfile Gemfile.lock /opt/qbop/
+COPY sidekiq.service /etc/systemd/system/
 COPY config/ /opt/qbop/config/
 COPY data/ /opt/qbop/data/
 COPY jobs/ /opt/qbop/jobs/
@@ -30,9 +31,11 @@ echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://pack
 apt update; \
 apt install -y build-essential natpmpc redis; \
 bundle install; \
+systemctl daemon reload; \
 systemctl enable redis-server; \
 systemctl start redis-server; \
-bundle exec sidekiq -d -e production -r ./jobs/qbop.rb
+systemctl enable sidekiq; \
+systemctl start sidekiq;
 
 # set up entrypoint
 ENTRYPOINT ["rackup", "/opt/qbop/config.ru"]
