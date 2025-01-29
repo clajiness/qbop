@@ -1,5 +1,5 @@
 # Description: Dockerfile for qbop
-FROM ruby:3.4.1-slim
+FROM ruby:3.4.1
 
 # set the version environment variable
 ARG VERSION_ARG
@@ -29,7 +29,7 @@ curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyr
 chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg; \
 echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list; \
 apt update; \
-apt install -y build-essential natpmpc redis; \
+apt install -y build-essential pkg-config natpmpc redis; \
 bundle install; \
 systemctl daemon reload; \
 systemctl enable redis-server; \
