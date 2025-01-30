@@ -10,7 +10,6 @@ WORKDIR /opt/qbop/
 
 # create necessary directories and copy files
 COPY config.ru Gemfile Gemfile.lock /opt/qbop/
-COPY sidekiq.service /etc/systemd/system/
 COPY config/ /opt/qbop/config/
 COPY data/ /opt/qbop/data/
 COPY jobs/ /opt/qbop/jobs/
