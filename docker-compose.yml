@@ -4,7 +4,7 @@ services:
     container_name: qbop
     restart: unless-stopped
     volumes:
-      - log:/opt/qbop/log/
+      - data:/opt/qbop/data/
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     environment:
@@ -30,6 +30,27 @@ services:
       - QBIT_USER=
     # qBittorrent password
       - QBIT_PASS=
+  
+  redis:
+    image: redis:7.4.2
+    container_name: qbop-redis
+    restart: unless-stopped
+    command: ["redis-server"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+  
+  sidekiq:
+    depends_on:
+      - qbop
+      - redis
+    build: .
+    command: bundle exec sidekiq -r ./jobs/qbop.rb
 
 volumes:
-  log:
+  data:
+  redis_data:
