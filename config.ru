@@ -13,6 +13,7 @@ map '/' do
   use Rack::Session::Cookie, secret: SecureRandom.alphanumeric(64)
   run Rack::Cascade.new([Web, API])
 
-  # start the qbop job
+  # start the job(s)
   Qbop.perform_async
+  # TestJob.perform_async
 end
