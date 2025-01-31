@@ -1,6 +1,3 @@
-require 'bundler/setup'
-Bundler.require(:default)
-
 class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
   include SuckerPunch::Job
 
