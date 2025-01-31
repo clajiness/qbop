@@ -1,0 +1,34 @@
+<div class="terminal-nav">
+  <div class="terminal-logo">
+    <div class="logo terminal-prompt"><a href="/" class="no-style">welcome to qbop</a></div>
+  </div>
+  <nav class="terminal-menu">
+    <ul>
+      <li><a class="menu-item" href="/">home</a></li>
+      <li><a class="menu-item" href="/logs">logs</a></li>
+      <li><a class="menu-item active" href="/about">about</a></li>
+      <li><a class="menu-item" href="/api/stats" target="_blank">api</a></li>
+    </ul>
+  </nav>
+</div>
+<hr>
+<h3><u>about</u></h3>
+<em>github repo</em>
+<blockquote>
+  <a href="<%= @repo_url %>" target="_blank"><%= @repo_url %></a>
+</blockquote>
+
+<em>app version</em>
+<blockquote>
+  <%= @script_version %>
+</blockquote>
+
+<em>ruby version</em>
+<blockquote>
+  <%= @ruby_version %>
+</blockquote>
+
+<em>host uptime</em>
+<blockquote>
+  <%= @uptime %>
+</blockquote>

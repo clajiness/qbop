@@ -1,0 +1,24 @@
+<div class="terminal-nav">
+  <div class="terminal-logo">
+    <div class="logo terminal-prompt"><a href="/" class="no-style">welcome to qbop</a></div>
+  </div>
+  <nav class="terminal-menu">
+    <ul>
+      <li><a class="menu-item" href="/">home</a></li>
+      <li><a class="menu-item active" href="/logs">logs</a></li>
+      <li><a class="menu-item" href="/about">about</a></li>
+      <li><a class="menu-item" href="/api/stats" target="_blank">api</a></li>
+    </ul>
+  </nav>
+</div>
+<hr>
+<h3><u>last 50 lines of log output</u></h3>
+<section>
+  <pre>
+    <code>
+<% @output.each do |line| %>
+<%= line %>
+<% end %>
+    </code>
+  </pre>
+</section>

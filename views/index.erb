@@ -1,0 +1,32 @@
+<div class="terminal-nav">
+  <div class="terminal-logo">
+    <div class="logo terminal-prompt"><a href="/" class="no-style">welcome to qbop</a></div>
+  </div>
+  <nav class="terminal-menu">
+    <ul>
+      <li><a class="menu-item active" href="/">home</a></li>
+      <li><a class="menu-item" href="/logs">logs</a></li>
+      <li><a class="menu-item" href="/about">about</a></li>
+      <li><a class="menu-item" href="/api/stats" target="_blank">api</a></li>
+    </ul>
+  </nav>
+</div>
+<hr>
+<h3><u>stats</u></h3>
+
+<h4><em>protonvpn</em></h4>
+<blockquote>
+  current port: <%= @stats['proton_current_port'] %>
+</blockquote>
+
+<h4><em>opnsense</em></h4>
+<blockquote>
+  current port: <%= @stats['opn_current_port'] %><br>
+  last changed: <%= @stats['opn_updated_at'] %>
+</blockquote>
+
+<h4><em>qbittorrent</em></h4>
+<blockquote>
+  current port: <%= @stats['qbit_current_port'] %><br>
+  last changed: <%= @stats['qbit_updated_at'] %>
+</blockquote>
