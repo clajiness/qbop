@@ -26,5 +26,8 @@ apt update; \
 apt install -y build-essential libz-dev libsqlite3-dev libsqlite3-ruby natpmpc; \
 bundle install;
 
+# expose the port
+EXPOSE 4567
+
 # set up entrypoint
-ENTRYPOINT ["rackup", "/opt/qbop/config.ru"]
+ENTRYPOINT ["rackup", "/opt/qbop/config.ru", "-p", "4567"]
