@@ -30,4 +30,4 @@ bundle install;
 EXPOSE 4567
 
 # set up entrypoint
-ENTRYPOINT ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "4567"]
+ENTRYPOINT ["bundle", "exec", "puma", "-p", "4567", "-e", "production"]
