@@ -1,8 +1,10 @@
 services:
   qbop:
-    image: ghcr.io/clajiness/qbop
+    image: ghcr.io/clajiness/qbop:latest
     container_name: qbop
     restart: unless-stopped
+    ports:
+      - "4567:4567"
     volumes:
       - data:/opt/qbop/data/
       - /etc/timezone:/etc/timezone:ro
