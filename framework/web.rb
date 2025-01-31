@@ -17,4 +17,13 @@ class Web < Sinatra::Application # rubocop:disable Style/Documentation
 
     erb :logs
   end
+
+  get '/about' do
+    @repo_url = 'https://github.com/clajiness/qbop'
+    @script_version = ENV['VERSION']
+    @uptime = `uptime -p`.strip
+    @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
+
+    erb :about
+  end
 end

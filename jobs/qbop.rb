@@ -89,6 +89,9 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
           # reset counter if ports match
           counter.reset_opnsense_attempt if counter.opnsense_attempt != 0
           @logger.info("OPNsense port #{alias_port} matches Proton forwarded port #{forwarded_port}")
+
+          # set OPNsense port in stats
+          stats.set_opn_current_port(forwarded_port)
         end
 
         # set OPNsense Proton port alias if counter is set to true
@@ -155,6 +158,9 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
             # reset counter if ports match
             counter.reset_qbit_attempt if counter.qbit_attempt != 0
             @logger.info("qBit port #{qbt_port} matches Proton forwarded port #{forwarded_port}")
+
+            # set qBit port in stats
+            stats.set_qbit_current_port(forwarded_port)
           end
 
           # set qBit port if counter is set to true
