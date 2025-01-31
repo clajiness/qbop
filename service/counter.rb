@@ -13,12 +13,14 @@ module Service
       db_execute('select qbit_attempt from counters where id = 1').flatten.first
     end
 
-    def opnsense_change
-      db_execute('select opnsense_change from counters where id = 1').flatten.first
+    def opnsense_change?
+      change = db_execute('select opnsense_change from counters where id = 1').flatten.first
+      change == 1
     end
 
-    def qbit_change
-      db_execute('select qbit_change from counters where id = 1').flatten.first
+    def qbit_change?
+      change = db_execute('select qbit_change from counters where id = 1').flatten.first
+      change == 1
     end
 
     def increment_opnsense_attempt

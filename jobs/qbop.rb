@@ -86,7 +86,7 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
         end
 
         # set OPNsense Proton port alias if counter is set to true
-        if counter.opnsense_change
+        if counter.opnsense_change?
           # set OPNsense port alias
           response = opnsense.set_alias_value(forwarded_port, uuid)
 
@@ -148,7 +148,7 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
           end
 
           # set qBit port if counter is set to true
-          if counter.qbit_change
+          if counter.qbit_change?
             # set qBit port
             response = qbit.qbt_app_set_preferences(forwarded_port, sid)
 
