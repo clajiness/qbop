@@ -23,7 +23,7 @@ VOLUME /opt/qbop/data/
 # install necessary packages
 RUN \
 apt update; \
-apt install -y build-essential libz-dev libsqlite3-ruby natpmpc; \
+apt install -y build-essential libz-dev libsqlite3-dev libsqlite3-ruby natpmpc; \
 bundle install;
 
 # set up entrypoint
