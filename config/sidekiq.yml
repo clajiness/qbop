@@ -1,5 +1,0 @@
-:scheduler:
-  :schedule:
-    qbop_job:
-      every: "<%= ENV['QBOP_JOB_FREQ'] || 40 %> seconds"
-      class: Qbop

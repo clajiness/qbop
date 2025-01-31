@@ -6,7 +6,6 @@
     <ul>
       <li><a class="menu-item active" href="/">Home</a></li>
       <li><a class="menu-item" href="/logs">Logs</a></li>
-      <li><a class="menu-item" href="/sidekiq" target="_blank">Sidekiq</a></li>
       <li><a class="menu-item" href="/api/stats" target="_blank">API</a></li>
     </ul>
   </nav>
@@ -14,12 +13,6 @@
 <hr>
 <h3>stats</h3>
 <blockquote>
-  current port: <%= @stats[1] %><br>
-  last changed: <%= @stats[2] %>
-</blockquote>
-<hr>
-<h3>jobs</h3>
-<blockquote>
-  <%= @jobs_processed %> processed<br>
-  <%= @jobs_failed %> failed
+  current port: <%= @stats['current_port'] %><br>
+  last changed: <%= @stats['updated_at'] %>
 </blockquote>

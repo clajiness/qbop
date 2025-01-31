@@ -4,6 +4,7 @@ module Service
     def env_variables # rubocop:disable Metrics/MethodLength
       {
         script_version: ENV['VERSION'],
+        loop_freq: ENV['LOOP_FREQ'] || 45,
         required_attempts: ENV['REQUIRED_ATTEMPTS'] || 3,
         proton_gateway: ENV['PROTON_GATEWAY'] || '10.2.0.1',
         opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
@@ -15,6 +16,14 @@ module Service
         qbit_user: ENV['QBIT_USER'],
         qbit_pass: ENV['QBIT_PASS']
       }
+    end
+
+    def parse_loop_frequency(loop_freq)
+      if loop_freq&.to_i&.positive?
+        loop_freq&.to_i
+      else
+        45
+      end
     end
 
     def skip_qbit?(qbit_skip)

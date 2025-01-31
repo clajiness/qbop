@@ -9,7 +9,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
     environment:
     # This value determines how often the script runs. The default is 45 seconds. This value is recommended by ProtonVPN.
-      - QBOP_JOB_FREQ=
+      - LOOP_FREQ=
     # The number of loops with a new forwarded port before updating OPNsense and qBit. The default is 3, min is 1, and max is 10.
       - REQUIRED_ATTEMPTS=
     # Default is `10.2.0.1`. Do not use http(s):// or a trailing slash.
@@ -30,27 +30,6 @@ services:
       - QBIT_USER=
     # qBittorrent password
       - QBIT_PASS=
-  
-  redis:
-    image: redis:7.4.2
-    container_name: qbop-redis
-    restart: unless-stopped
-    command: ["redis-server"]
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      interval: 1s
-      timeout: 3s
-      retries: 5
-  
-  sidekiq:
-    depends_on:
-      - qbop
-      - redis
-    build: .
-    command: bundle exec sidekiq -r ./jobs/qbop.rb
 
 volumes:
   data:
-  redis_data:

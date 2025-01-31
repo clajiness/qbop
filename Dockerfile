@@ -10,8 +10,8 @@ WORKDIR /opt/qbop/
 
 # create necessary directories and copy files
 COPY config.ru Gemfile Gemfile.lock /opt/qbop/
-COPY config/ /opt/qbop/config/
 COPY data/ /opt/qbop/data/
+COPY framework/ /opt/qbop/framework/
 COPY jobs/ /opt/qbop/jobs/
 COPY service/ /opt/qbop/service/
 COPY views/ /opt/qbop/views/
