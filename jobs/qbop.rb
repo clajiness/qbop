@@ -14,6 +14,9 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
     # track the number of attempts to change the port in opnsense and qBit
     counter = Service::Counter.new
 
+    # track the current port for Proton, OPNsense, and qBit
+    stats = Service::Status.new
+
     # set up logger
     @logger = Logger.new('./data/log/qbop.log', 10, 1_024_000)
     @logger.info("starting qbop #{config[:script_version]}")
@@ -50,6 +53,9 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
           next
         else
           @logger.info("Proton returned the forwarded port #{forwarded_port}")
+
+          # set Proton port in stats
+          stats.set_proton_current_port(forwarded_port)
         end
       rescue StandardError => e
         @logger.error('Proton has returned an error:')
@@ -102,6 +108,10 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
               # reset counter
               counter.reset_opnsense_change
               counter.reset_opnsense_attempt
+
+              # set OPNsense port in stats
+              stats.set_opn_current_port(forwarded_port)
+              stats.set_opn_updated_at
             else
               @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
             end
@@ -158,6 +168,10 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
               # reset counter
               counter.reset_qbit_change
               counter.reset_qbit_attempt
+
+              # set qBit port in stats
+              stats.set_qbit_current_port(forwarded_port)
+              stats.set_qbit_updated_at
             else
               @logger.error("qBit port was not updated - response code: #{response.status}")
             end

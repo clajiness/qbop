@@ -32,8 +32,11 @@ module Service
       db.execute <<-SQL
         create table stats (
           ID INTEGER PRIMARY KEY AUTOINCREMENT,
-          current_port INTEGER,
-          updated_at TEXT
+          proton_current_port INTEGER,
+          opn_current_port INTEGER,
+          opn_updated_at TEXT,
+          qbit_current_port INTEGER,
+          qbit_updated_at TEXT
         );
       SQL
     end
@@ -53,7 +56,19 @@ module Service
           @qbit_change
         ]
 
-      db.execute 'insert into stats (current_port, updated_at) values (?, ?)', [1234, Time.now.to_s]
+      db.execute 'insert into stats (
+        proton_current_port,
+        opn_current_port,
+        opn_updated_at,
+        qbit_current_port,
+        qbit_updated_at
+        ) values (?, ?, ?, ?, ?)', [
+          1234,
+          1234,
+          Time.at(0).to_s,
+          1234,
+          Time.at(0).to_s
+        ]
     end
   end
 end
