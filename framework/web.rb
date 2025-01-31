@@ -10,7 +10,7 @@ class Web < Sinatra::Application # rubocop:disable Style/Documentation
 
   get '/logs' do
     output = []
-    File.readlines('data/log/qbop.log').last(25).each do |line|
+    File.readlines('data/log/qbop.log').last(50).each do |line|
       output << line
     end
     @output = output
@@ -21,8 +21,8 @@ class Web < Sinatra::Application # rubocop:disable Style/Documentation
   get '/about' do
     @repo_url = 'https://github.com/clajiness/qbop'
     @script_version = ENV['VERSION']
-    @uptime = `uptime -p`.strip
     @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
+    @uptime = `uptime -p`.strip
 
     erb :about
   end
