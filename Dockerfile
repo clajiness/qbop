@@ -2,8 +2,8 @@
 FROM ruby:3.4.1
 
 # set the version environment variable
-ARG VERSION_ARG
-ENV VERSION=${VERSION_ARG}
+ARG VERSION
+ENV VERSION=${VERSION}
 
 # set the working directory
 WORKDIR /opt/qbop/
