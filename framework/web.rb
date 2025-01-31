@@ -10,11 +10,9 @@ class Web < Sinatra::Application # rubocop:disable Style/Documentation
 
   get '/logs' do
     output = []
-
     File.readlines('data/log/qbop.log').last(25).each do |line|
       output << line
     end
-
     @output = output
 
     erb :logs

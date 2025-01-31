@@ -23,11 +23,11 @@ VOLUME /opt/qbop/data/
 # install necessary packages
 RUN \
 apt update; \
-apt install -y build-essential natpmpc libsqlite3-dev; \
+apt install -y build-essential natpmpc; \
 bundle install;
 
-# expose the port
+# expose the ui port
 EXPOSE 4567
 
 # set up entrypoint
-ENTRYPOINT ["rackup", "/opt/qbop/config.ru", "-p", "4567"]
+ENTRYPOINT ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "4567"]

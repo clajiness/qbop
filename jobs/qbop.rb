@@ -11,6 +11,9 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
     # set loop frequency
     loop_frequency = helpers.parse_loop_frequency(config[:loop_freq])
 
+    # track the number of attempts to change the port in opnsense and qBit
+    counter = Service::Counter.new
+
     # set up logger
     @logger = Logger.new('./data/log/qbop.log', 10, 1_024_000)
     @logger.info("starting qbop #{config[:script_version]}")
