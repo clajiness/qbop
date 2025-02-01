@@ -65,9 +65,9 @@ module Service
         ) values (?, ?, ?, ?, ?)', [
           1234,
           1234,
-          Time.at(0).to_s,
+          'unknown',
           1234,
-          Time.at(0).to_s
+          'unknown'
         ]
     end
   end
