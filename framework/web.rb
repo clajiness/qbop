@@ -9,11 +9,14 @@ class Web < Sinatra::Application # rubocop:disable Style/Documentation
   end
 
   get '/logs' do
+    log_lines = ENV['LOG_LINES'] || 50
+
     output = []
-    File.readlines('data/log/qbop.log').last(50).each do |line|
+    File.readlines('data/log/qbop.log').last(log_lines.to_i).each do |line|
       output << line
     end
     @output = output
+    @log_lines = log_lines
 
     erb :logs
   end
