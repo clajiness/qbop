@@ -1,4 +1,4 @@
-module Service
+module Framework
   class DbInitialization # rubocop:disable Style/Documentation
     def initialize
       @required_attempts = ENV['REQUIRED_ATTEMPTS'] || 3
@@ -65,9 +65,9 @@ module Service
         ) values (?, ?, ?, ?, ?)', [
           1234,
           1234,
-          Time.at(0).to_s,
+          'unknown',
           1234,
-          Time.at(0).to_s
+          'unknown'
         ]
     end
   end

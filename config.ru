@@ -6,12 +6,12 @@ Dir['./jobs/*.rb'].sort.each { |file| require_relative file }
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
 # initialize database, if necessary
-Service::DbInitialization.new unless File.exist?('data/prod.db')
+Framework::DbInitialization.new unless File.exist?('data/prod.db')
 
 # map sinatra and grape apps
 map '/' do
   use Rack::Session::Cookie, secret: SecureRandom.alphanumeric(64)
-  run Rack::Cascade.new([Web, API])
+  run Rack::Cascade.new([Framework::Web, Framework::API])
 
   # start the job(s)
   Qbop.perform_async

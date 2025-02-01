@@ -19,7 +19,7 @@ module Service
     end
 
     def parse_loop_frequency(loop_freq)
-      if loop_freq&.to_i&.positive?
+      if loop_freq&.to_i&.positive? && loop_freq&.to_i <= 60 && loop_freq >= 5
         loop_freq&.to_i
       else
         45
