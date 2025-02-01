@@ -12,9 +12,12 @@ module Framework
     get '/logs' do
       @log_lines = ENV['LOG_LINES'] || 50
 
+      file_path = 'data/log/qbop.log'
       output = []
-      File.readlines('data/log/qbop.log').last(@log_lines).each do |line|
-        output << line
+      if File.exist?(file_path)
+        File.readlines(file_path).last(@log_lines).each do |line|
+          output << line
+        end
       end
       @output = output
 

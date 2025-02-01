@@ -5,7 +5,7 @@ class TestJob # rubocop:disable Style/Documentation
     @logger = Logger.new('data/log/qbop.log', 10, 5_120_000)
     @logger.info('starting TestJob...')
 
-    stats = Service::Status.new
+    stats = Service::Stats.new
     loop do
       @logger.info("I'm doing some testing")
 

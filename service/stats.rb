@@ -1,5 +1,5 @@
 module Service
-  class Status # rubocop:disable Style/Documentation
+  class Stats # rubocop:disable Style/Documentation
     def set_proton_current_port(port)
       SQLite3::Database.open 'data/prod.db' do |db|
         db.execute('update stats set proton_current_port = ? where id = 1', port)
