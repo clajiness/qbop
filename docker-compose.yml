@@ -10,7 +10,7 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     environment:
-    # This value determines how often the script runs. The default is 45 seconds. This value is recommended by ProtonVPN.
+    # This value, in seconds, determines how often the job runs. The default is 45, min is 5, and max is 60. The default value is recommended by ProtonVPN.
       - LOOP_FREQ=
     # The number of loops with a new forwarded port before updating OPNsense and qBit. The default is 3, min is 1, and max is 10.
       - REQUIRED_ATTEMPTS=
@@ -32,6 +32,8 @@ services:
       - QBIT_USER=
     # qBittorrent password
       - QBIT_PASS=
+    # log_lines: The number of log lines to display. The default is 50.
+      - LOG_LINES=
 
 volumes:
   data:
