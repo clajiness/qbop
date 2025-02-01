@@ -28,7 +28,7 @@ The container image is available here: https://github.com/clajiness/qbop/pkgs/co
 The sample docker-compose.yml file is located here:
 https://github.com/clajiness/qbop/blob/main/docker-compose.yml
 
-1. `LOOP_FREQ:` This value, in seconds, determines how often the job runs. The default is `45`, min is `5`, and max is `60`. The default value is recommended by ProtonVPN.
+1. `LOOP_FREQ:` This value, in seconds, determines how often the job runs. The default is `45`. The default value is recommended by ProtonVPN.
 2. `REQUIRED_ATTEMPTS` The number of loops with a new forwarded port before updating OPNsense and qBit. The default is 3, min is 1, and max is 10.
 3. `PROTON_GATEWAY:` Default is `10.2.0.1`. Do not use http(s):// or a trailing slash.
 4. `OPN_INTERFACE_ADDR:` OPNsense Interface Address. Requires http(s):// and no trailing slash.
