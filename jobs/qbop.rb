@@ -1,5 +1,11 @@
-class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
+# Qbop is a class responsible for managing the synchronization of port forwarding settings
+# between ProtonVPN, OPNsense firewall, and qBittorrent. It runs in a continuous loop,
+# periodically checking and updating the port settings to ensure they are consistent across
+# all three services. The class uses the SuckerPunch::Job module to handle background job
+# processing and includes extensive logging for monitoring the process.
+class Qbop # rubocop:disable Metrics/ClassLength
   include SuckerPunch::Job
+  SuckerPunch.shutdown_timeout = 1
 
   def perform # rubocop:disable Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/MethodLength,Metrics/PerceivedComplexity
     # create Helpers object

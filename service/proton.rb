@@ -1,5 +1,6 @@
 module Service
-  # the Proton class provides methods for returning the port that Proton has forwarded
+  # The Proton class provides methods to interact with NAT-PMP (Network Address Translation Port Mapping Protocol)
+  # using the `natpmpc` command-line tool. It includes methods to execute NAT-PMP commands and parse the responses.
   class Proton
     def proton_natpmpc(proton_gateway)
       stdout, stderr, status = Open3.capture3(

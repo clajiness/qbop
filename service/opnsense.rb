@@ -1,5 +1,6 @@
 module Service
-  # the Opnsense class provides methods for getting and setting the OPNsense alias value for the Proton forwarded port
+  # The Opnsense class provides methods to interact with the OPNsense firewall API.
+  # It allows for retrieving and setting alias values, as well as applying changes to the firewall configuration.
   class Opnsense
     def initialize(config)
       @config = config
