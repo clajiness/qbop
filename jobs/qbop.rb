@@ -15,7 +15,7 @@ class Qbop # rubocop:disable Metrics/ClassLength,Style/Documentation
     counter = Service::Counter.new
 
     # track the current port for Proton, OPNsense, and qBit
-    stats = Service::Status.new
+    stats = Service::Stats.new
 
     # set up logger
     @logger = Logger.new('./data/log/qbop.log', 10, 1_024_000)

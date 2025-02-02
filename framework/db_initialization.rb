@@ -1,4 +1,4 @@
-module Service
+module Framework
   class DbInitialization # rubocop:disable Style/Documentation
     def initialize
       @required_attempts = ENV['REQUIRED_ATTEMPTS'] || 3
