@@ -1,10 +1,14 @@
 module Framework
-  class API < Grape::API # rubocop:disable Style/Documentation
+  # This class defines an API using the Grape framework.
+  # It sets the response format to JSON and prefixes all routes with '/api'.
+  # The API includes a single endpoint '/stats' that retrieves statistics from a SQLite3 database.
+  # The statistics include current port information for ProtonVPN, OPNsense, and qBittorrent.
+  class API < Grape::API
     format :json
     prefix :api
 
     get '/stats' do
-      SQLite3::Database.new 'data/prod.db' do |db|
+      SQLite3::Database.open 'data/prod.db' do |db|
         db.results_as_hash = true
         @stats = db.execute('select * from stats where id = 1').first
       end

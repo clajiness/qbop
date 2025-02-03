@@ -1,5 +1,8 @@
 module Service
-  # tracks the number of attempts to change the port in opnsense and qBit
+  # The Counter class provides methods to interact with a database table named 'counters'.
+  # It allows for retrieving and updating various attempt counts and change flags for 'opnsense' and 'qbit'.
+  # The class uses SQLite3 for database operations and assumes a specific schema for the 'counters' table.
+  # All database interactions are encapsulated within the class, providing a simple interface for the caller.
   class Counter
     def required_attempts
       db_execute('select required_attempts from counters where id = 1').flatten.first

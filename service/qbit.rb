@@ -1,5 +1,6 @@
 module Service
-  # the Qbit class provides methods for getting and setting the qBit forwarded port
+  # Qbit is a class responsible for interacting with the qBittorrent Web API.
+  # It provides methods to authenticate, retrieve application preferences, and set application preferences.
   class Qbit
     def initialize(config)
       @config = config

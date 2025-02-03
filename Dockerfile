@@ -13,6 +13,7 @@ COPY config.ru Gemfile Gemfile.lock /opt/qbop/
 COPY data/ /opt/qbop/data/
 COPY framework/ /opt/qbop/framework/
 COPY jobs/ /opt/qbop/jobs/
+COPY public/ /opt/qbop/public/
 COPY service/ /opt/qbop/service/
 COPY views/ /opt/qbop/views/
 RUN mkdir -p /opt/qbop/log/

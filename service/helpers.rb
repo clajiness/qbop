@@ -1,5 +1,6 @@
 module Service
-  # the Helpers class provides methods for setting environment variables and the script version
+  # The Helpers class provides utility methods for accessing environment variables
+  # and parsing specific configuration values used in the application.
   class Helpers
     def env_variables # rubocop:disable Metrics/MethodLength
       {
