@@ -1,5 +1,5 @@
 # Description: Dockerfile for qbop
-FROM ruby:3.4.1
+FROM ruby:3.3.7
 
 # set the version environment variable
 ARG VERSION
