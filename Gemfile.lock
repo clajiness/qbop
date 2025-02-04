@@ -139,6 +139,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  bigdecimal (~> 3.1, >= 3.1.9)
   faraday (~> 2.12, >= 2.12.2)
   grape (~> 2.2)
   json (~> 2.9, >= 2.9.1)

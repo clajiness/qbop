@@ -1,5 +1,6 @@
 source 'https://rubygems.org'
 
+gem 'bigdecimal', '~> 3.1', '>= 3.1.9'
 gem 'faraday', '~> 2.12', '>= 2.12.2'
 gem 'grape', '~> 2.2'
 gem 'json', '~> 2.9', '>= 2.9.1'
