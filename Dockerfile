@@ -27,6 +27,7 @@ apt update; \
 apt install -y build-essential ruby-dev ruby-full sqlite3 natpmpc libjemalloc-dev clang;
 
 # install gems
+RUN gem install bigdecimal -v 3.1.9;
 RUN bundle install;
 
 # expose the ui port
