@@ -1,4 +1,5 @@
 source 'https://rubygems.org'
+ruby file: '.ruby-version'
 
 gem 'faraday', '~> 2.12', '>= 2.12.2'
 gem 'grape', '~> 2.2'
