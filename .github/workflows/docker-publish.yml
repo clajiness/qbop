@@ -43,6 +43,9 @@ jobs:
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
       -
+        name: cat error log
+        run: cat /usr/local/bundle/extensions/powerpc64le-linux/3.4.0/bigdecimal-3.1.9/mkmf.log
+      -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main'
         uses: docker/build-push-action@v6
@@ -50,7 +53,8 @@ jobs:
             VERSION: ${{ steps.most_recent_tag.outputs.tag }}
         with:
           build-args: VERSION=${{ env.VERSION }}
-          platforms: linux/386, linux/amd64, linux/arm/v5, linux/arm/v7, linux/arm64/v8, linux/mips64le, linux/ppc64le, linux/s390x
+          # platforms: linux/386, linux/amd64, linux/arm/v5, linux/arm/v7, linux/arm64/v8, linux/mips64le, linux/ppc64le, linux/s390x
+          platforms: linux/ppc64le
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ env.VERSION }}
       -
