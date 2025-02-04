@@ -41,13 +41,12 @@ jobs:
         name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential pkg-config ruby-dev natpmpc
+          sudo apt install -y build-essential natpmpc
       - 
         name: Set up Ruby
         uses: ruby/setup-ruby@v1
-      -
-        name: Install Ruby gems
-        run: bundle install
+        with:
+          bundler-cache: true
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main'
