@@ -24,7 +24,7 @@ VOLUME /opt/qbop/data/
 # install necessary packages
 RUN \
 apt update; \
-apt install -y build-essential ruby-dev sqlite3 natpmpc;
+apt install -y build-essential ruby-dev sqlite3 natpmpc libz-dev libjemalloc-dev libgmp-dev ruby-full;
 
 RUN bundle install;
 
