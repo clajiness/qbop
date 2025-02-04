@@ -24,8 +24,9 @@ VOLUME /opt/qbop/data/
 # install necessary packages
 RUN \
 apt update; \
-apt install -y build-essential pkg-config natpmpc; \
-bundle install;
+apt install -y build-essential natpmpc;
+
+RUN bundle install;
 
 # expose the ui port
 EXPOSE 4567
