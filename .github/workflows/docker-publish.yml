@@ -40,8 +40,8 @@ jobs:
       -
         name: Install dependencies
         run: |
-          apt update
-          apt install -y build-essential pkg-config ruby-dev natpmpc
+          sudo apt update
+          sudo apt install -y build-essential pkg-config ruby-dev natpmpc
       -
         name: Install Ruby gems
         run: bundle install
