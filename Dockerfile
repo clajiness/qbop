@@ -26,6 +26,7 @@ RUN \
 apt update; \
 apt install -y build-essential ruby-dev ruby-full sqlite3 natpmpc libjemalloc-dev clang;
 
+# install gems
 RUN bundle install;
 
 # expose the ui port
