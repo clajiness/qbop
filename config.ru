@@ -6,7 +6,7 @@ Dir['./jobs/*.rb'].sort.each { |file| require_relative file }
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
 # initialize database, if necessary
-Framework::DbInitialization.new unless File.exist?('data/prod.db')
+Service::DbInitialization.new unless File.exist?('data/prod.db')
 
 # map sinatra and grape apps
 map '/' do

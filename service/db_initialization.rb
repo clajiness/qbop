@@ -1,4 +1,4 @@
-module Framework
+module Service
   # This class handles the initialization of the database for the application.
   # It creates the necessary tables and populates them with initial data.
   # The database used is SQLite3 and the tables created are 'counters' and 'stats'.
