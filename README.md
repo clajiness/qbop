@@ -17,7 +17,7 @@ I recommend using the provided Docker Compose file to simplify the set up of qbo
 The container image is available here: https://github.com/clajiness/qbop/pkgs/container/qbop
 
 ### Requirements
-* AMD64 or ARM64/v8 archetecture - If you need support for a different archetecture, file an issue.
+* AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
 * Docker Engine - https://docs.docker.com/engine/install/
 * OPNsense
     * Selective routing: https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html
