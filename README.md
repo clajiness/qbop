@@ -18,15 +18,15 @@ The container image is available here: https://github.com/clajiness/qbop/pkgs/co
 
 ### Requirements
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
-* Docker Engine - https://docs.docker.com/engine/install/
+* [Docker Engine](https://docs.docker.com/engine/install/)
 * OPNsense
-    * Selective routing: https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html
-    * API: https://docs.opnsense.org/development/how-tos/api.html
-* qBittorrent
-* ProtonVPN subscription
+    * [Selective routing](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html)
+    * [API](https://docs.opnsense.org/development/how-tos/api.html)
+* [qBittorrent](https://www.qbittorrent.org/)
+* [ProtonVPN](https://protonvpn.com/support/port-forwarding)
 
-### ENV variables for Docker Compose file
-The sample docker-compose.yml file is located here:
+### ENV variables
+The sample docker-compose.yml file is available here:
 https://github.com/clajiness/qbop/blob/main/docker-compose.yml
 
 | Variable | Default | Description |
