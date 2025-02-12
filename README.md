@@ -29,14 +29,16 @@ The container image is available here: https://github.com/clajiness/qbop/pkgs/co
 The sample docker-compose.yml file is located here:
 https://github.com/clajiness/qbop/blob/main/docker-compose.yml
 
-1. `LOOP_FREQ:` This value, in seconds, determines how often the job runs, and must be a positive integer. The default is `45`. The default value is recommended by ProtonVPN.
-2. `REQUIRED_ATTEMPTS` The number of loops with a new forwarded port before updating OPNsense and qBit. The default is 3, min is 1, and max is 10.
-3. `PROTON_GATEWAY:` Default is `10.2.0.1`. Do not use http(s):// or a trailing slash.
-4. `OPN_INTERFACE_ADDR:` OPNsense Interface Address. Requires http(s):// and no trailing slash.
-5. `OPN_API_KEY:` OPNsense API Key
-6. `OPN_API_SECRET:` OPNsense API Secret
-7. `OPN_PROTON_ALIAS_NAME:` The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`.
-8. `QBIT_SKIP:` [`true`/`false`] Skip qBittorrent. If `true`, subsequent qBit environment variables are not required.
-9. `QBIT_ADDR:` The IP address of your qBittorrent app. Requires http(s):// and no trailing slash.
-10. `QBIT_USER:` qBittorrent username
-11. `QBIT_PASS:` qBittorrent password
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `LOOP_FREQ` | `45` | This value, in seconds, determines how often the job runs. It must be a positive integer. The default value is recommended by ProtonVPN. |
+| `REQUIRED_ATTEMPTS` | `3` | The number of loops with a new forwarded port before updating OPNsense and qBit. The min is 1, and max is 10. |
+| `PROTON_GATEWAY` | `10.2.0.1` | ProtonVPN provided gateway IP address. Do not use `http(s)://` or a trailing slash. |
+| `OPN_INTERFACE_ADDR` | | OPNsense Interface Address. Requires `http(s)://` and no trailing slash. |
+| `OPN_API_KEY` | | OPNsense API Key |
+| `OPN_API_SECRET` | | OPNsense API Secret |
+| `OPN_PROTON_ALIAS_NAME` | | The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`. |
+| `QBIT_SKIP` | `false` | [`true`/`false`] Skip qBittorrent. If `true`, subsequent qBit environment variables are not required. |
+| `QBIT_ADDR` | | The IP address of your qBittorrent app. Requires `http(s)://` and no trailing slash. |
+| `QBIT_USER` | | qBittorrent username |
+| `QBIT_PASS` | | qBittorrent password |
