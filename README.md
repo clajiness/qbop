@@ -42,3 +42,4 @@ https://github.com/clajiness/qbop/blob/main/docker-compose.yml
 | `QBIT_ADDR` | | The IP address of your qBittorrent app. Requires `http(s)://` and no trailing slash. |
 | `QBIT_USER` | | qBittorrent username |
 | `QBIT_PASS` | | qBittorrent password |
+| `LOG_LINES` | `50` | The number of log lines displayed on the "logs" page |
