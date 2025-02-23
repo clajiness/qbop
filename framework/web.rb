@@ -36,7 +36,6 @@ module Framework
       @app_version = ENV['VERSION']
       @schema_version = Service::Helpers.new.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
-      @uptime = `uptime -p`.strip
       @repo_url = 'https://github.com/clajiness/qbop'
 
       @loop_freq = ENV['LOOP_FREQ']

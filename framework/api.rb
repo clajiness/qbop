@@ -35,8 +35,7 @@ module Framework
       { 'about' => {
         app_version: ENV['VERSION'],
         schema_version: Service::Helpers.new.get_db_version,
-        ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})",
-        uptime: `uptime -p`.strip
+        ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
       } }
     end
   end
