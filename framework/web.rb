@@ -44,13 +44,13 @@ module Framework
       @log_lines = ENV['LOG_LINES']
       @proton_gateway = ENV['PROTON_GATEWAY']
       @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
-      @opn_api_key = '...'
-      @opn_api_secret = '...'
+      @opn_api_key = '***'
+      @opn_api_secret = '***'
       @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
       @qbit_skip = ENV['QBIT_SKIP']
       @qbit_addr = ENV['QBIT_ADDR']
       @qbit_user = ENV['QBIT_USER']
-      @qbit_pass = '...'
+      @qbit_pass = '***'
 
       erb :about
     end
