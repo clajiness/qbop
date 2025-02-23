@@ -45,6 +45,7 @@ module Framework
       @required_attempts = ENV['REQUIRED_ATTEMPTS']
       @log_lines = ENV['LOG_LINES']
       @proton_gateway = ENV['PROTON_GATEWAY']
+      @opn_skip = ENV['OPN_SKIP']
       @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
       @opn_api_key = '***'
       @opn_api_secret = '***'
