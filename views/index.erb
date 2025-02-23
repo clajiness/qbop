@@ -13,6 +13,8 @@
 </div>
 <hr>
 
+<a class="btn btn-primary" href="/">refresh</a><br><br>
+
 <h4><em>protonvpn</em></h4>
 <blockquote>
   current port: <%= @stats['proton_current_port'] %><br>
@@ -21,14 +23,22 @@
 
 <h4><em>opnsense</em></h4>
 <blockquote>
+  <% if @opn_skip %>
+  skipped per the OPN_SKIP ENV variable
+  <% else %>
   current port: <%= @stats['opn_current_port'] %><br>
   last checked: <%= @stats['opn_last_checked'] %><br>
   last changed: <%= @stats['opn_updated_at'] %>
+  <% end %>
 </blockquote>
 
 <h4><em>qbittorrent</em></h4>
 <blockquote>
+  <% if @qbit_skip %>
+  skipped per the QBIT_SKIP ENV variable
+  <% else %>
   current port: <%= @stats['qbit_current_port'] %><br>
   last checked: <%= @stats['qbit_last_checked'] %><br>
   last changed: <%= @stats['qbit_updated_at'] %>
+  <% end %>
 </blockquote>

@@ -8,6 +8,7 @@ module Service
         loop_freq: ENV['LOOP_FREQ'] || 45,
         required_attempts: ENV['REQUIRED_ATTEMPTS'] || 3,
         proton_gateway: ENV['PROTON_GATEWAY'] || '10.2.0.1',
+        opnsense_skip: ENV['OPN_SKIP'] || 'false',
         opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
         opnsense_api_key: ENV['OPN_API_KEY'],
         opnsense_api_secret: ENV['OPN_API_SECRET'],
@@ -27,8 +28,8 @@ module Service
       end
     end
 
-    def skip_qbit?(qbit_skip)
-      qbit_skip&.to_s&.downcase == 'true'
+    def skip_section?(skip)
+      skip&.to_s&.downcase == 'true'
     end
 
     def get_db_version

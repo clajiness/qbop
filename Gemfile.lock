@@ -120,9 +120,9 @@ GEM
       rack-protection (= 4.1.1)
       rack-session (>= 2.0.0, < 3)
       tilt (~> 2.0)
-    sqlite3 (2.5.0)
+    sqlite3 (2.6.0)
       mini_portile2 (~> 2.8.0)
-    sqlite3 (2.5.0-arm64-darwin)
+    sqlite3 (2.6.0-arm64-darwin)
     sucker_punch (3.2.0)
       concurrent-ruby (~> 1.0)
     tilt (2.6.0)
@@ -150,7 +150,7 @@ DEPENDENCIES
   rspec (~> 3.13)
   rubocop (~> 1.71, >= 1.71.2)
   sinatra (~> 4.1, >= 4.1.1)
-  sqlite3 (~> 2.5)
+  sqlite3 (~> 2.6)
   sucker_punch (~> 3.2)
   uri (~> 1.0, >= 1.0.2)
 
@@ -203,8 +203,8 @@ CHECKSUMS
   ruby2_keywords (0.0.5) sha256=ffd13740c573b7301cf7a2e61fc857b2a8e3d3aff32545d6f8300d8bae10e3ef
   securerandom (0.4.1) sha256=cc5193d414a4341b6e225f0cb4446aceca8e50d5e1888743fac16987638ea0b1
   sinatra (4.1.1) sha256=4e997b859aa1b5d2e624f85d5b0fd0f0b3abc0da44daa6cbdf10f7c0da9f4d00
-  sqlite3 (2.5.0) sha256=87fa0036e6369c3f3cfeca749865c2b2b63649d3b17b223d1939a8eed4841a6b
-  sqlite3 (2.5.0-arm64-darwin) sha256=65370ddbc7bd7e65a03c18f8bf0e9be0f4f3cf50f758f8c1d3181aece5515ecf
+  sqlite3 (2.6.0) sha256=a1c625f11948e6726eb082700283a8a3f4cf20b0548c0051c6104c56fedbe314
+  sqlite3 (2.6.0-arm64-darwin) sha256=88a793bf0010339e85657e460ab3ad2c7e9ee5d0e468b9dea383ff1039380056
   sucker_punch (3.2.0) sha256=8eeb8d59254210f85b57fc9534c5a64f5e7d7498060dd6b9b50e33a89b100567
   tilt (2.6.0) sha256=263d748466e0d83e510aa1a2e2281eff547937f0ef06be33d3632721e255f76b
   tzinfo (2.0.6) sha256=8daf828cc77bcf7d63b0e3bdb6caa47e2272dcfaf4fbfe46f8c3a9df087a829b

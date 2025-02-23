@@ -74,74 +74,79 @@ class Qbop # rubocop:disable Metrics/ClassLength
       end
 
       # OPNsense section
-      begin
-        # create OPNsense object
-        opnsense ||= Service::Opnsense.new(config)
+      if helpers.skip_section?(config[:opnsense_skip])
+        # ignore OPNsense section
+        @logger.info('OPNsense check skipped')
+      else
+        begin
+          # create OPNsense object
+          opnsense ||= Service::Opnsense.new(config)
 
-        # get OPNsense proton alias uuid
-        uuid = opnsense.get_alias_uuid
+          # get OPNsense proton alias uuid
+          uuid = opnsense.get_alias_uuid
 
-        # get OPNsense alias value
-        alias_port = opnsense.get_alias_value(uuid)
+          # get OPNsense alias value
+          alias_port = opnsense.get_alias_value(uuid)
 
-        if alias_port != forwarded_port
-          # increment counter
-          counter.increment_opnsense_attempt
+          if alias_port != forwarded_port
+            # increment counter
+            counter.increment_opnsense_attempt
 
-          # after x attempts, if the ports still don't match, set the OPNsense port to be updated
-          counter.change_opnsense if counter.opnsense_attempt >= counter.required_attempts
+            # after x attempts, if the ports still don't match, set the OPNsense port to be updated
+            counter.change_opnsense if counter.opnsense_attempt >= counter.required_attempts
 
-          @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.opnsense_attempt} of #{counter.required_attempts}.") # rubocop:disable Layout/LineLength
-        else
-          # reset counter if ports match
-          counter.reset_opnsense_attempt if counter.opnsense_attempt != 0
-          @logger.info("OPNsense port #{alias_port} matches Proton forwarded port #{forwarded_port}")
-
-          # set OPNsense port in stats
-          stats.set_opn_current_port(forwarded_port)
-          stats.set_opn_last_checked
-        end
-
-        # set OPNsense Proton port alias if counter is set to true
-        if counter.opnsense_change?
-          # set OPNsense port alias
-          response = opnsense.set_alias_value(forwarded_port, uuid)
-
-          if response.status == 200
-            @logger.info("OPNsense alias has been updated to #{forwarded_port}")
-
-            # apply changes
-            changes = opnsense.apply_changes
-
-            if changes.status == 200
-              @logger.info('OPNsense alias applied successfully')
-
-              # reset counter
-              counter.reset_opnsense_change
-              counter.reset_opnsense_attempt
-
-              # set OPNsense port in stats
-              stats.set_opn_current_port(forwarded_port)
-              stats.set_opn_last_checked
-              stats.set_opn_updated_at
-            else
-              @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
-            end
+            @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.opnsense_attempt} of #{counter.required_attempts}.") # rubocop:disable Layout/LineLength
           else
-            @logger.error("OPNsense's alias was not updated - response code: #{response.status}")
-          end
-        end
-      rescue StandardError => e
-        @logger.error('OPNsense has returned an error:')
-        @logger.error(e)
+            # reset counter if ports match
+            counter.reset_opnsense_attempt if counter.opnsense_attempt != 0
+            @logger.info("OPNsense port #{alias_port} matches Proton forwarded port #{forwarded_port}")
 
-        @logger.info("sleeping for #{loop_frequency} seconds and trying again")
-        sleep loop_frequency
-        next
+            # set OPNsense port in stats
+            stats.set_opn_current_port(forwarded_port)
+            stats.set_opn_last_checked
+          end
+
+          # set OPNsense Proton port alias if counter is set to true
+          if counter.opnsense_change?
+            # set OPNsense port alias
+            response = opnsense.set_alias_value(forwarded_port, uuid)
+
+            if response.status == 200
+              @logger.info("OPNsense alias has been updated to #{forwarded_port}")
+
+              # apply changes
+              changes = opnsense.apply_changes
+
+              if changes.status == 200
+                @logger.info('OPNsense alias applied successfully')
+
+                # reset counter
+                counter.reset_opnsense_change
+                counter.reset_opnsense_attempt
+
+                # set OPNsense port in stats
+                stats.set_opn_current_port(forwarded_port)
+                stats.set_opn_last_checked
+                stats.set_opn_updated_at
+              else
+                @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
+              end
+            else
+              @logger.error("OPNsense's alias was not updated - response code: #{response.status}")
+            end
+          end
+        rescue StandardError => e
+          @logger.error('OPNsense has returned an error:')
+          @logger.error(e)
+
+          @logger.info("sleeping for #{loop_frequency} seconds and trying again")
+          sleep loop_frequency
+          next
+        end
       end
 
       # qBit section
-      if helpers.skip_qbit?(config[:qbit_skip])
+      if helpers.skip_section?(config[:qbit_skip])
         # ignore qBit section
         @logger.info('qBit check skipped')
       else
