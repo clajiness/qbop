@@ -11,8 +11,10 @@ module Framework
         @stats = db.execute('select * from stats where id = 1').first
       end
 
-      @opn_skip = ENV['OPN_SKIP']
-      @qbit_skip = ENV['QBIT_SKIP']
+      helpers = Service::Helpers.new
+
+      @opn_skip = helpers.skip_section?(ENV['OPN_SKIP'])
+      @qbit_skip = helpers.skip_section?(ENV['QBIT_SKIP'])
 
       erb :index
     end
