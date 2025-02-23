@@ -14,6 +14,7 @@ services:
       - LOOP_FREQ=
       - REQUIRED_ATTEMPTS=
       - PROTON_GATEWAY=
+      - OPN_SKIP=
       - OPN_INTERFACE_ADDR=
       - OPN_API_KEY=
       - OPN_API_SECRET=

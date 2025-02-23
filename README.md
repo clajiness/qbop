@@ -1,7 +1,7 @@
 # qbop
-A tool for keeping ProtonVPN, OPNsense, and qBittorrent forwarded ports in sync. The tool offers a web UI and API with stats and logging via `http://<host_ip>:4567/`.
+A tool for maintaining a forwarded port from ProtonVPN, while keeping OPNsense and qBittorrent in sync. The tool offers a simple web UI and API with stats and logging via `http://<host_ip>:4567/`.
 
-qbop is built using Ruby, Rack, Sinatra, Grape, and SQLite, and deployed as a Docker container.
+qbop is built with Ruby and available as a Docker image.
 
 > [!WARNING]
 > I'm not responsible for any issues you may encounter.
@@ -9,10 +9,10 @@ qbop is built using Ruby, Rack, Sinatra, Grape, and SQLite, and deployed as a Do
 ## Purpose
 This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the forwarded port, checks the ports set in OPNsense and qBittorrent, and updates them if necessary.
 
-You can ignore qBittorrent by using the `QBIT_SKIP` environment variable.
+You can ignore OPNsense and qBittorrent by using the `OPN_SKIP` and `QBIT_SKIP` environment variables.
 
 ## Installation
-I recommend using the provided Docker Compose file to simplify the set up of qbop. This container must be connected to ProtonVPN due to the required `natpmpc` command.
+I recommend using the provided Docker Compose file to simplify the set up of qbop. This container must be connected to ProtonVPN due to the required `natpmpc` dependency.
 
 The container image is available here: https://github.com/clajiness/qbop/pkgs/container/qbop
 
@@ -35,6 +35,7 @@ https://github.com/clajiness/qbop/blob/main/docker-compose.yml
 | `REQUIRED_ATTEMPTS` | `3` | The number of loops with a new forwarded port before updating OPNsense and qBit. The min is 1, and max is 10. |
 | `LOG_LINES` | `50` | The number of log lines displayed on the "logs" page |
 | `PROTON_GATEWAY` | `10.2.0.1` | ProtonVPN provided gateway IP address. Do not use `http(s)://` or a trailing slash. |
+| `OPN_SKIP` | `false` | [`true`/`false`] Skip OPNsense. If `true`, subsequent OPNsense environment variables are not required. |
 | `OPN_INTERFACE_ADDR` | | OPNsense Interface Address. Requires `http(s)://` and no trailing slash. |
 | `OPN_API_KEY` | | OPNsense API Key |
 | `OPN_API_SECRET` | | OPNsense API Secret |

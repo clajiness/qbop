@@ -11,6 +11,9 @@ module Framework
         @stats = db.execute('select * from stats where id = 1').first
       end
 
+      @opn_skip = ENV['OPN_SKIP']
+      @qbit_skip = ENV['QBIT_SKIP']
+
       erb :index
     end
 
