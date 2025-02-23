@@ -5,8 +5,9 @@ Dir['./framework/*.rb'].sort.each { |file| require_relative file }
 Dir['./jobs/*.rb'].sort.each { |file| require_relative file }
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
-# initialize database, if necessary
+# initialize database and run migrations, if necessary
 Service::DbInitialization.new unless File.exist?('data/prod.db')
+Service::DbMigration.new
 
 # map sinatra and grape apps
 map '/' do
@@ -15,5 +16,4 @@ map '/' do
 
   # start the job(s)
   Qbop.perform_async
-  # TestJob.perform_async
 end

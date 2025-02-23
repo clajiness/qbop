@@ -33,6 +33,7 @@ https://github.com/clajiness/qbop/blob/main/docker-compose.yml
 | :--- | :--- | :--- |
 | `LOOP_FREQ` | `45` | This value, in seconds, determines how often the job runs. It must be a positive integer. The default value is recommended by ProtonVPN. |
 | `REQUIRED_ATTEMPTS` | `3` | The number of loops with a new forwarded port before updating OPNsense and qBit. The min is 1, and max is 10. |
+| `LOG_LINES` | `50` | The number of log lines displayed on the "logs" page |
 | `PROTON_GATEWAY` | `10.2.0.1` | ProtonVPN provided gateway IP address. Do not use `http(s)://` or a trailing slash. |
 | `OPN_INTERFACE_ADDR` | | OPNsense Interface Address. Requires `http(s)://` and no trailing slash. |
 | `OPN_API_KEY` | | OPNsense API Key |
@@ -42,4 +43,3 @@ https://github.com/clajiness/qbop/blob/main/docker-compose.yml
 | `QBIT_ADDR` | | The IP address of your qBittorrent app. Requires `http(s)://` and no trailing slash. |
 | `QBIT_USER` | | qBittorrent username |
 | `QBIT_PASS` | | qBittorrent password |
-| `LOG_LINES` | `50` | The number of log lines displayed on the "logs" page |

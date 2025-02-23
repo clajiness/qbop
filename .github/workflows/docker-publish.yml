@@ -2,8 +2,9 @@ name: qbop_ci
 
 on:
   push:
-    tags:
-      - 'v[0-9].[0-9]+.[0-9]+'
+    branches:
+      - "**"
+      - "!main"
   pull_request:
     types:
       - closed
@@ -19,16 +20,7 @@ jobs:
     steps:
       -
         name: Checkout
-        uses: actions/checkout@v4
-      - 
-        name: Get most recent tag
-        id: most_recent_tag
-        uses: oprypin/find-latest-tag@dd2729fe78b0bb55523ae2b2a310c6773a652bd1 # v1.1.2
-        with:
-          repository: ${{ github.repository }}
-          releases-only: false
-          sort-tags: false
-          prefix: 'v'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@4574d27a4764455b42196d70a065bc6853246a25 # v3.4.0
@@ -42,12 +34,18 @@ jobs:
           registry: ghcr.io
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
+      - 
+        name: Read file contents
+        uses: guibranco/github-file-reader-action-v2@bde4676213ab919ff7ca93b9a766b9caf2894910 # v2.2.746
+        id: file_contents
+        with:
+          path: "version.yml"
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main'
         uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
         env:
-            VERSION: ${{ steps.most_recent_tag.outputs.tag }}
+            VERSION: ${{ steps.file_contents.outputs.contents }}
         with:
           build-args: VERSION=${{ env.VERSION }}
           platforms: linux/amd64,linux/arm64/v8
@@ -55,10 +53,10 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:${{ env.VERSION }}
       -
         name: Build and push to main
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true
         uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
         env:
-            VERSION: ${{ steps.most_recent_tag.outputs.tag }}
+            VERSION: ${{ steps.file_contents.outputs.contents }}
         with:
           build-args: VERSION=${{ env.VERSION }}
           platforms: linux/amd64,linux/arm64/v8

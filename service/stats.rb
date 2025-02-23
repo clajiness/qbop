@@ -9,8 +9,16 @@ module Service
       db_execute('update stats set proton_current_port = ? where id = 1', port)
     end
 
+    def set_proton_last_checked
+      db_execute('update stats set proton_last_checked = ? where id = 1', Time.now.to_s)
+    end
+
     def set_opn_current_port(port)
       db_execute('update stats set opn_current_port = ? where id = 1', port)
+    end
+
+    def set_opn_last_checked
+      db_execute('update stats set opn_last_checked = ? where id = 1', Time.now.to_s)
     end
 
     def set_opn_updated_at
@@ -19,6 +27,10 @@ module Service
 
     def set_qbit_current_port(port)
       db_execute('update stats set qbit_current_port = ? where id = 1', port)
+    end
+
+    def set_qbit_last_checked
+      db_execute('update stats set qbit_last_checked = ? where id = 1', Time.now.to_s)
     end
 
     def set_qbit_updated_at

@@ -30,5 +30,15 @@ module Service
     def skip_qbit?(qbit_skip)
       qbit_skip&.to_s&.downcase == 'true'
     end
+
+    def get_db_version
+      user_version = 0
+
+      SQLite3::Database.open 'data/prod.db' do |db|
+        user_version = db.execute('pragma user_version;').flatten.first
+      end
+
+      user_version
+    end
   end
 end
