@@ -36,6 +36,8 @@ module Framework
     end
 
     get '/about' do
+      helpers = Service::Helpers.new
+
       @app_version = ENV['VERSION']
       @schema_version = Service::Helpers.new.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
@@ -45,12 +47,12 @@ module Framework
       @required_attempts = ENV['REQUIRED_ATTEMPTS']
       @log_lines = ENV['LOG_LINES']
       @proton_gateway = ENV['PROTON_GATEWAY']
-      @opn_skip = ENV['OPN_SKIP']
+      @opn_skip = helpers.skip_section?(ENV['OPN_SKIP'])
       @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
       @opn_api_key = '***'
       @opn_api_secret = '***'
       @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
-      @qbit_skip = ENV['QBIT_SKIP']
+      @qbit_skip = helpers.skip_section?(ENV['QBIT_SKIP'])
       @qbit_addr = ENV['QBIT_ADDR']
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
