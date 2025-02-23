@@ -12,7 +12,7 @@ module Service
         opnsense_api_key: ENV['OPN_API_KEY'],
         opnsense_api_secret: ENV['OPN_API_SECRET'],
         opnsense_alias_name: ENV['OPN_PROTON_ALIAS_NAME'],
-        qbit_skip: ENV['QBIT_SKIP'],
+        qbit_skip: ENV['QBIT_SKIP'] || 'false',
         qbit_addr: ENV['QBIT_ADDR'],
         qbit_user: ENV['QBIT_USER'],
         qbit_pass: ENV['QBIT_PASS']
