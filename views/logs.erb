@@ -4,15 +4,15 @@
   </div>
   <nav class="terminal-menu">
     <ul>
-      <li><a class="menu-item" href="/">home</a></li>
+      <li><a class="menu-item" href="/">stats</a></li>
+      <li><a class="menu-item" href="/api-docs">api</a></li>
       <li><a class="menu-item active" href="/logs">logs</a></li>
       <li><a class="menu-item" href="/about">about</a></li>
-      <li><a class="menu-item" href="/api/stats" target="_blank">api</a></li>
     </ul>
   </nav>
 </div>
 <hr>
-<h3><u>last <%= @log_lines %> lines of log output</u></h3>
+<h4><em>last <%= @log_lines %> lines of log output</em></h4>
 <section>
   <pre>
     <code>

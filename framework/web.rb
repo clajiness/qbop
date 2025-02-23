@@ -14,6 +14,10 @@ module Framework
       erb :index
     end
 
+    get '/api-docs' do
+      erb :api_docs
+    end
+
     get '/logs' do
       log_lines = ENV['LOG_LINES'] || 50
       output = []
@@ -29,10 +33,23 @@ module Framework
     end
 
     get '/about' do
-      @repo_url = 'https://github.com/clajiness/qbop'
-      @script_version = ENV['VERSION']
+      @app_version = ENV['VERSION']
+      @schema_version = Service::Helpers.new.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
-      @uptime = `uptime -p`.strip
+      @repo_url = 'https://github.com/clajiness/qbop'
+
+      @loop_freq = ENV['LOOP_FREQ']
+      @required_attempts = ENV['REQUIRED_ATTEMPTS']
+      @log_lines = ENV['LOG_LINES']
+      @proton_gateway = ENV['PROTON_GATEWAY']
+      @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
+      @opn_api_key = '***'
+      @opn_api_secret = '***'
+      @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
+      @qbit_skip = ENV['QBIT_SKIP']
+      @qbit_addr = ENV['QBIT_ADDR']
+      @qbit_user = ENV['QBIT_USER']
+      @qbit_pass = '***'
 
       erb :about
     end

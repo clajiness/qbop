@@ -15,16 +15,27 @@ module Framework
 
       { 'stats' => {
         'protonvpn' => {
-          'current_port': @stats['proton_current_port']
+          'current_port': @stats['proton_current_port'],
+          'last_checked': @stats['proton_last_checked']
         },
         'opnsense' => {
           'current_port': @stats['opn_current_port'],
-          'updated_at': @stats['opn_updated_at']
+          'last_checked': @stats['opn_last_checked'],
+          'last_changed': @stats['opn_updated_at']
         },
         'qbit' => {
           'current_port': @stats['qbit_current_port'],
-          'updated_at': @stats['qbit_updated_at']
+          'last_checked': @stats['qbit_last_checked'],
+          'last_changed': @stats['qbit_updated_at']
         }
+      } }
+    end
+
+    get '/about' do
+      { 'about' => {
+        app_version: ENV['VERSION'],
+        schema_version: Service::Helpers.new.get_db_version,
+        ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
       } }
     end
   end

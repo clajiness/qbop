@@ -4,32 +4,48 @@
   </div>
   <nav class="terminal-menu">
     <ul>
-      <li><a class="menu-item" href="/">home</a></li>
+      <li><a class="menu-item" href="/">stats</a></li>
+      <li><a class="menu-item" href="/api-docs">api</a></li>
       <li><a class="menu-item" href="/logs">logs</a></li>
       <li><a class="menu-item active" href="/about">about</a></li>
-      <li><a class="menu-item" href="/api/stats" target="_blank">api</a></li>
     </ul>
   </nav>
 </div>
 <hr>
-<h3><u>about</u></h3>
 
-<em>app version</em>
+<h4><em>app version</em></h4>
 <blockquote>
-  <%= @script_version %>
+  <%= @app_version %>
 </blockquote>
 
-<em>ruby version</em>
+<h4><em>database version</em></h4>
+<blockquote>
+  <%= @schema_version %>
+</blockquote>
+
+<h4><em>ruby version</em></h4>
 <blockquote>
   <%= @ruby_version %>
 </blockquote>
 
-<em>host uptime</em>
-<blockquote>
-  <%= @uptime %>
-</blockquote>
-
-<em>github repo</em>
+<h4><em>github repo</em></h4>
 <blockquote>
   <a href="<%= @repo_url %>" target="_blank"><%= @repo_url %></a>
+</blockquote>
+<hr>
+
+<h4><em>env variables</em></h4>
+<blockquote>
+  LOOP_FREQ: <%= @loop_freq %><br>
+  REQUIRED_ATTEMPTS: <%= @required_attempts %><br>
+  LOG_LINES: <%= @log_lines %><br>
+  PROTON_GATEWAY: <%= @proton_gateway %><br>
+  OPN_INTERFACE_ADDR: <%= @opn_interface_addr %><br>
+  OPN_API_KEY: <%= @opn_api_key %><br>
+  OPN_API_SECRET: <%= @opn_api_secret %><br>
+  OPN_PROTON_ALIAS_NAME: <%= @opn_proton_alias_name %><br>
+  QBIT_SKIP: <%= @qbit_skip %><br>
+  QBIT_ADDR: <%= @qbit_addr %><br>
+  QBIT_USER: <%= @qbit_user %><br>
+  QBIT_PASS: <%= @qbit_pass %>
 </blockquote>

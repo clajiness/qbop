@@ -62,6 +62,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
           # set Proton port in stats
           stats.set_proton_current_port(forwarded_port)
+          stats.set_proton_last_checked
         end
       rescue StandardError => e
         @logger.error('Proton has returned an error:')
@@ -98,6 +99,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
           # set OPNsense port in stats
           stats.set_opn_current_port(forwarded_port)
+          stats.set_opn_last_checked
         end
 
         # set OPNsense Proton port alias if counter is set to true
@@ -120,6 +122,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
               # set OPNsense port in stats
               stats.set_opn_current_port(forwarded_port)
+              stats.set_opn_last_checked
               stats.set_opn_updated_at
             else
               @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
@@ -167,6 +170,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
             # set qBit port in stats
             stats.set_qbit_current_port(forwarded_port)
+            stats.set_qbit_last_checked
           end
 
           # set qBit port if counter is set to true
@@ -183,6 +187,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
               # set qBit port in stats
               stats.set_qbit_current_port(forwarded_port)
+              stats.set_qbit_last_checked
               stats.set_qbit_updated_at
             else
               @logger.error("qBit port was not updated - response code: #{response.status}")

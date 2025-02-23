@@ -11,6 +11,6 @@ gem 'rackup', '~> 2.2', '>= 2.2.1'
 gem 'rspec', '~> 3.13'
 gem 'rubocop', '~> 1.71', '>= 1.71.2', require: false
 gem 'sinatra', '~> 4.1', '>= 4.1.1'
-gem 'sqlite3', '~> 2.5'
+gem 'sqlite3', '~> 2.6'
 gem 'sucker_punch', '~> 3.2'
 gem 'uri', '~> 1.0', '>= 1.0.2'
