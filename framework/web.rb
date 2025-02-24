@@ -13,6 +13,9 @@ module Framework
 
       helpers = Service::Helpers.new
 
+      @opn_delta = helpers.time_delta_to_s(@stats['opn_last_checked'], @stats['opn_last_updated'])
+      @qbit_delta = helpers.time_delta_to_s(@stats['qbit_last_checked'], @stats['qbit_last_updated'])
+
       @opn_skip = helpers.skip_section?(ENV['OPN_SKIP'])
       @qbit_skip = helpers.skip_section?(ENV['QBIT_SKIP'])
 
