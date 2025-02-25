@@ -1,5 +1,5 @@
 # Description: Dockerfile for qbop
-FROM ruby:3.4.2-slim
+FROM ruby:3.4.2-alpine
 
 # set the version environment variable
 ARG VERSION
@@ -23,8 +23,8 @@ VOLUME /opt/qbop/data/
 
 # install necessary packages
 RUN \
-apt update; \
-apt install -y build-essential pkg-config natpmpc; \
+apk update; \
+apk add build-base pkgconfig libnatpmp; \
 bundle install;
 
 # expose the ui port
