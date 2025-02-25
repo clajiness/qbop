@@ -24,7 +24,7 @@ VOLUME /opt/qbop/data/
 # install necessary packages
 RUN \
 apk update; \
-apk add build-base libnatpmp; \
+apk add build-base pkgconfig libnatpmp; \
 bundle install;
 
 # expose the ui port
