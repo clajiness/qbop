@@ -46,7 +46,9 @@ module Service
       last_checked_time = Time.new(last_checked)
       last_updated_time = Time.new(last_updated)
 
-      last_checked_time - last_updated_time
+      seconds = last_checked_time - last_updated_time
+
+      seconds.to_i
     rescue StandardError
       'unknown'
     end
@@ -57,11 +59,11 @@ module Service
 
       seconds = last_checked_time - last_updated_time
 
-      mm, ss = seconds.divmod(60)
+      mm, ss = seconds.to_i.divmod(60)
       hh, mm = mm.divmod(60)
       dd, hh = hh.divmod(24)
 
-      "#{dd} d, #{hh} h, #{mm} m, and #{ss} s"
+      "#{dd}d, #{hh}h, #{mm}m, and #{ss}s"
     rescue StandardError
       'unknown'
     end

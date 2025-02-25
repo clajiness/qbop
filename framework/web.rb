@@ -6,15 +6,19 @@ module Framework
   # and system uptime, and renders the about view.
   class Web < Sinatra::Application
     get '/' do
+      stats = {}
+
       SQLite3::Database.open 'data/prod.db' do |db|
         db.results_as_hash = true
-        @stats = db.execute('select * from stats where id = 1').first
+        stats = db.execute('select * from stats where id = 1').first
       end
 
       helpers = Service::Helpers.new
 
-      @opn_delta = helpers.time_delta_to_s(@stats['opn_last_checked'], @stats['opn_last_updated'])
-      @qbit_delta = helpers.time_delta_to_s(@stats['qbit_last_checked'], @stats['qbit_last_updated'])
+      @stats = stats
+
+      @opn_delta = helpers.time_delta_to_s(stats['opn_last_checked'], stats['opn_last_updated'])
+      @qbit_delta = helpers.time_delta_to_s(stats['qbit_last_checked'], stats['qbit_last_updated'])
 
       @opn_skip = helpers.skip_section?(ENV['OPN_SKIP'])
       @qbit_skip = helpers.skip_section?(ENV['QBIT_SKIP'])
