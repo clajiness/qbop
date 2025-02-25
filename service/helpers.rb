@@ -67,5 +67,11 @@ module Service
     rescue StandardError
       'unknown'
     end
+
+    def connected_to_service?(last_checked)
+      Time.new(last_checked) > (Time.now - ((ENV['LOOP_FREQ'] || 45).to_i * 2) + 20)
+    rescue StandardError
+      false
+    end
   end
 end

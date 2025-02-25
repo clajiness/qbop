@@ -17,6 +17,10 @@ module Framework
 
       @stats = stats
 
+      @proton_connected = helpers.connected_to_service?(stats['proton_last_checked'])
+      @opn_connected = helpers.connected_to_service?(stats['opn_last_checked'])
+      @qbit_connected = helpers.connected_to_service?(stats['qbit_last_checked'])
+
       @opn_delta = helpers.time_delta_to_s(stats['opn_last_checked'], stats['opn_updated_at'])
       @qbit_delta = helpers.time_delta_to_s(stats['qbit_last_checked'], stats['qbit_updated_at'])
 
