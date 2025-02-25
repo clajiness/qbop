@@ -24,13 +24,13 @@ module Framework
           'current_port': @stats['opn_current_port'],
           'last_checked': @stats['opn_last_checked'],
           'last_changed': @stats['opn_updated_at'],
-          'delta': helpers.time_delta(@stats['opn_last_checked'], @stats['opn_last_updated'])
+          'delta': helpers.time_delta(@stats['opn_last_checked'], @stats['opn_updated_at'])
         },
         'qbit' => {
           'current_port': @stats['qbit_current_port'],
           'last_checked': @stats['qbit_last_checked'],
           'last_changed': @stats['qbit_updated_at'],
-          'delta': helpers.time_delta(@stats['qbit_last_checked'], @stats['qbit_last_updated'])
+          'delta': helpers.time_delta(@stats['qbit_last_checked'], @stats['qbit_updated_at'])
         }
       } }
     end

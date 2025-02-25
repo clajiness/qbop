@@ -49,32 +49,22 @@ module Service
       seconds = last_checked_time - last_updated_time
 
       seconds.to_i
-    rescue StandardError => e
-      pp e
+    rescue StandardError
       'unknown'
     end
 
-    def time_delta_to_s(last_checked, last_updated) # rubocop:disable Metrics/MethodLength
-      pp last_checked
-      pp last_updated
-
+    def time_delta_to_s(last_checked, last_updated)
       last_checked_time = Time.new(last_checked)
       last_updated_time = Time.new(last_updated)
 
-      pp last_checked_time
-      pp last_updated_time
-
       seconds = last_checked_time - last_updated_time
 
-      pp seconds
-
-      mm, ss = seconds.divmod(60)
+      mm, ss = seconds.to_i.divmod(60)
       hh, mm = mm.divmod(60)
       dd, hh = hh.divmod(24)
 
       "#{dd}d, #{hh}h, #{mm}m, and #{ss}s"
-    rescue StandardError => e
-      pp e
+    rescue StandardError
       'unknown'
     end
   end
