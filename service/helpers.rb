@@ -54,13 +54,21 @@ module Service
       'unknown'
     end
 
-    def time_delta_to_s(last_checked, last_updated)
+    def time_delta_to_s(last_checked, last_updated) # rubocop:disable Metrics/MethodLength
+      pp last_checked
+      pp last_updated
+
       last_checked_time = Time.new(last_checked)
       last_updated_time = Time.new(last_updated)
 
+      pp last_checked_time
+      pp last_updated_time
+
       seconds = last_checked_time - last_updated_time
 
-      mm, ss = seconds.to_i.divmod(60)
+      pp seconds
+
+      mm, ss = seconds.divmod(60)
       hh, mm = mm.divmod(60)
       dd, hh = hh.divmod(24)
 

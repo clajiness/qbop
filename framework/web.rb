@@ -17,6 +17,9 @@ module Framework
 
       @stats = stats
 
+      pp stats['opn_last_checked']
+      pp stats['opn_last_updated']
+
       @opn_delta = helpers.time_delta_to_s(stats['opn_last_checked'], stats['opn_last_updated'])
       @qbit_delta = helpers.time_delta_to_s(stats['qbit_last_checked'], stats['qbit_last_updated'])
 
