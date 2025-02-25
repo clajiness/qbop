@@ -67,10 +67,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
       rescue StandardError => e
         @logger.error('Proton has returned an error:')
         @logger.error(e)
-
-        @logger.info("sleeping for #{loop_frequency} seconds and trying again")
-        sleep loop_frequency
-        next
       end
 
       # OPNsense section
@@ -117,7 +113,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
               # apply changes
               changes = opnsense.apply_changes
 
-              if changes.status == 200
+              if changes.status == 200 # rubocop:disable Metrics/BlockNesting
                 @logger.info('OPNsense alias applied successfully')
 
                 # reset counter
@@ -138,10 +134,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
         rescue StandardError => e
           @logger.error('OPNsense has returned an error:')
           @logger.error(e)
-
-          @logger.info("sleeping for #{loop_frequency} seconds and trying again")
-          sleep loop_frequency
-          next
         end
       end
 
@@ -201,10 +193,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
         rescue StandardError => e
           @logger.error('qBit has returned an error:')
           @logger.error(e)
-
-          @logger.info("sleeping for #{loop_frequency} seconds and trying again")
-          sleep loop_frequency
-          next
         end
       end
 

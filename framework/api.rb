@@ -7,7 +7,7 @@ module Framework
     format :json
     prefix :api
 
-    get '/stats' do
+    get '/stats' do # rubocop:disable Metrics/BlockLength
       SQLite3::Database.open 'data/prod.db' do |db|
         db.results_as_hash = true
         @stats = db.execute('select * from stats where id = 1').first
