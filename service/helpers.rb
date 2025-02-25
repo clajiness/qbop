@@ -41,5 +41,31 @@ module Service
 
       user_version
     end
+
+    def time_delta(last_checked, last_updated)
+      last_checked_time = Time.new(last_checked)
+      last_updated_time = Time.new(last_updated)
+
+      seconds = last_checked_time - last_updated_time
+
+      seconds.to_i
+    rescue StandardError
+      'unknown'
+    end
+
+    def time_delta_to_s(last_checked, last_updated)
+      last_checked_time = Time.new(last_checked)
+      last_updated_time = Time.new(last_updated)
+
+      seconds = last_checked_time - last_updated_time
+
+      mm, ss = seconds.to_i.divmod(60)
+      hh, mm = mm.divmod(60)
+      dd, hh = hh.divmod(24)
+
+      "#{dd}d, #{hh}h, #{mm}m, and #{ss}s"
+    rescue StandardError
+      'unknown'
+    end
   end
 end

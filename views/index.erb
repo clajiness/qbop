@@ -13,7 +13,7 @@
 </div>
 <hr>
 
-<a class="btn btn-primary" href="/">refresh</a><br><br>
+<a class="btn btn-primary btn-ghost" href="/">refresh</a><br><br>
 
 <h4><em>protonvpn</em></h4>
 <blockquote>
@@ -28,7 +28,8 @@
   <% else %>
   current port: <%= @stats['opn_current_port'] %><br>
   last checked: <%= @stats['opn_last_checked'] %><br>
-  last changed: <%= @stats['opn_updated_at'] %>
+  last changed: <%= @stats['opn_updated_at'] %><br>
+  &#916;: <%= @opn_delta %>
   <% end %>
 </blockquote>
 
@@ -39,6 +40,7 @@
   <% else %>
   current port: <%= @stats['qbit_current_port'] %><br>
   last checked: <%= @stats['qbit_last_checked'] %><br>
-  last changed: <%= @stats['qbit_updated_at'] %>
+  last changed: <%= @stats['qbit_updated_at'] %><br>
+  &#916;: <%= @qbit_delta %>
   <% end %>
 </blockquote>
