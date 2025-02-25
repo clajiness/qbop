@@ -49,7 +49,8 @@ module Service
       seconds = last_checked_time - last_updated_time
 
       seconds.to_i
-    rescue StandardError
+    rescue StandardError => e
+      pp e
       'unknown'
     end
 
@@ -64,7 +65,8 @@ module Service
       dd, hh = hh.divmod(24)
 
       "#{dd}d, #{hh}h, #{mm}m, and #{ss}s"
-    rescue StandardError
+    rescue StandardError => e
+      pp e
       'unknown'
     end
   end
