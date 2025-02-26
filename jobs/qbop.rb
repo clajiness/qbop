@@ -50,6 +50,9 @@ class Qbop # rubocop:disable Metrics/ClassLength
         # parse natpmpc response
         forwarded_port = proton.parse_proton_response(proton_response.chomp)
 
+        # set Proton as checked
+        stats.set_proton_last_checked if forwarded_port
+
         # sleep and restart loop if forwarded port isn't returned
         if forwarded_port.nil?
           @logger.error(
@@ -62,7 +65,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
           # set Proton port in stats
           stats.set_proton_current_port(forwarded_port)
-          stats.set_proton_last_checked
         end
       rescue StandardError => e
         @logger.error('Proton has returned an error:')
@@ -84,7 +86,12 @@ class Qbop # rubocop:disable Metrics/ClassLength
           # get OPNsense alias value
           alias_port = opnsense.get_alias_value(uuid)
 
-          if alias_port != forwarded_port
+          # set OPNsense as checked
+          stats.set_opn_last_checked if alias_port
+
+          if !(1024..65_535).include?(forwarded_port.to_i)
+            @logger.error('OPNsense rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
+          elsif alias_port != forwarded_port
             # increment counter
             counter.increment_opnsense_attempt
 
@@ -99,7 +106,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
             # set OPNsense port in stats
             stats.set_opn_current_port(forwarded_port)
-            stats.set_opn_last_checked
           end
 
           # set OPNsense Proton port alias if counter is set to true
@@ -122,7 +128,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
                 # set OPNsense port in stats
                 stats.set_opn_current_port(forwarded_port)
-                stats.set_opn_last_checked
                 stats.set_opn_updated_at
               else
                 @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
@@ -152,7 +157,12 @@ class Qbop # rubocop:disable Metrics/ClassLength
           # get port from qBit
           qbt_port = qbit.qbt_app_preferences(sid)
 
-          if qbt_port != forwarded_port
+          # set qBit as checked
+          stats.set_qbit_last_checked if qbt_port
+
+          if !(1024..65_535).include?(forwarded_port.to_i)
+            @logger.error('qBit rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
+          elsif qbt_port != forwarded_port
             # increment counter
             counter.increment_qbit_attempt
 
@@ -167,7 +177,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
             # set qBit port in stats
             stats.set_qbit_current_port(forwarded_port)
-            stats.set_qbit_last_checked
           end
 
           # set qBit port if counter is set to true
@@ -184,7 +193,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
               # set qBit port in stats
               stats.set_qbit_current_port(forwarded_port)
-              stats.set_qbit_last_checked
               stats.set_qbit_updated_at
             else
               @logger.error("qBit port was not updated - response code: #{response.status}")
