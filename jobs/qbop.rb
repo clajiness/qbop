@@ -90,7 +90,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
           stats.set_opn_last_checked if alias_port
 
           if !(1024..65_535).include?(forwarded_port.to_i)
-            @logger.error("Proton forwarded port #{forwarded_port} is not within the valid range of 1024-65535")
+            @logger.error('OPNsense rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
           elsif alias_port != forwarded_port
             # increment counter
             counter.increment_opnsense_attempt
@@ -161,7 +161,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
           stats.set_qbit_last_checked if qbt_port
 
           if !(1024..65_535).include?(forwarded_port.to_i)
-            @logger.error("Proton forwarded port #{forwarded_port} is not within the valid range of 1024-65535")
+            @logger.error('qBit rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
           elsif qbt_port != forwarded_port
             # increment counter
             counter.increment_qbit_attempt
