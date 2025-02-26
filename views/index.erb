@@ -13,15 +13,15 @@
 </div>
 <hr>
 
-<a class="btn btn-primary btn-ghost" href="/">refresh</a><br><br>
+<button class="btn btn-primary btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
 
-<h4><em>protonvpn</em></h4>
+<h4><em>protonvpn</em> <%= @proton_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
   current port: <%= @stats['proton_current_port'] %><br>
   last checked: <%= @stats['proton_last_checked'] %><br>
 </blockquote>
 
-<h4><em>opnsense</em></h4>
+<h4><em>opnsense</em> <%= @opn_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
   <% if @opn_skip %>
   skipped per the OPN_SKIP ENV variable
@@ -33,7 +33,7 @@
   <% end %>
 </blockquote>
 
-<h4><em>qbittorrent</em></h4>
+<h4><em>qbittorrent</em> <%= @qbit_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
   <% if @qbit_skip %>
   skipped per the QBIT_SKIP ENV variable

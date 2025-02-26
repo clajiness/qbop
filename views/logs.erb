@@ -14,7 +14,7 @@
 <hr>
 
 <h4><em>last <%= @log_lines %> lines of log output</em></h4>
-<a class="btn btn-primary btn-ghost" href="/logs">refresh</a><br>
+<button class="btn btn-primary btn-ghost" onClick="window.location.reload()">refresh</button><br>
 
 <section>
   <pre>
@@ -26,5 +26,4 @@
   </pre>
 </section>
 
-<a class="btn btn-primary btn-ghost" href="/logs">refresh</a>
-<br><br>
+<button class="btn btn-primary btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
