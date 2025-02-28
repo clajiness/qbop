@@ -53,13 +53,9 @@ class Qbop # rubocop:disable Metrics/ClassLength
         # set Proton as checked
         stats.set_proton_last_checked if forwarded_port
 
-        # sleep and restart loop if forwarded port isn't returned
+        # if forwarded port isn't returned
         if forwarded_port.nil?
-          @logger.error(
-            "Proton didn't return a forwarded port. Sleeping for #{loop_frequency} seconds and trying again."
-          )
-          sleep loop_frequency
-          next
+          @logger.error("Proton didn't return a forwarded port.")
         else
           @logger.info("Proton returned the forwarded port #{forwarded_port}")
 
@@ -90,7 +86,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
           stats.set_opn_last_checked if alias_port
 
           if !(1024..65_535).include?(forwarded_port.to_i)
-            @logger.error('OPNsense rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
+            @logger.info('OPNsense rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
           elsif alias_port != forwarded_port
             # increment counter
             counter.increment_opnsense_attempt
@@ -161,7 +157,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
           stats.set_qbit_last_checked if qbt_port
 
           if !(1024..65_535).include?(forwarded_port.to_i)
-            @logger.error('qBit rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
+            @logger.info('qBit rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
           elsif qbt_port != forwarded_port
             # increment counter
             counter.increment_qbit_attempt

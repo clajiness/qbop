@@ -13,7 +13,7 @@ Service::DbMigration.new
 map '/' do
   use Rack::Session::Cookie, secret: SecureRandom.alphanumeric(64)
   run Rack::Cascade.new([Framework::Web, Framework::API])
-
-  # start the job(s)
-  Qbop.perform_async
 end
+
+# start the job(s)
+Qbop.perform_async
