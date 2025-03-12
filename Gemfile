@@ -2,11 +2,11 @@ source 'https://rubygems.org'
 
 gem 'faraday', '~> 2.12', '>= 2.12.2'
 gem 'grape', '~> 2.3'
-gem 'json', '~> 2.10', '>= 2.10.1'
+gem 'json', '~> 2.10', '>= 2.10.2'
 gem 'logger', '~> 1.6', '>= 1.6.6'
 gem 'open3', '~> 0.2.1'
 gem 'puma', '~> 6.6'
-gem 'rack', '~> 3.1', '>= 3.1.11'
+gem 'rack', '~> 3.1', '>= 3.1.12'
 gem 'rackup', '~> 2.2', '>= 2.2.1'
 gem 'rspec', '~> 3.13'
 gem 'rubocop', '~> 1.73', '>= 1.73.2', require: false
