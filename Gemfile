@@ -9,7 +9,7 @@ gem 'puma', '~> 6.6'
 gem 'rack', '~> 3.1', '>= 3.1.12'
 gem 'rackup', '~> 2.2', '>= 2.2.1'
 gem 'rspec', '~> 3.13'
-gem 'rubocop', '~> 1.73', '>= 1.73.2', require: false
+gem 'rubocop', '~> 1.74', require: false
 gem 'sinatra', '~> 4.1', '>= 4.1.1'
 gem 'sqlite3', '~> 2.6'
 gem 'sucker_punch', '~> 3.2'

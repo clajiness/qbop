@@ -16,7 +16,7 @@ COPY jobs/ /opt/qbop/jobs/
 COPY public/ /opt/qbop/public/
 COPY service/ /opt/qbop/service/
 COPY views/ /opt/qbop/views/
-RUN mkdir -p /opt/qbop/log/
+RUN mkdir -p /opt/qbop/data/log/
 
 # create volume for log files
 VOLUME /opt/qbop/data/
