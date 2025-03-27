@@ -59,12 +59,12 @@ class Qbop # rubocop:disable Metrics/ClassLength
         if forwarded_port.nil?
           # if forwarded port isn't returned
           @logger.error("Proton didn't return a forwarded port.")
-        elsif forwarded_port == get_proton_current_port
+        elsif forwarded_port == stats.get_proton_current_port
           # if forwarded port matches the current port
           @logger.info("Proton returned the forwarded port #{forwarded_port}")
 
           # set proton_updated_at timestamp if it is unknown
-          stats.set_proton_updated_at if get_proton_updated_at == 'unknown'
+          stats.set_proton_updated_at if stats.get_proton_updated_at == 'unknown'
 
           # if proton port hasn't changed, set tracking value
           stats.set_proton_same_port
