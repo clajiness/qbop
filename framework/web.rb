@@ -6,13 +6,7 @@ module Framework
   # and system uptime, and renders the about view.
   class Web < Sinatra::Application
     get '/' do
-      stats = {}
-
-      SQLite3::Database.open 'data/prod.db' do |db|
-        db.results_as_hash = true
-        stats = db.execute('select * from stats where id = 1').first
-      end
-
+      stats = Service::Stats.new.get_all
       helpers = Service::Helpers.new
 
       @stats = stats
@@ -21,11 +15,16 @@ module Framework
       @opn_connected = helpers.connected_to_service?(stats['opn_last_checked'])
       @qbit_connected = helpers.connected_to_service?(stats['qbit_last_checked'])
 
+      @proton_delta = helpers.time_delta_to_s(stats['proton_last_checked'], stats['proton_updated_at'])
       @opn_delta = helpers.time_delta_to_s(stats['opn_last_checked'], stats['opn_updated_at'])
       @qbit_delta = helpers.time_delta_to_s(stats['qbit_last_checked'], stats['qbit_updated_at'])
 
       @opn_skip = helpers.skip_section?(ENV['OPN_SKIP'])
       @qbit_skip = helpers.skip_section?(ENV['QBIT_SKIP'])
+
+      @proton_longest_time_on_same_port = helpers.get_proton_longest_time_on_same_port
+      @opn_longest_time_on_same_port = helpers.get_opn_longest_time_on_same_port
+      @qbit_longest_time_on_same_port = helpers.get_qbit_longest_time_on_same_port
 
       erb :index
     end
@@ -52,6 +51,7 @@ module Framework
       helpers = Service::Helpers.new
 
       @app_version = ENV['VERSION']
+      @app_uptime = helpers.job_uptime
       @schema_version = Service::Helpers.new.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
       @repo_url = 'https://github.com/clajiness/qbop'

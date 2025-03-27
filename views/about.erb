@@ -13,12 +13,19 @@
 </div>
 <hr>
 
+<button class="btn btn-primary btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
+
 <h4><em>app version</em></h4>
 <blockquote>
   <%= @app_version %>
 </blockquote>
 
-<h4><em>database version</em></h4>
+<h4><em>app uptime</em></h4>
+<blockquote>
+  <%= @app_uptime %>
+</blockquote>
+
+<h4><em>db schema version</em></h4>
 <blockquote>
   <%= @schema_version %>
 </blockquote>
@@ -50,3 +57,5 @@
   QBIT_USER: <%= @qbit_user %><br>
   QBIT_PASS: <%= @qbit_pass %>
 </blockquote>
+
+<button class="btn btn-primary btn-ghost" onClick="window.location.reload()">refresh</button><br><br>

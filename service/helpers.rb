@@ -63,7 +63,17 @@ module Service
       hh, mm = mm.divmod(60)
       dd, hh = hh.divmod(24)
 
-      "#{dd}d, #{hh}h, #{mm}m, and #{ss}s"
+      "#{dd}d, #{hh}h, #{mm}m, #{ss}s"
+    rescue StandardError
+      'unknown'
+    end
+
+    def seconds_to_s(seconds)
+      mm, ss = seconds.to_i.divmod(60)
+      hh, mm = mm.divmod(60)
+      dd, hh = hh.divmod(24)
+
+      "#{dd}d, #{hh}h, #{mm}m, #{ss}s"
     rescue StandardError
       'unknown'
     end
@@ -72,6 +82,31 @@ module Service
       Time.new(last_checked) >= (Time.now - ((ENV['LOOP_FREQ'] || 45).to_i * 3))
     rescue StandardError
       false
+    end
+
+    def job_uptime
+      job_started_at = Service::Stats.new.get_job_started_at
+      time_delta_to_s(Time.now.to_s, job_started_at)
+    rescue StandardError
+      'unknown'
+    end
+
+    def get_proton_longest_time_on_same_port
+      seconds_to_s(Service::Stats.new.get_proton_same_port)
+    rescue StandardError
+      'unknown'
+    end
+
+    def get_opn_longest_time_on_same_port
+      seconds_to_s(Service::Stats.new.get_opn_same_port)
+    rescue StandardError
+      'unknown'
+    end
+
+    def get_qbit_longest_time_on_same_port
+      seconds_to_s(Service::Stats.new.get_qbit_same_port)
+    rescue StandardError
+      'unknown'
     end
   end
 end

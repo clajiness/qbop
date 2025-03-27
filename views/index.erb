@@ -19,6 +19,8 @@
 <blockquote>
   current port: <%= @stats['proton_current_port'] %><br>
   last checked: <%= @stats['proton_last_checked'] %><br>
+  last changed: <%= @stats['proton_updated_at'] %><br>
+  &#916;: <%= @proton_delta %>
 </blockquote>
 
 <h4><em>opnsense</em> <%= @opn_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
@@ -44,3 +46,15 @@
   &#916;: <%= @qbit_delta %>
   <% end %>
 </blockquote>
+<hr>
+
+<h4><em><u>records</u></em></h4>
+
+<h4><em>longest time on same port</em></h4>
+<blockquote>
+  proton: <%= @proton_longest_time_on_same_port %><br>
+  opnsense: <%= @opn_longest_time_on_same_port %><br>
+  qbittorrent: <%= @qbit_longest_time_on_same_port %>
+</blockquote>
+
+<button class="btn btn-primary btn-ghost" onClick="window.location.reload()">refresh</button><br><br>

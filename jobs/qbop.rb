@@ -23,6 +23,9 @@ class Qbop # rubocop:disable Metrics/ClassLength
     # track the current port for Proton, OPNsense, and qBit
     stats = Service::Stats.new
 
+    # set job started at timestamp
+    stats.set_job_started_at
+
     # set up logger
     @logger = Logger.new('./data/log/qbop.log', 10, 1_024_000)
     @logger.info("starting qbop #{config[:script_version]}")
@@ -53,14 +56,25 @@ class Qbop # rubocop:disable Metrics/ClassLength
         # set Proton as checked
         stats.set_proton_last_checked if forwarded_port
 
-        # if forwarded port isn't returned
         if forwarded_port.nil?
+          # if forwarded port isn't returned
           @logger.error("Proton didn't return a forwarded port.")
-        else
+        elsif forwarded_port == get_proton_current_port
+          # if forwarded port matches the current port
           @logger.info("Proton returned the forwarded port #{forwarded_port}")
+
+          # set proton_updated_at timestamp if it is unknown
+          stats.set_proton_updated_at if get_proton_updated_at == 'unknown'
+
+          # if proton port hasn't changed, set tracking value
+          stats.set_proton_same_port
+        else
+          # if forwarded port does not match the current port
+          @logger.info("Proton returned the new forwarded port #{forwarded_port}")
 
           # set Proton port in stats
           stats.set_proton_current_port(forwarded_port)
+          stats.set_proton_updated_at
         end
       rescue StandardError => e
         @logger.error('Proton has returned an error:')
@@ -101,7 +115,13 @@ class Qbop # rubocop:disable Metrics/ClassLength
             @logger.info("OPNsense port #{alias_port} matches Proton forwarded port #{forwarded_port}")
 
             # set OPNsense port in stats
-            stats.set_opn_current_port(forwarded_port)
+            stats.set_opn_current_port(forwarded_port) if forwarded_port.to_i != get_opn_current_port
+
+            # set opn_updated_at timestamp if it is unknown
+            stats.set_opn_updated_at if get_opn_updated_at == 'unknown'
+
+            # if opn port hasn't changed, set tracking value
+            stats.set_opn_same_port
           end
 
           # set OPNsense Proton port alias if counter is set to true
@@ -172,7 +192,13 @@ class Qbop # rubocop:disable Metrics/ClassLength
             @logger.info("qBit port #{qbt_port} matches Proton forwarded port #{forwarded_port}")
 
             # set qBit port in stats
-            stats.set_qbit_current_port(forwarded_port)
+            stats.set_qbit_current_port(forwarded_port) if forwarded_port.to_i != get_qbit_current_port
+
+            # set qBit_updated_at timestamp if it is unknown
+            stats.set_qbit_updated_at if get_qbit_updated_at == 'unknown'
+
+            # if qBit port hasn't changed, set tracking value
+            stats.set_qbit_same_port
           end
 
           # set qBit port if counter is set to true
