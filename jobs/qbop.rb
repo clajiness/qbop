@@ -118,7 +118,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
             stats.set_opn_current_port(forwarded_port) if forwarded_port.to_i != stats.get_opn_current_port
 
             # set opn_updated_at timestamp if it is unknown
-            stats.set_opn_updated_at if get_opn_updated_at == 'unknown'
+            stats.set_opn_updated_at if stats.get_opn_updated_at == 'unknown'
 
             # if opn port hasn't changed, set tracking value
             stats.set_opn_same_port
@@ -195,7 +195,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
             stats.set_qbit_current_port(forwarded_port) if forwarded_port.to_i != stats.get_qbit_current_port
 
             # set qBit_updated_at timestamp if it is unknown
-            stats.set_qbit_updated_at if get_qbit_updated_at == 'unknown'
+            stats.set_qbit_updated_at if stats.get_qbit_updated_at == 'unknown'
 
             # if qBit port hasn't changed, set tracking value
             stats.set_qbit_same_port
