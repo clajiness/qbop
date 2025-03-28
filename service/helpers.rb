@@ -1,7 +1,7 @@
 module Service
   # The Helpers class provides utility methods for accessing environment variables
   # and parsing specific configuration values used in the application.
-  class Helpers
+  class Helpers # rubocop:disable Metrics/ClassLength
     def env_variables # rubocop:disable Metrics/MethodLength
       {
         script_version: ENV['VERSION'],
@@ -86,24 +86,49 @@ module Service
 
     def job_uptime
       job_started_at = Service::Stats.new.get_job_started_at
+      time_delta(Time.now.to_s, job_started_at)
+    rescue StandardError
+      'unknown'
+    end
+
+    def job_uptime_to_s
+      job_started_at = Service::Stats.new.get_job_started_at
       time_delta_to_s(Time.now.to_s, job_started_at)
     rescue StandardError
       'unknown'
     end
 
     def get_proton_longest_time_on_same_port
-      seconds_to_s(Service::Stats.new.get_proton_same_port)
+      Service::Stats.new.get_proton_same_port
     rescue StandardError
       'unknown'
     end
 
     def get_opn_longest_time_on_same_port
-      seconds_to_s(Service::Stats.new.get_opn_same_port)
+      Service::Stats.new.get_opn_same_port
     rescue StandardError
       'unknown'
     end
 
     def get_qbit_longest_time_on_same_port
+      Service::Stats.new.get_qbit_same_port
+    rescue StandardError
+      'unknown'
+    end
+
+    def get_proton_longest_time_on_same_port_to_s
+      seconds_to_s(Service::Stats.new.get_proton_same_port)
+    rescue StandardError
+      'unknown'
+    end
+
+    def get_opn_longest_time_on_same_port_to_s
+      seconds_to_s(Service::Stats.new.get_opn_same_port)
+    rescue StandardError
+      'unknown'
+    end
+
+    def get_qbit_longest_time_on_same_port_to_s
       seconds_to_s(Service::Stats.new.get_qbit_same_port)
     rescue StandardError
       'unknown'

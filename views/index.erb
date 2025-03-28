@@ -18,8 +18,8 @@
 <h4><em>protonvpn</em> <%= @proton_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
   current port: <%= @stats['proton_current_port'] %><br>
-  last checked: <%= @stats['proton_last_checked'] %><br>
   last changed: <%= @stats['proton_updated_at'] %><br>
+  last checked: <%= @stats['proton_last_checked'] %><br>
   &#916;: <%= @proton_delta %>
 </blockquote>
 
@@ -29,8 +29,8 @@
   skipped per the OPN_SKIP ENV variable
   <% else %>
   current port: <%= @stats['opn_current_port'] %><br>
-  last checked: <%= @stats['opn_last_checked'] %><br>
   last changed: <%= @stats['opn_updated_at'] %><br>
+  last checked: <%= @stats['opn_last_checked'] %><br>
   &#916;: <%= @opn_delta %>
   <% end %>
 </blockquote>
@@ -41,14 +41,12 @@
   skipped per the QBIT_SKIP ENV variable
   <% else %>
   current port: <%= @stats['qbit_current_port'] %><br>
-  last checked: <%= @stats['qbit_last_checked'] %><br>
   last changed: <%= @stats['qbit_updated_at'] %><br>
+  last checked: <%= @stats['qbit_last_checked'] %><br>
   &#916;: <%= @qbit_delta %>
   <% end %>
 </blockquote>
 <hr>
-
-<h4><em><u>records</u></em></h4>
 
 <h4><em>longest time on same port</em></h4>
 <blockquote>

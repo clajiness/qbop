@@ -22,9 +22,9 @@ module Framework
       @opn_skip = helpers.skip_section?(ENV['OPN_SKIP'])
       @qbit_skip = helpers.skip_section?(ENV['QBIT_SKIP'])
 
-      @proton_longest_time_on_same_port = helpers.get_proton_longest_time_on_same_port
-      @opn_longest_time_on_same_port = helpers.get_opn_longest_time_on_same_port
-      @qbit_longest_time_on_same_port = helpers.get_qbit_longest_time_on_same_port
+      @proton_longest_time_on_same_port = helpers.get_proton_longest_time_on_same_port_to_s
+      @opn_longest_time_on_same_port = helpers.get_opn_longest_time_on_same_port_to_s
+      @qbit_longest_time_on_same_port = helpers.get_qbit_longest_time_on_same_port_to_s
 
       erb :index
     end
@@ -51,7 +51,7 @@ module Framework
       helpers = Service::Helpers.new
 
       @app_version = ENV['VERSION']
-      @app_uptime = helpers.job_uptime
+      @app_uptime = helpers.job_uptime_to_s
       @schema_version = Service::Helpers.new.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
       @repo_url = 'https://github.com/clajiness/qbop'
