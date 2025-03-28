@@ -17,30 +17,60 @@ module Service
       user_version
     end
 
-    def run_migrations(version)
-      case version
-      when 0
-        migration_0
-      else
-        puts 'No migrations to run.'
+    def run_migrations(version) # rubocop:disable Metrics/MethodLength
+      loop do
+        case version
+        when 0
+          migration1
+          version += 1
+        when 1
+          migration2
+          version += 1
+        else
+          break
+        end
       end
     end
 
-    def migration_0 # rubocop:disable Metrics/MethodLength,Naming/VariableNumber
+    def migration1 # rubocop:disable Metrics/MethodLength
       SQLite3::Database.open 'data/prod.db' do |db|
         db.execute 'ALTER TABLE stats ADD COLUMN proton_last_checked TEXT'
         db.execute 'ALTER TABLE stats ADD COLUMN opn_last_checked TEXT'
         db.execute 'ALTER TABLE stats ADD COLUMN qbit_last_checked TEXT'
-        db.execute 'update stats
-      set proton_last_checked = ?,
+        db.execute 'UPDATE stats
+      SET proton_last_checked = ?,
       opn_last_checked = ?,
       qbit_last_checked = ?
-      where id = 1', %w[
+      WHERE id = 1', %w[
         unknown
         unknown
         unknown
       ]
         db.execute 'pragma user_version = 1'
+      end
+    end
+
+    def migration2 # rubocop:disable Metrics/MethodLength
+      SQLite3::Database.open 'data/prod.db' do |db|
+        db.execute 'ALTER TABLE stats ADD COLUMN job_started_at TEXT'
+        db.execute 'ALTER TABLE stats ADD COLUMN proton_updated_at TEXT'
+        db.execute 'ALTER TABLE stats ADD COLUMN proton_same_port INTEGER'
+        db.execute 'ALTER TABLE stats ADD COLUMN opn_same_port INTEGER'
+        db.execute 'ALTER TABLE stats ADD COLUMN qbit_same_port INTEGER'
+        db.execute 'UPDATE stats
+      SET job_started_at = ?,
+      proton_updated_at = ?,
+      proton_same_port = ?,
+      opn_same_port = ?,
+      qbit_same_port = ?
+      WHERE id = 1', [
+        'unknown',
+        'unknown',
+        0,
+        0,
+        0
+      ]
+        db.execute 'pragma user_version = 2'
       end
     end
   end

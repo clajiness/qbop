@@ -1,6 +1,5 @@
 module Service
   # The Opnsense class provides methods to interact with the OPNsense firewall API.
-  # It allows for retrieving and setting alias values, as well as applying changes to the firewall configuration.
   class Opnsense
     def initialize(config)
       @config = config
