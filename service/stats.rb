@@ -4,7 +4,7 @@ module Service
   # It includes methods to set the proton current port, OPN current port, OPN updated timestamp, Qbit current port,
   # and Qbit updated timestamp.
   # All database operations are executed through a private db_execute method.
-  class Stats
+  class Stats # rubocop:disable Metrics/ClassLength
     def get_proton_current_port
       db_execute('select proton_current_port from stats where id = 1').flatten.first
     end
@@ -35,7 +35,9 @@ module Service
 
     def set_proton_same_port
       seconds = Time.now - Time.new(get_proton_updated_at)
-      db_execute_with_param('update stats set proton_same_port = ? where id = 1', seconds) if seconds > get_opn_same_port
+      return unless seconds > get_proton_same_port
+
+      db_execute_with_param('update stats set proton_same_port = ? where id = 1', seconds)
     end
 
     def get_opn_current_port
@@ -68,7 +70,9 @@ module Service
 
     def set_opn_same_port
       seconds = Time.now - Time.new(get_opn_updated_at)
-      db_execute_with_param('update stats set opn_same_port = ? where id = 1', seconds) if seconds > get_opn_same_port
+      return unless seconds > get_opn_same_port
+
+      db_execute_with_param('update stats set opn_same_port = ? where id = 1', seconds)
     end
 
     def get_qbit_current_port
@@ -101,7 +105,9 @@ module Service
 
     def set_qbit_same_port
       seconds = Time.now - Time.new(get_qbit_updated_at)
-      db_execute_with_param('update stats set qbit_same_port = ? where id = 1', seconds) if seconds > get_opn_same_port
+      return unless seconds > get_qbit_same_port
+
+      db_execute_with_param('update stats set qbit_same_port = ? where id = 1', seconds)
     end
 
     def get_job_started_at
