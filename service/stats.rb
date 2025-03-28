@@ -37,7 +37,7 @@ module Service
       seconds = Time.now - Time.new(get_proton_updated_at)
       return unless seconds > get_proton_same_port
 
-      db_execute_with_param('update stats set proton_same_port = ? where id = 1', seconds)
+      db_execute_with_param('update stats set proton_same_port = ? where id = 1', seconds.to_i)
     end
 
     def get_opn_current_port
@@ -72,7 +72,7 @@ module Service
       seconds = Time.now - Time.new(get_opn_updated_at)
       return unless seconds > get_opn_same_port
 
-      db_execute_with_param('update stats set opn_same_port = ? where id = 1', seconds)
+      db_execute_with_param('update stats set opn_same_port = ? where id = 1', seconds.to_i)
     end
 
     def get_qbit_current_port
@@ -107,7 +107,7 @@ module Service
       seconds = Time.now - Time.new(get_qbit_updated_at)
       return unless seconds > get_qbit_same_port
 
-      db_execute_with_param('update stats set qbit_same_port = ? where id = 1', seconds)
+      db_execute_with_param('update stats set qbit_same_port = ? where id = 1', seconds.to_i)
     end
 
     def get_job_started_at
