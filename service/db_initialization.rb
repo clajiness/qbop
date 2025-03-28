@@ -1,9 +1,5 @@
 module Service
   # This class handles the initialization of the database for the application.
-  # It creates the necessary tables and populates them with initial data.
-  # The database used is SQLite3 and the tables created are 'counters' and 'stats'.
-  # The 'counters' table keeps track of various attempts and changes,
-  # while the 'stats' table stores port information and update timestamps.
   class DbInitialization
     def initialize
       @required_attempts = ENV['REQUIRED_ATTEMPTS'] || 3

@@ -1,6 +1,4 @@
 # TestJob is a background job that logs a message every 5 seconds.
-# It uses the SuckerPunch library to handle job processing.
-# The log messages are written to 'data/log/qbop.log'.
 class TestJob
   include SuckerPunch::Job
   SuckerPunch.shutdown_timeout = 1

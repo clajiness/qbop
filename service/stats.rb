@@ -1,9 +1,6 @@
 module Service
   # The Stats class provides methods to update various port values and timestamps in the stats table
   # of a SQLite3 database.
-  # It includes methods to set the proton current port, OPN current port, OPN updated timestamp, Qbit current port,
-  # and Qbit updated timestamp.
-  # All database operations are executed through a private db_execute method.
   class Stats # rubocop:disable Metrics/ClassLength
     def get_proton_current_port
       db_execute('select proton_current_port from stats where id = 1').flatten.first

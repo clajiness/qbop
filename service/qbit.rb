@@ -1,6 +1,5 @@
 module Service
   # Qbit is a class responsible for interacting with the qBittorrent Web API.
-  # It provides methods to authenticate, retrieve application preferences, and set application preferences.
   class Qbit
     def initialize(config)
       @config = config

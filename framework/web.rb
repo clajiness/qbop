@@ -1,9 +1,6 @@
 module Framework
-  # The Web class is a Sinatra application that provides three routes:
-  # - The root route ('/') which connects to an SQLite3 database to fetch statistics and renders the index view.
-  # - The '/logs' route which reads the last specified number of lines from a log file and renders the logs view.
-  # - The '/about' route which provides information about the repository, script version, Ruby version,
-  # and system uptime, and renders the about view.
+  # The Web class is a Sinatra application that provides three routes
+  # for displaying statistics, logs, and about information.
   class Web < Sinatra::Application
     get '/' do
       stats = Service::Stats.new.get_all
