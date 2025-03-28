@@ -1,5 +1,5 @@
 # qbop
-A tool for maintaining a forwarded port from ProtonVPN, while keeping OPNsense and qBittorrent in sync. The tool offers a simple web UI and API with stats and logging via `http://<host_ip>:4567/`.
+A tool for maintaining a forwarded port from ProtonVPN, while optionally keeping OPNsense and qBittorrent in sync. The tool offers a simple web UI and API with stats and logging via `http://<host_ip>:4567/`.
 
 qbop is built with Ruby and available as a Docker image.
 
