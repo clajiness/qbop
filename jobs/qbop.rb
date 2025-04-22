@@ -11,9 +11,6 @@ class Qbop # rubocop:disable Metrics/ClassLength
     # collect env variables in a config variable
     config = helpers.env_variables
 
-    # set loop frequency
-    loop_frequency = helpers.parse_loop_frequency(config[:loop_freq])
-
     # track the number of attempts to change the port in opnsense and qBit
     counter = Service::Counter.new
 
@@ -26,7 +23,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     # set up logger
     @logger = Logger.new('./data/log/qbop.log', 10, 1_024_000)
     @logger.info("starting qbop #{config[:script_version]}")
-    @logger.info("the tool will loop every #{loop_frequency} seconds")
+    @logger.info("the tool will loop every #{config[:loop_freq]} seconds")
     @logger.info('----------')
 
     # start the loop
@@ -225,9 +222,9 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
       # sleep before looping again
       @logger.info('end of loop')
-      @logger.info("sleeping for #{loop_frequency} seconds...")
+      @logger.info("sleeping for #{config[:loop_freq]} seconds...")
       @logger.info('----------')
-      sleep loop_frequency
+      sleep config[:loop_freq]
     end
   end
 end
