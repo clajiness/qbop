@@ -5,8 +5,8 @@ module Service
     def env_variables # rubocop:disable Metrics/MethodLength
       {
         script_version: ENV['VERSION'],
-        loop_freq: ENV['LOOP_FREQ'] || 45,
-        required_attempts: ENV['REQUIRED_ATTEMPTS'] || 3,
+        loop_freq: validate_loop_frequency(ENV['LOOP_FREQ'] || 45),
+        required_attempts: validate_required_attempts(ENV['REQUIRED_ATTEMPTS'] || 3),
         proton_gateway: ENV['PROTON_GATEWAY'] || '10.2.0.1',
         opnsense_skip: ENV['OPN_SKIP'] || 'false',
         opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
@@ -20,11 +20,19 @@ module Service
       }
     end
 
-    def parse_loop_frequency(loop_freq)
+    def validate_loop_frequency(loop_freq)
       if loop_freq&.to_i&.positive?
         loop_freq&.to_i
       else
         45
+      end
+    end
+
+    def validate_required_attempts(required_attempts)
+      if required_attempts&.to_i&.between?(1, 10)
+        required_attempts&.to_i
+      else
+        3
       end
     end
 
