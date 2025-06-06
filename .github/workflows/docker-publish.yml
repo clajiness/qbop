@@ -36,14 +36,14 @@ jobs:
           password: ${{secrets.GITHUB_TOKEN}}
       - 
         name: Read file contents
-        uses: guibranco/github-file-reader-action-v2@118589d00a0fec71192d8ac644b1dae15ec8dd00 # v2.2.788
+        uses: guibranco/github-file-reader-action-v2@4fc69d7606078df3998597c165acb8fbb33da271 # v2.2.814
         id: file_contents
         with:
           path: "version.yml"
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main'
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         env:
             VERSION: ${{ steps.file_contents.outputs.contents }}
         with:
@@ -54,7 +54,7 @@ jobs:
       -
         name: Build and push to main
         if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         env:
             VERSION: ${{ steps.file_contents.outputs.contents }}
         with:
