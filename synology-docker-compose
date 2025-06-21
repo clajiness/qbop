@@ -1,0 +1,101 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 8888:8888/tcp # HTTP proxy
+      - 8388:8388/tcp # Shadowsocks
+      - 8388:8388/udp # Shadowsocks
+      - 9090:9090 # port for qbittorrent
+      - 4567:4567 # port for qbop
+    volumes:
+      - /volume1/docker/gluetun:/gluetun
+    environment:
+      - PUID= #CHANGE_TO_YOUR_UID
+      - PGID= #CHANGE_TO_YOUR_GID
+      - TZ=UTC #CHANGE_TO_YOUR_TZ
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - VPN_ENDPOINT_IP= #ProtonVPN Endpoint Address
+      - VPN_ENDPOINT_PORT=51820
+      - VPN_INTERFACE=tun0
+      - WIREGUARD_PRIVATE_KEY= #Enter your priv key here
+      - WIREGUARD_PUBLIC_KEY= #Enter your pub key here
+      - WIREGUARD_ADDRESSES=10.2.0.2/32
+      - WIREGUARD_MTU=1400
+      - WIREGUARD_IMPLEMENTATION=auto
+      - VPN_PORT_FORWARDING=on
+      - VPN_PORT_FORWARDING_PROVIDER=protonvpn
+      - VPN_PORT_FORWARDING_STATUS_FILE=/gluetun/bridge-port.txt
+      - PUBLICIP_FILE=/gluetun/bridge-ip.txt
+      - FIREWALL=on
+      - FIREWALL_DEBUG=off
+      - BLOCK_MALICIOUS=on
+      - DNS_ADDRESS=127.0.0.1
+      #- OPENVPN_USER=VPNUSERNAME
+      #- OPENVPN_PASSWORD=VPNPASSWORD
+      #- SERVER_COUNTRIES=VPNSERVERCOUNTRY
+      - HTTPPROXY=off #change to on if you wish to enable
+      - SHADOWSOCKS=off #change to on if you wish to enable
+      - FIREWALL_OUTBOUND_SUBNETS=172.17.0.0/16 #change this in line with your subnet see note on guide.
+#      - FIREWALL_VPN_INPUT_PORTS=12345 #uncomment this line and change the port as per the note on the guide
+    network_mode: bridge
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID= #CHANGE_TO_YOUR_UID
+      - PGID= #CHANGE_TO_YOUR_GID
+      - TZ=UTC #CHANGE_TO_YOUR_TZ
+      - WEBUI_PORT=9090
+      - UMASK=022
+    volumes:
+      - /volume1/docker/qbittorrent:/config #qbittorrent confit
+      # Add other volumes as necessary for torrent files
+    network_mode: service:gluetun # run on the vpn network
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+
+  qbop:
+    image: ghcr.io/clajiness/qbop:latest
+    container_name: qbop
+    restart: unless-stopped
+    volumes:
+      - /volume1/docker/qbop:/opt/qbop/data/ #required for running
+      - /volume1/docker/qbop/log:/data/log/ #required for logs, update location as needed
+#      - /etc/timezone:/etc/timezone:ro #does not exist on synology
+      - /etc/localtime:/etc/localtime:ro
+    # environment variables are documented here: https://github.com/clajiness/qbop?tab=readme-ov-file#env-variables
+    environment:
+      - LOOP_FREQ=45
+      - REQUIRED_ATTEMPTS=3
+      - PROTON_GATEWAY=10.2.0.1
+      - OPN_SKIP=true
+      - OPN_INTERFACE_ADDR=
+      - OPN_API_KEY=
+      - OPN_API_SECRET=
+      - OPN_PROTON_ALIAS_NAME=
+      - QBIT_SKIP=false
+      - QBIT_ADDR=https://127.0.0.1:9090
+      - QBIT_USER=
+      - QBIT_PASS=
+      - LOG_LINES=50
+
+    network_mode: service:gluetun # run on the vpn network
+    depends_on:
+      gluetun:
+        condition: service_healthy
+volumes:
+  data:
