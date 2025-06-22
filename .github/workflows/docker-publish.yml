@@ -39,7 +39,7 @@ jobs:
         uses: guibranco/github-file-reader-action-v2@4fc69d7606078df3998597c165acb8fbb33da271 # v2.2.814
         id: file_contents
         with:
-          path: "version.txt"
+          path: "VERSION"
       -
         name: Test file contents output
         run: |
