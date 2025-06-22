@@ -46,7 +46,7 @@ jobs:
           echo "File contents: ${{ steps.file_contents.outputs.contents }}"
       -
         name: Check if tag exists
-        uses: mukunku/tag-exists-action@v1.6.0
+        uses: action-pack/tag-exists@v1
         id: check-tag
         with: 
           tag: ${{ steps.file_contents.outputs.contents }}
