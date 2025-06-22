@@ -3,9 +3,6 @@ A tool for maintaining a forwarded port from ProtonVPN, while optionally keeping
 
 qbop is built with Ruby and available as a Docker image.
 
-> [!WARNING]
-> I'm not responsible for any issues you may encounter.
-
 ## Purpose
 This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the forwarded port, checks the ports set in OPNsense and qBittorrent, and updates them if necessary.
 
@@ -27,7 +24,10 @@ The container image is available here: https://github.com/clajiness/qbop/pkgs/co
 
 ### ENV variables
 The sample docker-compose.yml file is available here:
-https://github.com/clajiness/qbop/blob/main/docker-compose.yml
+https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml
+
+Community-created compose files are available here:
+https://github.com/clajiness/qbop/blob/main/docker-compose/community/
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
