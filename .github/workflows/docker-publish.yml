@@ -45,7 +45,7 @@ jobs:
         uses: mukunku/tag-exists-action@v1.6.0
         id: check-tag
         with: 
-          tag: ${{ format('{0}', steps.file_contents.outputs.contents) }}
+          tag: '${ steps.file_contents.outputs.contents }'
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main' && steps.check-tag.outputs.exists == 'false'
