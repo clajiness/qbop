@@ -41,8 +41,11 @@ jobs:
         with:
           path: "version.yml"
       -
+        name: Add file contents to environment variable
+        run: echo "VERSION_TEST=${{ steps.file_contents.outputs.contents }}" >> $GITHUB_ENV
+      -
         name: Test file contents output
-        run: 'echo "File contents: ${{ steps.file_contents.outputs.contents }}. This should be a valid version string."'
+        run: 'echo "File contents: ${{ env.VERSION_TEST }}. This should be a valid version string."'
       -
         name: Check if tag exists
         uses: action-pack/tag-exists@v1
