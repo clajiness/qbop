@@ -42,13 +42,13 @@ jobs:
           path: "version.yml"
       -
         name: Add file contents to environment variable
-        run: echo "VERSION_TEST=${{ steps.file_contents.outputs.contents }}" >> $GITHUB_ENV
+        run: 'echo "VERSION_TEST : ${{ steps.file_contents.outputs.contents }}"'
       -
         name: Check if tag exists
         uses: action-pack/tag-exists@v1
         id: check-tag
         with: 
-          tag: ${{ env.VERSION_TEST }}
+          tag: ${{ vars.VERSION_TEST }}
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main' && steps.check-tag.outputs.exists == 'false'
