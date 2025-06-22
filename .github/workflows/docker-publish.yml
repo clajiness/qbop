@@ -39,7 +39,7 @@ jobs:
         uses: guibranco/github-file-reader-action-v2@4fc69d7606078df3998597c165acb8fbb33da271 # v2.2.814
         id: file_contents
         with:
-          path: "VERSION"
+          path: "version.yml"
       -
         name: Test file contents output
         run: |
@@ -49,7 +49,7 @@ jobs:
         uses: action-pack/tag-exists@v1
         id: check-tag
         with: 
-          tag: ${{ steps.file_contents.outputs.contents }}
+          tag: "${{ steps.file_contents.outputs.contents }}//[$'\n\t\r ']}"
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main' && steps.check-tag.outputs.exists == 'false'
