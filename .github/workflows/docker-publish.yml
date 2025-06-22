@@ -49,7 +49,7 @@ jobs:
         uses: action-pack/tag-exists@v1
         id: check-tag
         with: 
-          tag: ${{ steps.file_contents.outputs.contents }}
+          tag: '${{ steps.file_contents.outputs.contents }}'
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main' && steps.check-tag.outputs.exists == 'false'
