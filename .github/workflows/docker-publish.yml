@@ -52,27 +52,29 @@ jobs:
             echo "Tag ${{ steps.file_contents.outputs.contents }} does not exist"
             echo "TAG_EXISTS=false" >> $GITHUB_ENV
           fi
-      -
-        name: Build and push to non-main
-        if: github.event.pull_request.base.ref != 'main' && ${{ env.TAG_EXISTS }} == 'false'
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        env:
-            VERSION: ${{ steps.file_contents.outputs.contents }}
-        with:
-          build-args: VERSION=${{ env.VERSION }}
-          platforms: linux/amd64,linux/arm64/v8
-          push: true
-          tags: ghcr.io/${{ github.repository }}:${{ env.VERSION }}
-      -
-        name: Build and push to main
-        if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true && ${{ env.TAG_EXISTS }} == 'false'
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        env:
-            VERSION: ${{ steps.file_contents.outputs.contents }}
-        with:
-          build-args: VERSION=${{ env.VERSION }}
-          platforms: linux/amd64,linux/arm64/v8
-          push: true
-          tags: 
-            ghcr.io/${{ github.repository }}:latest,
-            ghcr.io/${{ github.repository }}:${{ env.VERSION }}
+
+          echo ${{ env.TAG_EXISTS }}
+      # -
+      #   name: Build and push to non-main
+      #   if: github.event.pull_request.base.ref != 'main' && ${{ env.TAG_EXISTS }} == 'false'
+      #   uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      #   env:
+      #       VERSION: ${{ steps.file_contents.outputs.contents }}
+      #   with:
+      #     build-args: VERSION=${{ env.VERSION }}
+      #     platforms: linux/amd64,linux/arm64/v8
+      #     push: true
+      #     tags: ghcr.io/${{ github.repository }}:${{ env.VERSION }}
+      # -
+      #   name: Build and push to main
+      #   if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true && ${{ env.TAG_EXISTS }} == 'false'
+      #   uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      #   env:
+      #       VERSION: ${{ steps.file_contents.outputs.contents }}
+      #   with:
+      #     build-args: VERSION=${{ env.VERSION }}
+      #     platforms: linux/amd64,linux/arm64/v8
+      #     push: true
+      #     tags: 
+      #       ghcr.io/${{ github.repository }}:latest,
+      #       ghcr.io/${{ github.repository }}:${{ env.VERSION }}
