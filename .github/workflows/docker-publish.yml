@@ -45,7 +45,7 @@ jobs:
         uses: mukunku/tag-exists-action@v1.6.0
         id: check-tag
         with: 
-          tag: '1.12.2'
+          tag: 'v1.12.2'
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main' && steps.check-tag.outputs.exists == 'false'
