@@ -41,7 +41,7 @@ jobs:
         with:
           path: "version.yml"
       -
-        name: Add file contents to environment variable to normalize version number
+        name: Add file contents to env variable to normalize version number
         id: normalize-version
         run: |
           echo "VERSION_STRING=${{ steps.file-contents.outputs.contents }}" >> $GITHUB_ENV
