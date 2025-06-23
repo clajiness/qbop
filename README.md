@@ -6,12 +6,14 @@ qbop is built with Ruby and available as a Docker image.
 ## Purpose
 This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNsense. The tool polls ProtonVPN for the forwarded port, checks the ports set in OPNsense and qBittorrent, and updates them if necessary.
 
-You can ignore OPNsense and qBittorrent by using the `OPN_SKIP` and `QBIT_SKIP` environment variables.
+You can ignore OPNsense and/or qBittorrent by using the `OPN_SKIP` and `QBIT_SKIP` environment variables.
 
 ## Installation
-I recommend using the provided Docker Compose file to simplify the set up of qbop. This container must be connected to ProtonVPN due to the required `natpmpc` dependency.
+I recommend using the provided sample Docker Compose files to simplify the set up of qbop. This container must be connected to ProtonVPN due to the required `natpmpc` dependency.
 
-The container image is available here: https://github.com/clajiness/qbop/pkgs/container/qbop
+The container image is available [here](https://github.com/clajiness/qbop/pkgs/container/qbop). The sample docker-compose.yml file is available [here](https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml).
+
+There is also a community compose directory that currently contains a compose file set up to run the tool on Synology devices. Feel free to open a pull request and add your own compose files. The community-created compose files are available [here](https://github.com/clajiness/qbop/blob/main/docker-compose/community/).
 
 ### Requirements
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
@@ -23,12 +25,6 @@ The container image is available here: https://github.com/clajiness/qbop/pkgs/co
 * [ProtonVPN](https://protonvpn.com/support/port-forwarding)
 
 ### ENV variables
-The sample docker-compose.yml file is available here:
-https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml
-
-Community-created compose files are available here:
-https://github.com/clajiness/qbop/blob/main/docker-compose/community/
-
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `LOOP_FREQ` | `45` | This value, in seconds, determines how often the job runs. It must be a positive integer. The default value is recommended by ProtonVPN. |
