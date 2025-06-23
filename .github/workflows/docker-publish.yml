@@ -41,17 +41,22 @@ jobs:
         with:
           path: "version.yml"
       -
-        name: Add file contents to env variable to normalize version number
-        id: normalize-version
-        run: |
-          echo "VERSION_STRING=${{ steps.file-contents.outputs.contents }}" >> $GITHUB_ENV
+        name: Trim file contents
+        id: trim-file-contents
+        uses: actions/github-script@v7.0.1
+        env:
+          VERSION_RAW: ${{ steps.file-contents.outputs.contents }}
+        with:
+          script: |
+            const versionRaw = process.env.VERSION_RAW;
+            const versionFormatted = versionRaw.trim();
+            core.setOutput('version_formatted', versionFormatted)
       -
         name: Check if tag exists
-        if: steps.normalize-version.outcome == 'success'
         uses: action-pack/tag-exists@v1
         id: check-tag
         with: 
-          tag: ${{ env.VERSION_STRING }}
+          tag: ${{ steps.trim-file-contents.outputs.version_formatted}}
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
