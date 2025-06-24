@@ -27,6 +27,7 @@ There is also a community compose directory that currently contains a compose fi
 ### ENV variables
 | Variable | Default | Description |
 | :--- | :--- | :--- |
+| `UI_MODE` | `dark` | [`dark`/`light`] This value sets the UI mode of the web app. The default value is `dark`. |
 | `LOOP_FREQ` | `45` | This value, in seconds, determines how often the job runs. It must be a positive integer. The default value is recommended by ProtonVPN. |
 | `REQUIRED_ATTEMPTS` | `3` | The number of loops with a new forwarded port before updating OPNsense and qBit. The min is 1, and max is 10. |
 | `LOG_LINES` | `50` | The number of log lines displayed on the "logs" page |

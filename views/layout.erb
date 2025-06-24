@@ -7,7 +7,11 @@
     <meta name="theme-color" content="#ffffff" />
     <meta name="description" content="the qbop ui" />
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/terminal.css@0.7.4/dist/terminal.min.css" integrity="sha512-MV6F4Y1YDqDvibV5HCzIruh5CrWprV/iJrQmn0MEdbqtsFTJA+h/4UdgzAwqdlky0O2Pn6U0t+PYwoVVajIRUA==" crossorigin="anonymous" />
-    <link rel="stylesheet" type="text/css" href="/css/custom.css" />
+    <% if Service::Helpers.new.env_variables[:ui_mode] == "light" %>
+    <link rel="stylesheet" type="text/css" href="/css/light.css" />
+    <% else %>
+    <link rel="stylesheet" type="text/css" href="/css/dark.css" />
+    <% end %>
     <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="/images/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png" />

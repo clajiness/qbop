@@ -51,6 +51,7 @@ module Framework
           ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
         },
         'env_variables' => {
+          'ui_mode': ENV['UI_MODE'],
           'loop_freq': ENV['LOOP_FREQ'],
           'required_attempts': ENV['REQUIRED_ATTEMPTS'],
           'log_lines': ENV['LOG_LINES'],
