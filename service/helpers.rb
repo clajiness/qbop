@@ -2,8 +2,9 @@ module Service
   # The Helpers class provides utility methods for accessing environment variables
   # and parsing specific configuration values used in the application.
   class Helpers # rubocop:disable Metrics/ClassLength
-    def env_variables # rubocop:disable Metrics/MethodLength
+    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize
       {
+        ui_mode: format_ui_mode(ENV['UI_MODE']),
         script_version: ENV['VERSION'],
         loop_freq: validate_loop_frequency(ENV['LOOP_FREQ'] || 45),
         required_attempts: validate_required_attempts(ENV['REQUIRED_ATTEMPTS'] || 3),
@@ -18,6 +19,10 @@ module Service
         qbit_user: ENV['QBIT_USER'],
         qbit_pass: ENV['QBIT_PASS']
       }
+    end
+
+    def format_ui_mode(ui_mode)
+      ui_mode&.to_s&.downcase
     end
 
     def validate_loop_frequency(loop_freq)

@@ -13,7 +13,7 @@
 </div>
 <hr>
 
-<button class="btn btn-primary btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
+<button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
 
 <h4><em>app version</em></h4>
 <blockquote>
@@ -43,6 +43,7 @@
 
 <h4><em>env variables</em></h4>
 <blockquote>
+  UI_MODE: <%= @ui_mode %><br>
   LOOP_FREQ: <%= @loop_freq %><br>
   REQUIRED_ATTEMPTS: <%= @required_attempts %><br>
   LOG_LINES: <%= @log_lines %><br>
@@ -58,4 +59,4 @@
   QBIT_PASS: <%= @qbit_pass %>
 </blockquote>
 
-<button class="btn btn-primary btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
+<button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
