@@ -36,7 +36,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - 
         name: Read file contents
-        uses: guibranco/github-file-reader-action-v2@140838a4964c6104b718a86a1faa57294a8524c0 # v2.2.822
+        uses: guibranco/github-file-reader-action-v2@a8cab27393bd80297285847628425a8be3e575d3 # v2.2.842
         id: file-contents
         with:
           path: "version.yml"
