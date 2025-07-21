@@ -13,10 +13,10 @@ module Service
     def parse_proton_response(proton_response)
       return unless !proton_response.nil? && proton_response.include?('Mapped public port')
 
-      markerstring0 = 'port '
-      markerstring1 = ' protocol'
+      marker_string0 = 'port '
+      marker_string1 = ' protocol'
 
-      proton_response[/#{markerstring0}(.*?)#{markerstring1}/m, 1].to_i
+      proton_response[/#{marker_string0}(.*?)#{marker_string1}/m, 1].to_i
     end
   end
 end
