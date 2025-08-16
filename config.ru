@@ -17,3 +17,4 @@ end
 
 # start the job(s)
 Qbop.perform_async
+CheckForNewReleases.perform_async

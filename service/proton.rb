@@ -3,8 +3,11 @@ module Service
   # using the `natpmpc` command-line tool.
   class Proton
     def proton_natpmpc(proton_gateway)
+      loop_freq = Service::Helpers.env_variables[:loop_freq]
+      timeout = (loop_freq - 5).positive? ? loop_freq - 5 : loop_freq
+
       stdout, stderr, status = Open3.capture3(
-        "timeout 5 natpmpc -a 1 0 udp 60 -g #{proton_gateway} && natpmpc -a 1 0 tcp 60 -g #{proton_gateway}"
+        "timeout #{timeout} natpmpc -a 1 0 udp 60 -g #{proton_gateway} && natpmpc -a 1 0 tcp 60 -g #{proton_gateway}"
       )
 
       { stdout: stdout, stderr: stderr, status: status }

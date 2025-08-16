@@ -11,10 +11,14 @@
     </ul>
   </nav>
 </div>
+<% if @update_available %>
+<div class="terminal-alert terminal-alert-primary"><a href="https://github.com/clajiness/qbop/releases" target="_blank">an update is available:</a> <a href="https://github.com/clajiness/qbop/releases/tag/<%= @recent_tag %>" target="_blank"><%= @recent_tag %></a></div>
+<% end %>
 <hr>
 
 <h4><em>api endpoints</em></h4>
 <blockquote>
   GET <a class="menu-item" href="/api/stats" target="_blank">/api/stats</a><br>
-  GET <a class="menu-item" href="/api/about" target="_blank">/api/about</a>
+  GET <a class="menu-item" href="/api/about" target="_blank">/api/about</a><br>
+  GET <a class="menu-item" href="/api/notifications" target="_blank">/api/notifications</a>
 </blockquote>

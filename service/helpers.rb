@@ -41,8 +41,8 @@ module Service
       end
     end
 
-    def skip_section?(skip)
-      skip&.to_s&.downcase == 'true'
+    def true?(obj)
+      obj&.to_s&.downcase == 'true'
     end
 
     def get_db_version
@@ -145,6 +145,15 @@ module Service
       seconds_to_s(Service::Stats.new.get_qbit_same_port)
     rescue StandardError
       'unknown'
+    end
+
+    def update_available?
+      newest_tag = Service::Github.new.get_most_recent_tag[1..]
+      app_tag = ENV['VERSION'][1..]
+
+      Gem::Version.new(newest_tag) > Gem::Version.new(app_tag) if newest_tag && app_tag
+    rescue StandardError
+      false
     end
   end
 end
