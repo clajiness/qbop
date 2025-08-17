@@ -2,9 +2,16 @@ module Service
   # The Proton class provides methods to interact with NAT-PMP (Network Address Translation Port Mapping Protocol)
   # using the `natpmpc` command-line tool.
   class Proton
+    def initialize(helpers)
+      @helpers = helpers
+    end
+
     def proton_natpmpc(proton_gateway)
+      loop_freq = @helpers.env_variables[:loop_freq]
+      timeout = (loop_freq - 5).positive? ? loop_freq - 5 : loop_freq
+
       stdout, stderr, status = Open3.capture3(
-        "timeout 5 natpmpc -a 1 0 udp 60 -g #{proton_gateway} && natpmpc -a 1 0 tcp 60 -g #{proton_gateway}"
+        "timeout #{timeout} natpmpc -a 1 0 udp 60 -g #{proton_gateway} && natpmpc -a 1 0 tcp 60 -g #{proton_gateway}"
       )
 
       { stdout: stdout, stderr: stderr, status: status }

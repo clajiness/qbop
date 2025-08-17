@@ -5,6 +5,10 @@ module Framework
     get '/' do
       stats = Service::Stats.new.get_all
       helpers = Service::Helpers.new
+      notification = Service::Notification.new
+
+      @update_available = helpers.true?(notification.get_update_available)
+      @recent_tag = notification.get_update_version
 
       @stats = stats
 
@@ -16,8 +20,8 @@ module Framework
       @opn_delta = helpers.time_delta_to_s(stats['opn_last_checked'], stats['opn_updated_at'])
       @qbit_delta = helpers.time_delta_to_s(stats['qbit_last_checked'], stats['qbit_updated_at'])
 
-      @opn_skip = helpers.skip_section?(ENV['OPN_SKIP'])
-      @qbit_skip = helpers.skip_section?(ENV['QBIT_SKIP'])
+      @opn_skip = helpers.true?(ENV['OPN_SKIP'])
+      @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
 
       @proton_longest_time_on_same_port = helpers.get_proton_longest_time_on_same_port_to_s
       @opn_longest_time_on_same_port = helpers.get_opn_longest_time_on_same_port_to_s
@@ -27,10 +31,22 @@ module Framework
     end
 
     get '/api-docs' do
+      helpers = Service::Helpers.new
+      notification = Service::Notification.new
+
+      @update_available = helpers.true?(notification.get_update_available)
+      @recent_tag = notification.get_update_version
+
       erb :api_docs
     end
 
     get '/logs' do
+      helpers = Service::Helpers.new
+      notification = Service::Notification.new
+
+      @update_available = helpers.true?(notification.get_update_available)
+      @recent_tag = notification.get_update_version
+
       log_lines = ENV['LOG_LINES'] || 50
       output = []
 
@@ -46,8 +62,11 @@ module Framework
 
     get '/about' do
       helpers = Service::Helpers.new
+      notification = Service::Notification.new
 
       @app_version = ENV['VERSION']
+      @update_available = helpers.true?(notification.get_update_available)
+      @recent_tag = notification.get_update_version
       @app_uptime = helpers.job_uptime_to_s
       @schema_version = helpers.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
@@ -58,12 +77,12 @@ module Framework
       @required_attempts = ENV['REQUIRED_ATTEMPTS']
       @log_lines = ENV['LOG_LINES']
       @proton_gateway = ENV['PROTON_GATEWAY']
-      @opn_skip = helpers.skip_section?(ENV['OPN_SKIP'])
+      @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
       @opn_api_key = '***'
       @opn_api_secret = '***'
       @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
-      @qbit_skip = helpers.skip_section?(ENV['QBIT_SKIP'])
+      @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
       @qbit_addr = ENV['QBIT_ADDR']
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'

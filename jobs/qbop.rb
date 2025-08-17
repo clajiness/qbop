@@ -33,7 +33,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
       # Proton section
       begin
         # create Proton object
-        proton ||= Service::Proton.new
+        proton ||= Service::Proton.new(helpers)
 
         # make natpmpc call to proton
         response = proton.proton_natpmpc(config[:proton_gateway])
@@ -76,7 +76,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
       end
 
       # OPNsense section
-      if helpers.skip_section?(config[:opnsense_skip])
+      if helpers.true?(config[:opnsense_skip])
         # ignore OPNsense section
         @logger.info('OPNsense check skipped')
       else
@@ -153,7 +153,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
       end
 
       # qBit section
-      if helpers.skip_section?(config[:qbit_skip])
+      if helpers.true?(config[:qbit_skip])
         # ignore qBit section
         @logger.info('qBit check skipped')
       else

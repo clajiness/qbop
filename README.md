@@ -9,6 +9,9 @@ This tool helps automate port forwarding from ProtonVPN to qBittorrent via OPNse
 You can ignore OPNsense and/or qBittorrent by using the `OPN_SKIP` and `QBIT_SKIP` environment variables.
 
 ## Installation
+> [!CAUTION]
+> Due to changes to the OPNsense API, do not update beyond qbop v1.13.2 if you are not running OPNsense 25.7.0 or later. If you are a Business Edition user, you must wait for 25.10.0 or later.
+
 I recommend using the provided sample Docker Compose files to simplify the set up of qbop. This container must be connected to ProtonVPN due to the required `natpmpc` dependency.
 
 The container image is available [here](https://github.com/clajiness/qbop/pkgs/container/qbop). The sample docker-compose.yml file is available [here](https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml).

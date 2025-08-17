@@ -26,6 +26,9 @@ module Service
         when 1
           migration2
           version += 1
+        when 2
+          migration3
+          version += 1
         else
           break
         end
@@ -71,6 +74,26 @@ module Service
         0
       ]
         db.execute 'pragma user_version = 2'
+      end
+    end
+
+    def migration3 # rubocop:disable Metrics/MethodLength
+      SQLite3::Database.open 'data/prod.db' do |db|
+        db.execute <<-SQL
+          create table notifications (
+            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            update_available BOOLEAN,
+            update_version TEXT
+          );
+        SQL
+        db.execute 'insert into notifications (
+          update_available,
+          update_version
+          ) values (?, ?)', %w[
+            false
+            unknown
+          ]
+        db.execute 'pragma user_version = 3'
       end
     end
   end
