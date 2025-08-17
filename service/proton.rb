@@ -3,7 +3,7 @@ module Service
   # using the `natpmpc` command-line tool.
   class Proton
     def proton_natpmpc(proton_gateway)
-      loop_freq = Service::Helpers.env_variables[:loop_freq]
+      loop_freq = Service::Helpers.new.env_variables[:loop_freq]
       timeout = (loop_freq - 5).positive? ? loop_freq - 5 : loop_freq
 
       stdout, stderr, status = Open3.capture3(
