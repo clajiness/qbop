@@ -1,5 +1,6 @@
 module Service
-  class Notification # rubocop:disable Style/Documentation
+  # Handles notification-related database operations for the Service module.
+  class Notification
     def get_update_available
       db_execute('select update_available from notifications where id = 1').flatten.first
     end

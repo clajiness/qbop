@@ -33,7 +33,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
       # Proton section
       begin
         # create Proton object
-        proton ||= Service::Proton.new
+        proton ||= Service::Proton.new(helpers)
 
         # make natpmpc call to proton
         response = proton.proton_natpmpc(config[:proton_gateway])

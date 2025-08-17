@@ -1,5 +1,6 @@
 module Service
-  class Github # rubocop:disable Style/Documentation
+  # Handles interactions with the GitHub API for the Service module.
+  class Github
     def initialize
       @conn = faraday_conn
     end

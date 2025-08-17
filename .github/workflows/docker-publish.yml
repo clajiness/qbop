@@ -56,7 +56,7 @@ jobs:
         uses: action-pack/tag-exists@e3a3c2baef96878a14417f8c1424e6da5c2167bd # v1.08
         id: check-tag
         with: 
-          tag: ${{ steps.trim-file-contents.outputs.version_formatted}}
+          tag: ${{ steps.trim-file-contents.outputs.version_formatted }}
       -
         name: Build and push to non-main
         if: github.event.pull_request.base.ref != 'main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
