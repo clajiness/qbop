@@ -55,6 +55,7 @@ module Framework
           'loop_freq': ENV['LOOP_FREQ'],
           'required_attempts': ENV['REQUIRED_ATTEMPTS'],
           'log_lines': ENV['LOG_LINES'],
+          'log_reverse': helpers.true?(ENV['LOG_REVERSE']),
           'proton_gateway': ENV['PROTON_GATEWAY'],
           'opn_skip': helpers.true?(ENV['OPN_SKIP']),
           'opn_interface_addr': ENV['OPN_INTERFACE_ADDR'],

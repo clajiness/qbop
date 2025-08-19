@@ -17,7 +17,9 @@ module Service
         qbit_skip: ENV['QBIT_SKIP'] || 'false',
         qbit_addr: ENV['QBIT_ADDR'],
         qbit_user: ENV['QBIT_USER'],
-        qbit_pass: ENV['QBIT_PASS']
+        qbit_pass: ENV['QBIT_PASS'],
+        log_lines: ENV['LOG_LINES'] || 50,
+        log_reverse: ENV['LOG_REVERSE'] || 'false'
       }
     end
 
