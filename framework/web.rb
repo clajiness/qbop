@@ -54,8 +54,8 @@ module Framework
         output << line
       end
 
-      @output = output
-      @log_lines = helpers.true?(helpers.env_variables[:log_reverse]) ? output.reverse : output
+      @output = helpers.true?(helpers.env_variables[:log_reverse]) ? output.reverse : output
+      @log_lines = log_lines
 
       erb :logs
     end
