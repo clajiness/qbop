@@ -25,6 +25,7 @@ services:
       - QBIT_USER=
       - QBIT_PASS=
       - LOG_LINES=
+      - LOG_REVERSE=
 
 volumes:
   data:

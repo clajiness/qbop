@@ -47,14 +47,14 @@ module Framework
       @update_available = helpers.true?(notification.get_update_available)
       @recent_tag = notification.get_update_version
 
-      log_lines = ENV['LOG_LINES'] || 50
+      log_lines = helpers.env_variables[:log_lines]
       output = []
 
       File.readlines('data/log/qbop.log').last(log_lines.to_i).each do |line|
         output << line
       end
 
-      @output = output
+      @output = helpers.true?(helpers.env_variables[:log_reverse]) ? output.reverse : output
       @log_lines = log_lines
 
       erb :logs
@@ -76,6 +76,7 @@ module Framework
       @loop_freq = ENV['LOOP_FREQ']
       @required_attempts = ENV['REQUIRED_ATTEMPTS']
       @log_lines = ENV['LOG_LINES']
+      @log_reverse = helpers.true?(ENV['LOG_REVERSE'])
       @proton_gateway = ENV['PROTON_GATEWAY']
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
