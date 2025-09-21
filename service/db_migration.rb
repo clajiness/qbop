@@ -10,7 +10,7 @@ module Service
     def check_user_version
       user_version = 0
 
-      SQLite3::Database.open 'data/prod.db' do |db|
+      SQLite3::Database.open 'db/prod.db' do |db|
         user_version = db.execute('pragma user_version;').flatten.first
       end
 
@@ -36,7 +36,7 @@ module Service
     end
 
     def migration1 # rubocop:disable Metrics/MethodLength
-      SQLite3::Database.open 'data/prod.db' do |db|
+      SQLite3::Database.open 'db/prod.db' do |db|
         db.execute 'ALTER TABLE stats ADD COLUMN proton_last_checked TEXT'
         db.execute 'ALTER TABLE stats ADD COLUMN opn_last_checked TEXT'
         db.execute 'ALTER TABLE stats ADD COLUMN qbit_last_checked TEXT'
@@ -54,7 +54,7 @@ module Service
     end
 
     def migration2 # rubocop:disable Metrics/MethodLength
-      SQLite3::Database.open 'data/prod.db' do |db|
+      SQLite3::Database.open 'db/prod.db' do |db|
         db.execute 'ALTER TABLE stats ADD COLUMN job_started_at TEXT'
         db.execute 'ALTER TABLE stats ADD COLUMN proton_updated_at TEXT'
         db.execute 'ALTER TABLE stats ADD COLUMN proton_same_port INTEGER'
@@ -78,7 +78,7 @@ module Service
     end
 
     def migration3 # rubocop:disable Metrics/MethodLength
-      SQLite3::Database.open 'data/prod.db' do |db|
+      SQLite3::Database.open 'db/prod.db' do |db|
         db.execute <<-SQL
           create table notifications (
             ID INTEGER PRIMARY KEY AUTOINCREMENT,

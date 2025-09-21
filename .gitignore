@@ -1,5 +1,6 @@
 local_config/
-data/prod.db
-data/log/*.log
-data/log/*.log.*
+storage/qbop.sqlite
+log/*.log
+log/*.log.*
 .DS_Store
+.idea/

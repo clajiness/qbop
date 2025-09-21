@@ -21,7 +21,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     stats.set_job_started_at
 
     # set up logger
-    @logger = Logger.new('./data/log/qbop.log', 10, 1_024_000)
+    @logger = Logger.new('log/qbop.log', 10, 1_024_000)
     @logger.info("starting qbop #{config[:script_version]}")
     @logger.info("the tool will loop every #{config[:loop_freq]} seconds")
     @logger.info('----------')
@@ -100,9 +100,9 @@ class Qbop # rubocop:disable Metrics/ClassLength
             counter.increment_opnsense_attempt
 
             # after x attempts, if the ports still don't match, set the OPNsense port to be updated
-            counter.change_opnsense if counter.opnsense_attempt >= counter.required_attempts
+            counter.change_opnsense if counter.opnsense_attempt >= helpers.env_variables[:required_attempts]
 
-            @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.opnsense_attempt} of #{counter.required_attempts}.") # rubocop:disable Layout/LineLength
+            @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.opnsense_attempt} of #{helpers.env_variables[:required_attempts]}.") # rubocop:disable Layout/LineLength
           else
             # reset counter if ports match
             counter.reset_opnsense_attempt if counter.opnsense_attempt != 0
@@ -177,9 +177,9 @@ class Qbop # rubocop:disable Metrics/ClassLength
             counter.increment_qbit_attempt
 
             # after x attempts, if the ports still don't match, set the qBit port to be updated
-            counter.change_qbit if counter.qbit_attempt >= counter.required_attempts
+            counter.change_qbit if counter.qbit_attempt >= helpers.env_variables[:required_attempts]
 
-            @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.qbit_attempt} of #{counter.required_attempts}.") # rubocop:disable Layout/LineLength
+            @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.qbit_attempt} of #{helpers.env_variables[:required_attempts]}.") # rubocop:disable Layout/LineLength
           else
             # reset counter if ports match
             counter.reset_qbit_attempt if counter.qbit_attempt != 0

@@ -16,7 +16,7 @@ module Service
     private
 
     def create_db
-      SQLite3::Database.new 'data/prod.db'
+      SQLite3::Database.new 'db/prod.db'
     end
 
     def create_tables(db) # rubocop:disable Metrics/MethodLength

@@ -2,7 +2,7 @@ module Service
   # The Helpers class provides utility methods for accessing environment variables
   # and parsing specific configuration values used in the application.
   class Helpers # rubocop:disable Metrics/ClassLength
-    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize
+    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity
       {
         ui_mode: format_ui_mode(ENV['UI_MODE']),
         script_version: ENV['VERSION'],
@@ -50,7 +50,7 @@ module Service
     def get_db_version
       user_version = 0
 
-      SQLite3::Database.open 'data/prod.db' do |db|
+      SQLite3::Database.open 'db/qbop.db' do |db|
         user_version = db.execute('pragma user_version;').flatten.first
       end
 

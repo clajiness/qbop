@@ -57,7 +57,6 @@ GEM
     language_server-protocol (3.17.0.3)
     lint_roller (1.1.0)
     logger (1.7.0)
-    mini_portile2 (2.8.8)
     minitest (5.25.4)
     mustermann (3.0.3)
       ruby2_keywords (~> 0.0.1)
@@ -86,6 +85,7 @@ GEM
     rackup (2.2.1)
       rack (>= 3)
     rainbow (3.1.1)
+    rake (13.3.0)
     regexp_parser (2.10.0)
     rspec (3.13.1)
       rspec-core (~> 3.13.0)
@@ -117,6 +117,8 @@ GEM
     ruby-progressbar (1.13.0)
     ruby2_keywords (0.0.5)
     securerandom (0.4.1)
+    sequel (5.96.0)
+      bigdecimal
     sinatra (4.1.1)
       logger (>= 1.6.0)
       mustermann (~> 3.0)
@@ -124,8 +126,6 @@ GEM
       rack-protection (= 4.1.1)
       rack-session (>= 2.0.0, < 3)
       tilt (~> 2.0)
-    sqlite3 (2.7.3)
-      mini_portile2 (~> 2.8.0)
     sqlite3 (2.7.3-arm64-darwin)
     sucker_punch (3.2.0)
       concurrent-ruby (~> 1.0)
@@ -140,7 +140,6 @@ GEM
 
 PLATFORMS
   arm64-darwin-24
-  ruby
 
 DEPENDENCIES
   faraday (~> 2.13, >= 2.13.4)
@@ -152,8 +151,10 @@ DEPENDENCIES
   rack (~> 3.2)
   rack-session (~> 2.1, >= 2.1.1)
   rackup (~> 2.2, >= 2.2.1)
+  rake (~> 13.3)
   rspec (~> 3.13, >= 3.13.1)
   rubocop (~> 1.79, >= 1.79.2)
+  sequel (~> 5.96)
   sinatra (~> 4.1, >= 4.1.1)
   sqlite3 (~> 2.7, >= 2.7.3)
   sucker_punch (~> 3.2)
@@ -181,7 +182,6 @@ CHECKSUMS
   language_server-protocol (3.17.0.3) sha256=3d5c58c02f44a20d972957a9febe386d7e7468ab3900ce6bd2b563dd910c6b3f
   lint_roller (1.1.0) sha256=2c0c845b632a7d172cb849cc90c1bce937a28c5c8ccccb50dfd46a485003cc87
   logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203
-  mini_portile2 (2.8.8) sha256=8e47136cdac04ce81750bb6c09733b37895bf06962554e4b4056d78168d70a75
   minitest (5.25.4) sha256=9cf2cae25ac4dfc90c988ebc3b917f53c054978b673273da1bd20bcb0778f947
   mustermann (3.0.3) sha256=d1f8e9ba2ddaed47150ddf81f6a7ea046826b64c672fbc92d83bce6b70657e88
   mustermann-grape (1.1.0) sha256=8d258a986004c8f01ce4c023c0b037c168a9ed889cf5778068ad54398fa458c5
@@ -198,6 +198,7 @@ CHECKSUMS
   rack-session (2.1.1) sha256=0b6dc07dea7e4b583f58a48e8b806d4c9f1c6c9214ebc202ec94562cbea2e4e9
   rackup (2.2.1) sha256=f737191fd5c5b348b7f0a4412a3b86383f88c43e13b8217b63d4c8d90b9e798d
   rainbow (3.1.1) sha256=039491aa3a89f42efa1d6dec2fc4e62ede96eb6acd95e52f1ad581182b79bc6a
+  rake (13.3.0) sha256=96f5092d786ff412c62fde76f793cc0541bd84d2eb579caa529aa8a059934493
   regexp_parser (2.10.0) sha256=cb6f0ddde88772cd64bff1dbbf68df66d376043fe2e66a9ef77fcb1b0c548c61
   rspec (3.13.1) sha256=b9f9a58fa915b8d94a1d6b3195fe6dd28c4c34836a6097015142c4a9ace72140
   rspec-core (3.13.2) sha256=94fbda6e4738e478f1c7532b7cc241272fcdc8b9eac03a97338b1122e4573300
@@ -209,8 +210,8 @@ CHECKSUMS
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   ruby2_keywords (0.0.5) sha256=ffd13740c573b7301cf7a2e61fc857b2a8e3d3aff32545d6f8300d8bae10e3ef
   securerandom (0.4.1) sha256=cc5193d414a4341b6e225f0cb4446aceca8e50d5e1888743fac16987638ea0b1
+  sequel (5.96.0) sha256=8e1ac79ce8bc1fa0a061d3bd9eb44605346025eb359f93d7f67efcfef7070e45
   sinatra (4.1.1) sha256=4e997b859aa1b5d2e624f85d5b0fd0f0b3abc0da44daa6cbdf10f7c0da9f4d00
-  sqlite3 (2.7.3) sha256=d2b2fecd9341132f2cea3fde9061ee0fab9c9d532a8ecccfab4fe63d9621bf57
   sqlite3 (2.7.3-arm64-darwin) sha256=133772f4312a9d0fa0c16aab7c2abdda2ee93f47dded0f353a2981f7b9d2b9b4
   sucker_punch (3.2.0) sha256=8eeb8d59254210f85b57fc9534c5a64f5e7d7498060dd6b9b50e33a89b100567
   tilt (2.6.0) sha256=263d748466e0d83e510aa1a2e2281eff547937f0ef06be33d3632721e255f76b

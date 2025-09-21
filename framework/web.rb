@@ -50,7 +50,7 @@ module Framework
       log_lines = helpers.env_variables[:log_lines]
       output = []
 
-      File.readlines('data/log/qbop.log').last(log_lines.to_i).each do |line|
+      File.readlines('log/qbop.log').last(log_lines.to_i).each do |line|
         output << line
       end
 
