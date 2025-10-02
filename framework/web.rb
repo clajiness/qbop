@@ -68,7 +68,6 @@ module Framework
       @update_available = update[:active]
 
       @app_version = ENV['VERSION']
-      @app_uptime = helpers.job_uptime_to_s
       @schema_version = helpers.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
       @repo_url = 'https://github.com/clajiness/qbop'

@@ -22,8 +22,8 @@ RUN mkdir -p /opt/qbop/data/
 RUN mkdir -p /opt/qbop/log/
 
 # create volumes
+VOLUME /opt/qbop/data/
 VOLUME /opt/qbop/log/
-VOLUME /opt/qbop/storage/
 
 # install necessary packages
 RUN \

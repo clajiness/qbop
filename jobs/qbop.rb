@@ -11,20 +11,17 @@ class Qbop # rubocop:disable Metrics/ClassLength
     # collect env variables in a config variable
     config = helpers.env_variables
 
-    # set job started at timestamp
-    helpers.set_job_started_at
-
     # create Proton objects
     proton = Service::Proton.new(helpers)
-    proton_data = Source.find(name: 'proton')
+    proton_data = Source[name: 'proton']
 
     # create OPNsense objects
     opnsense = Service::Opnsense.new(config)
-    opnsense_data = Source.find(name: 'opnsense')
+    opnsense_data = Source[name: 'opnsense']
 
     # create qBit objects
     qbit = Service::Qbit.new(config)
-    qbit_data = Source.find(name: 'qbit')
+    qbit_data = Source[name: 'qbit']
 
     # set up logger
     @logger = Logger.new('log/qbop.log', 10, 1_024_000)

@@ -96,59 +96,38 @@ module Service
       false
     end
 
-    def set_job_started_at
-      session = env['rack.session']
-      session[:job_uptime] = Time.now.to_s
-    rescue StandardError
-      nil
-    end
-
-    def job_uptime
-      job_started_at = Service::Stats.new.get_job_started_at
-      time_delta(Time.now.to_s, job_started_at)
-    rescue StandardError
-      'unknown'
-    end
-
-    def job_uptime_to_s
-      job_started_at = Service::Stats.new.get_job_started_at
-      time_delta_to_s(Time.now.to_s, job_started_at)
-    rescue StandardError
-      'unknown'
-    end
-
     def get_proton_longest_time_on_same_port
-      Service::Stats.new.get_proton_same_port
+      Source[name: 'proton'].get_same_port
     rescue StandardError
       'unknown'
     end
 
     def get_opn_longest_time_on_same_port
-      Service::Stats.new.get_opn_same_port
+      Source[name: 'opnsense'].get_same_port
     rescue StandardError
       'unknown'
     end
 
     def get_qbit_longest_time_on_same_port
-      Service::Stats.new.get_qbit_same_port
+      Source[name: 'qbit'].get_same_port
     rescue StandardError
       'unknown'
     end
 
     def get_proton_longest_time_on_same_port_to_s
-      seconds_to_s(Service::Stats.new.get_proton_same_port)
+      seconds_to_s(Source[name: 'proton'].get_same_port)
     rescue StandardError
       'unknown'
     end
 
     def get_opn_longest_time_on_same_port_to_s
-      seconds_to_s(Service::Stats.new.get_opn_same_port)
+      seconds_to_s(Source[name: 'opnsense'].get_same_port)
     rescue StandardError
       'unknown'
     end
 
     def get_qbit_longest_time_on_same_port_to_s
-      seconds_to_s(Service::Stats.new.get_qbit_same_port)
+      seconds_to_s(Source[name: 'qbit'].get_same_port)
     rescue StandardError
       'unknown'
     end

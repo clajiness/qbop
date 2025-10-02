@@ -50,7 +50,6 @@ module Framework
 
       { 'about' => {
           app_version: ENV['VERSION'],
-          app_uptime: helpers.job_uptime,
           schema_version: helpers.get_db_version,
           ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
         },
