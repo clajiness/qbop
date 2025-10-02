@@ -4,7 +4,7 @@ namespace :db do
     require 'sequel/core'
     Sequel.extension :migration
     version = args[:version].to_i if args[:version]
-    Sequel.connect('sqlite://storage/qbop.sqlite3') do |db|
+    Sequel.connect('sqlite://data/qbop.sqlite3') do |db|
       Sequel::Migrator.run(db, 'db/migrate', target: version)
     end
   end

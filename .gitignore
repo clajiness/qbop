@@ -1,5 +1,4 @@
-local_config/
-storage/qbop.sqlite
+data/qbop.sqlite3
 log/*.log
 log/*.log.*
 .DS_Store

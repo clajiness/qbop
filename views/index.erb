@@ -20,9 +20,9 @@
 
 <h4><em>protonvpn</em> <%= @proton_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
-  current port: <%= @stats['proton_current_port'] %><br>
-  last changed: <%= @stats['proton_updated_at'] %><br>
-  last checked: <%= @stats['proton_last_checked'] %><br>
+  current port: <%= @proton_stats[:current_port] %><br>
+  last changed: <%= @proton_stats[:updated_at] %><br>
+  last checked: <%= @proton_stats[:last_checked] %><br>
   &#916;: <%= @proton_delta %>
 </blockquote>
 
@@ -31,9 +31,9 @@
   <% if @opn_skip %>
   skipped per the OPN_SKIP ENV variable
   <% else %>
-  current port: <%= @stats['opn_current_port'] %><br>
-  last changed: <%= @stats['opn_updated_at'] %><br>
-  last checked: <%= @stats['opn_last_checked'] %><br>
+  current port: <%= @opn_stats[:current_port] %><br>
+  last changed: <%= @opn_stats[:updated_at] %><br>
+  last checked: <%= @opn_stats[:last_checked] %><br>
   &#916;: <%= @opn_delta %>
   <% end %>
 </blockquote>
@@ -43,9 +43,9 @@
   <% if @qbit_skip %>
   skipped per the QBIT_SKIP ENV variable
   <% else %>
-  current port: <%= @stats['qbit_current_port'] %><br>
-  last changed: <%= @stats['qbit_updated_at'] %><br>
-  last checked: <%= @stats['qbit_last_checked'] %><br>
+  current port: <%= @qbit_stats[:current_port] %><br>
+  last changed: <%= @qbit_stats[:updated_at] %><br>
+  last checked: <%= @qbit_stats[:last_checked] %><br>
   &#916;: <%= @qbit_delta %>
   <% end %>
 </blockquote>

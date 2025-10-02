@@ -48,13 +48,10 @@ module Service
     end
 
     def get_db_version
-      user_version = 0
-
-      SQLite3::Database.open 'db/qbop.db' do |db|
-        user_version = db.execute('pragma user_version;').flatten.first
-      end
-
-      user_version
+      info = DB[:schema_info]
+      info.first[:version] if info.any?
+    rescue StandardError
+      'unknown'
     end
 
     def time_delta(last_checked, last_updated)
@@ -97,6 +94,13 @@ module Service
       Time.new(last_checked) >= (Time.now - ((ENV['LOOP_FREQ'] || 45).to_i * 3))
     rescue StandardError
       false
+    end
+
+    def set_job_started_at
+      session = env['rack.session']
+      session[:job_uptime] = Time.now.to_s
+    rescue StandardError
+      nil
     end
 
     def job_uptime

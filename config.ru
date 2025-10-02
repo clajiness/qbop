@@ -5,9 +5,19 @@ Dir['./framework/*.rb'].sort.each { |file| require_relative file }
 Dir['./jobs/*.rb'].sort.each { |file| require_relative file }
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
-# run migrations
+# enable Sequel plugins
+Sequel::Model.plugin :update_or_create
+
+# run available migrations
 load 'Rakefile'
 Rake::Task['db:migrate'].invoke
+
+# connect to the database and load models
+DB = Sequel.connect('sqlite://data/qbop.sqlite3')
+Dir['./models/*.rb'].sort.each { |file| require_relative file }
+
+# seed sources table if empty
+Service::Seed.new
 
 # map sinatra and grape apps
 map '/' do
@@ -16,5 +26,5 @@ map '/' do
 end
 
 # start the job(s)
-TestJob.perform_async
+Qbop.perform_async
 CheckForNewReleases.perform_async
