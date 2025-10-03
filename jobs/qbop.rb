@@ -87,6 +87,9 @@ class Qbop # rubocop:disable Metrics/ClassLength
           # get OPNsense alias value
           alias_port = opnsense.get_alias_value(uuid)
 
+          # set current port to OPNsense alias port for tracking
+          opnsense_data.set_current_port(alias_port)
+
           # set OPNsense as checked
           opnsense_data.set_last_checked if alias_port
 
@@ -161,7 +164,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
           # get port from qBit
           qbt_port = qbit.qbt_app_preferences(sid)
 
-          # testing
+          # set current port to qBit port for tracking
           qbit_data.set_current_port(qbt_port)
 
           # set qBit as checked
