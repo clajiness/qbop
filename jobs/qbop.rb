@@ -161,6 +161,9 @@ class Qbop # rubocop:disable Metrics/ClassLength
           # get port from qBit
           qbt_port = qbit.qbt_app_preferences(sid)
 
+          # testing
+          qbit_data.set_current_port(forwarded_port)
+
           # set qBit as checked
           qbit_data.set_last_checked if qbt_port
 
