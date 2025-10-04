@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
-gem 'faraday', '~> 2.13', '>= 2.13.4'
+gem 'faraday', '~> 2.14'
 gem 'grape', '~> 2.4'
 gem 'json', '~> 2.15'
 gem 'logger', '~> 1.7'
@@ -11,8 +11,8 @@ gem 'rack-session', '~> 2.1', '>= 2.1.1'
 gem 'rackup', '~> 2.2', '>= 2.2.1'
 gem 'rake', '~> 13.3'
 gem 'rspec', '~> 3.13', '>= 3.13.1'
-gem 'rubocop', '~> 1.80', '>= 1.80.2', require: false
-gem 'sequel', '~> 5.96'
+gem 'rubocop', '~> 1.81', '>= 1.81.1', require: false
+gem 'sequel', '~> 5.97'
 gem 'sinatra', '~> 4.1', '>= 4.1.1'
 gem 'sqlite3', '~> 2.7', '>= 2.7.4'
 gem 'sucker_punch', '~> 3.2'
