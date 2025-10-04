@@ -1,3 +1,3 @@
-class Stat < Sequel::Model
+class Stat < Sequel::Model # rubocop:disable Style/Documentation
   many_to_one :sources
 end

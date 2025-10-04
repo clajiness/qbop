@@ -88,6 +88,8 @@ module Framework
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
 
+      @gemfile = helpers.gemfile_to_a
+
       erb :about
     end
   end

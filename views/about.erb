@@ -62,5 +62,17 @@
   QBIT_USER: <%= @qbit_user %><br>
   QBIT_PASS: <%= @qbit_pass %>
 </blockquote>
+<hr>
+
+<h4><em>ruby gems</em></h4>
+<section>
+  <pre>
+    <code>
+<% @gemfile.each do |line| %>
+<%= line %>
+<% end %>
+    </code>
+  </pre>
+</section>
 
 <button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>

@@ -140,5 +140,17 @@ module Service
     rescue StandardError
       false
     end
+
+    def gemfile_to_a
+      gemfile = []
+
+      File.readlines('Gemfile').each do |line|
+        gemfile << line
+      end
+
+      gemfile
+    rescue StandardError
+      []
+    end
   end
 end
