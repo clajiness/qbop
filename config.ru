@@ -16,7 +16,7 @@ Rake::Task['db:migrate'].invoke
 DB = Sequel.connect('sqlite://data/qbop.sqlite3')
 Dir['./models/*.rb'].sort.each { |file| require_relative file }
 
-# seed sources table if empty
+# seed tables if empty
 Service::Seed.new
 
 # map sinatra and grape apps
