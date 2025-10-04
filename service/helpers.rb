@@ -141,6 +141,21 @@ module Service
       false
     end
 
+    def log_lines_to_a(log_lines)
+      output = []
+
+      File.readlines('log/qbop.log').last(log_lines.to_i).each do |line|
+        output << line
+      end
+
+      formatted_output = true?(env_variables[:log_reverse]) ? output.reverse : output
+
+      last_line = formatted_output.pop
+      formatted_output << last_line.strip
+    rescue StandardError
+      []
+    end
+
     def gemfile_to_a
       gemfile = []
 
@@ -148,7 +163,8 @@ module Service
         gemfile << line
       end
 
-      gemfile
+      last_line = gemfile.pop
+      gemfile << last_line.strip
     rescue StandardError
       []
     end

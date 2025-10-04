@@ -47,15 +47,8 @@ module Framework
       @recent_tag = update[:info]
       @update_available = update[:active]
 
-      log_lines = helpers.env_variables[:log_lines]
-      output = []
-
-      File.readlines('log/qbop.log').last(log_lines.to_i).each do |line|
-        output << line
-      end
-
-      @output = helpers.true?(helpers.env_variables[:log_reverse]) ? output.reverse : output
-      @log_lines = log_lines
+      @log_lines = helpers.env_variables[:log_lines]
+      @output = helpers.log_lines_to_a(@log_lines)
 
       erb :logs
     end
