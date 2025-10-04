@@ -28,11 +28,6 @@
   <% end %>
 </blockquote>
 
-<h4><em>app uptime</em></h4>
-<blockquote>
-  <%= @app_uptime %>
-</blockquote>
-
 <h4><em>schema version</em></h4>
 <blockquote>
   <%= @schema_version %>
@@ -67,5 +62,15 @@
   QBIT_USER: <%= @qbit_user %><br>
   QBIT_PASS: <%= @qbit_pass %>
 </blockquote>
+<hr>
+
+<h4><em>ruby gems</em></h4>
+<section>
+  <pre>
+<% @gemfile.each do |line| %>
+<%= line %>
+<% end %>
+  </pre>
+</section>
 
 <button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>

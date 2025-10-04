@@ -6,30 +6,34 @@ module Framework
     prefix :api
 
     get '/stats' do # rubocop:disable Metrics/BlockLength
-      stats = Service::Stats.new.get_all
       helpers = Service::Helpers.new
+      stats = Stat.as_hash
+
+      @proton_stats = stats[1]
+      @opn_stats = stats[2]
+      @qbit_stats = stats[3]
 
       { 'stats' => {
           'protonvpn' => {
-            'current_port': stats['proton_current_port'],
-            'last_changed': stats['proton_updated_at'],
-            'last_checked': stats['proton_last_checked'],
-            'delta': helpers.time_delta(stats['proton_last_checked'], stats['proton_updated_at']),
-            'connected': helpers.connected_to_service?(stats['proton_last_checked'])
+            'current_port': @proton_stats[:current_port],
+            'last_changed': @proton_stats[:updated_at],
+            'last_checked': @proton_stats[:last_checked],
+            'delta': helpers.time_delta(@proton_stats[:last_checked], @proton_stats[:updated_at]),
+            'connected': helpers.connected_to_service?(@proton_stats[:last_checked])
           },
           'opnsense' => {
-            'current_port': stats['opn_current_port'],
-            'last_changed': stats['opn_updated_at'],
-            'last_checked': stats['opn_last_checked'],
-            'delta': helpers.time_delta(stats['opn_last_checked'], stats['opn_updated_at']),
-            'connected': helpers.connected_to_service?(stats['opn_last_checked'])
+            'current_port': @opn_stats[:current_port],
+            'last_changed': @opn_stats[:updated_at],
+            'last_checked': @opn_stats[:last_checked],
+            'delta': helpers.time_delta(@opn_stats[:last_checked], @opn_stats[:updated_at]),
+            'connected': helpers.connected_to_service?(@opn_stats[:last_checked])
           },
           'qbit' => {
-            'current_port': stats['qbit_current_port'],
-            'last_changed': stats['qbit_updated_at'],
-            'last_checked': stats['qbit_last_checked'],
-            'delta': helpers.time_delta(stats['qbit_last_checked'], stats['qbit_updated_at']),
-            'connected': helpers.connected_to_service?(stats['qbit_last_checked'])
+            'current_port': @qbit_stats[:current_port],
+            'last_changed': @qbit_stats[:updated_at],
+            'last_checked': @qbit_stats[:last_checked],
+            'delta': helpers.time_delta(@qbit_stats[:last_checked], @qbit_stats[:updated_at]),
+            'connected': helpers.connected_to_service?(@qbit_stats[:last_checked])
           }
         },
         'records' => {
@@ -46,7 +50,6 @@ module Framework
 
       { 'about' => {
           app_version: ENV['VERSION'],
-          app_uptime: helpers.job_uptime,
           schema_version: helpers.get_db_version,
           ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
         },
@@ -70,11 +73,12 @@ module Framework
     end
 
     get '/notifications' do
-      notification = Service::Notification.new.get_all
+      notifications = Notification.as_hash
 
       { 'notifications' => {
-        'update_available' => notification['update_available'],
-        'update_version' => notification['update_version']
+        'name' => notifications[1][:name],
+        'info' => notifications[1][:info],
+        'active' => notifications[1][:active]
       } }
     end
   end

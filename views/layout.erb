@@ -6,16 +6,16 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <meta name="theme-color" content="#ffffff" />
     <meta name="description" content="the qbop ui" />
-    <link rel="stylesheet" type="text/css" href="https://unpkg.com/terminal.css@0.7.4/dist/terminal.min.css" integrity="sha512-MV6F4Y1YDqDvibV5HCzIruh5CrWprV/iJrQmn0MEdbqtsFTJA+h/4UdgzAwqdlky0O2Pn6U0t+PYwoVVajIRUA==" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://unpkg.com/terminal.css@0.7.5/dist/terminal.min.css" integrity="sha512-X8PpCFdlyXfQ93O7R/tmLP0uln53P5/hY29faFCjhpfinyggAeQbcwiv8pDvu49vHvZPWJN+yfb4VomHJK6sJA==" crossorigin="anonymous" />
     <% if Service::Helpers.new.env_variables[:ui_mode] == "light" %>
-    <link rel="stylesheet" type="text/css" href="/css/light.css" />
+    <link rel="stylesheet" href="/css/light.css" />
     <% else %>
-    <link rel="stylesheet" type="text/css" href="/css/dark.css" />
+    <link rel="stylesheet" href="/css/dark.css" />
     <% end %>
-    <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="/images/apple-touch-icon.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png" />
-    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png" />
+    <link rel="icon" sizes="32x32" href="/images/favicon-32x32.png" />
+    <link rel="icon" sizes="16x16" href="/images/favicon-16x16.png" />
+    <link rel="icon" href="/images/favicon.svg" />
     <link rel="manifest" href="/images/site.webmanifest" />
     <title>qbop</title>
   </head>

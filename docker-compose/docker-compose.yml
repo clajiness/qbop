@@ -7,6 +7,7 @@ services:
       - "4567:4567"
     volumes:
       - data:/opt/qbop/data/
+      - log:/opt/qbop/log/
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     # environment variables are documented here: https://github.com/clajiness/qbop?tab=readme-ov-file#env-variables
@@ -29,3 +30,4 @@ services:
 
 volumes:
   data:
+  log:

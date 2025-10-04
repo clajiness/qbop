@@ -11,17 +11,20 @@ class Qbop # rubocop:disable Metrics/ClassLength
     # collect env variables in a config variable
     config = helpers.env_variables
 
-    # track the number of attempts to change the port in opnsense and qBit
-    counter = Service::Counter.new
+    # create Proton objects
+    proton = Service::Proton.new(helpers)
+    proton_data = Source[name: 'proton']
 
-    # track the current port for Proton, OPNsense, and qBit
-    stats = Service::Stats.new
+    # create OPNsense objects
+    opnsense = Service::Opnsense.new(config)
+    opnsense_data = Source[name: 'opnsense']
 
-    # set job started at timestamp
-    stats.set_job_started_at
+    # create qBit objects
+    qbit = Service::Qbit.new(config)
+    qbit_data = Source[name: 'qbit']
 
     # set up logger
-    @logger = Logger.new('./data/log/qbop.log', 10, 1_024_000)
+    @logger = Logger.new('log/qbop.log', 10, 1_024_000)
     @logger.info("starting qbop #{config[:script_version]}")
     @logger.info("the tool will loop every #{config[:loop_freq]} seconds")
     @logger.info('----------')
@@ -32,11 +35,8 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
       # Proton section
       begin
-        # create Proton object
-        proton ||= Service::Proton.new(helpers)
-
         # make natpmpc call to proton
-        response = proton.proton_natpmpc(config[:proton_gateway])
+        response = proton.natpmpc(config[:proton_gateway])
 
         # raise error if natpmpc call returns an error
         raise StandardError, response[:stderr].chomp unless response[:stderr].empty?
@@ -45,30 +45,30 @@ class Qbop # rubocop:disable Metrics/ClassLength
         proton_response = response[:stdout]
 
         # parse natpmpc response
-        forwarded_port = proton.parse_proton_response(proton_response.chomp)
+        forwarded_port = proton.parse_response(proton_response.chomp)
 
         # set Proton as checked
-        stats.set_proton_last_checked if forwarded_port
+        proton_data.set_last_checked if forwarded_port
 
         if forwarded_port.nil?
           # if forwarded port isn't returned
           @logger.error("Proton didn't return a forwarded port.")
-        elsif forwarded_port == stats.get_proton_current_port
+        elsif forwarded_port == proton_data.get_current_port
           # if forwarded port matches the current port
           @logger.info("Proton returned the forwarded port #{forwarded_port}")
 
           # set proton_updated_at timestamp if it is unknown
-          stats.set_proton_updated_at if stats.get_proton_updated_at == 'unknown'
+          proton_data.set_updated_at if proton_data.get_updated_at == 'unknown'
 
           # if proton port hasn't changed, set tracking value
-          stats.set_proton_same_port
+          proton_data.set_same_port
         else
           # if forwarded port does not match the current port
           @logger.info("Proton returned the new forwarded port #{forwarded_port}")
 
           # set Proton port in stats
-          stats.set_proton_current_port(forwarded_port)
-          stats.set_proton_updated_at
+          proton_data.set_current_port(forwarded_port)
+          proton_data.set_updated_at
         end
       rescue StandardError => e
         @logger.error('Proton has returned an error:')
@@ -81,45 +81,45 @@ class Qbop # rubocop:disable Metrics/ClassLength
         @logger.info('OPNsense check skipped')
       else
         begin
-          # create OPNsense object
-          opnsense ||= Service::Opnsense.new(config)
-
           # get OPNsense proton alias uuid
           uuid = opnsense.get_alias_uuid
 
           # get OPNsense alias value
           alias_port = opnsense.get_alias_value(uuid)
 
+          # set current port to OPNsense alias port for tracking
+          opnsense_data.set_current_port(alias_port)
+
           # set OPNsense as checked
-          stats.set_opn_last_checked if alias_port
+          opnsense_data.set_last_checked if alias_port
 
           if !(1024..65_535).include?(forwarded_port.to_i)
             @logger.info('OPNsense rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
           elsif alias_port != forwarded_port
             # increment counter
-            counter.increment_opnsense_attempt
+            opnsense_data.increment_attempt
 
             # after x attempts, if the ports still don't match, set the OPNsense port to be updated
-            counter.change_opnsense if counter.opnsense_attempt >= counter.required_attempts
+            opnsense_data.change if opnsense_data.attempt >= helpers.env_variables[:required_attempts]
 
-            @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.opnsense_attempt} of #{counter.required_attempts}.") # rubocop:disable Layout/LineLength
+            @logger.info("OPNsense port #{alias_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{opnsense_data.attempt} of #{helpers.env_variables[:required_attempts]}.") # rubocop:disable Layout/LineLength
           else
             # reset counter if ports match
-            counter.reset_opnsense_attempt if counter.opnsense_attempt != 0
+            counter.reset_opnsense_attempt if opnsense_data.attempt != 0
             @logger.info("OPNsense port #{alias_port} matches Proton forwarded port #{forwarded_port}")
 
             # set OPNsense port in stats
-            stats.set_opn_current_port(forwarded_port) if forwarded_port.to_i != stats.get_opn_current_port
+            opnsense_data.set_current_port(forwarded_port) if forwarded_port.to_i != opnsense_data.get_current_port
 
             # set opn_updated_at timestamp if it is unknown
-            stats.set_opn_updated_at if stats.get_opn_updated_at == 'unknown'
+            opnsense_data.set_updated_at if opnsense_data.get_updated_at == 'unknown'
 
             # if opn port hasn't changed, set tracking value
-            stats.set_opn_same_port
+            opnsense_data.set_same_port
           end
 
           # set OPNsense Proton port alias if counter is set to true
-          if counter.opnsense_change?
+          if opnsense_data.change?
             # set OPNsense port alias
             response = opnsense.set_alias_value(forwarded_port, uuid)
 
@@ -133,12 +133,12 @@ class Qbop # rubocop:disable Metrics/ClassLength
                 @logger.info('OPNsense alias applied successfully')
 
                 # reset counter
-                counter.reset_opnsense_change
-                counter.reset_opnsense_attempt
+                opnsense_data.reset_change
+                opnsense_data.reset_attempt
 
                 # set OPNsense port in stats
-                stats.set_opn_current_port(forwarded_port)
-                stats.set_opn_updated_at
+                opnsense_data.set_current_port(forwarded_port)
+                opnsense_data.set_updated_at
               else
                 @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
               end
@@ -158,45 +158,45 @@ class Qbop # rubocop:disable Metrics/ClassLength
         @logger.info('qBit check skipped')
       else
         begin
-          # create qBit object
-          qbit ||= Service::Qbit.new(config)
-
           # get sid from qBit
           sid = qbit.qbt_auth_login
 
           # get port from qBit
           qbt_port = qbit.qbt_app_preferences(sid)
 
+          # set current port to qBit port for tracking
+          qbit_data.set_current_port(qbt_port)
+
           # set qBit as checked
-          stats.set_qbit_last_checked if qbt_port
+          qbit_data.set_last_checked if qbt_port
 
           if !(1024..65_535).include?(forwarded_port.to_i)
             @logger.info('qBit rejected Proton\'s forwarded port as it is not within a valid range of 1024-65535')
           elsif qbt_port != forwarded_port
             # increment counter
-            counter.increment_qbit_attempt
+            qbit_data.increment_attempt
 
             # after x attempts, if the ports still don't match, set the qBit port to be updated
-            counter.change_qbit if counter.qbit_attempt >= counter.required_attempts
+            qbit_data.change if qbit_data.attempt >= helpers.env_variables[:required_attempts]
 
-            @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{counter.qbit_attempt} of #{counter.required_attempts}.") # rubocop:disable Layout/LineLength
+            @logger.info("qBit port #{qbt_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{qbit_data.attempt} of #{helpers.env_variables[:required_attempts]}.") # rubocop:disable Layout/LineLength
           else
             # reset counter if ports match
-            counter.reset_qbit_attempt if counter.qbit_attempt != 0
+            qbit_data.reset_attempt if qbit_data.attempt != 0
             @logger.info("qBit port #{qbt_port} matches Proton forwarded port #{forwarded_port}")
 
             # set qBit port in stats
-            stats.set_qbit_current_port(forwarded_port) if forwarded_port.to_i != stats.get_qbit_current_port
+            qbit_data.set_current_port(forwarded_port) if forwarded_port.to_i != qbit_data.get_current_port
 
             # set qBit_updated_at timestamp if it is unknown
-            stats.set_qbit_updated_at if stats.get_qbit_updated_at == 'unknown'
+            qbit_data.set_updated_at if qbit_data.get_updated_at == 'unknown'
 
             # if qBit port hasn't changed, set tracking value
-            stats.set_qbit_same_port
+            qbit_data.set_same_port
           end
 
           # set qBit port if counter is set to true
-          if counter.qbit_change?
+          if qbit_data.change?
             # set qBit port
             response = qbit.qbt_app_set_preferences(forwarded_port, sid)
 
@@ -204,12 +204,12 @@ class Qbop # rubocop:disable Metrics/ClassLength
               @logger.info("qBit port has been updated to #{forwarded_port}")
 
               # reset counter
-              counter.reset_qbit_change
-              counter.reset_qbit_attempt
+              qbit_data.reset_change
+              qbit_data.reset_attempt
 
               # set qBit port in stats
-              stats.set_qbit_current_port(forwarded_port)
-              stats.set_qbit_updated_at
+              qbit_data.set_current_port(forwarded_port)
+              qbit_data.set_updated_at
             else
               @logger.error("qBit port was not updated - response code: #{response.status}")
             end

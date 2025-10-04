@@ -5,9 +5,19 @@ Dir['./framework/*.rb'].sort.each { |file| require_relative file }
 Dir['./jobs/*.rb'].sort.each { |file| require_relative file }
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
-# initialize database and run migrations, if necessary
-Service::DbInitialization.new unless File.exist?('data/prod.db')
-Service::DbMigration.new
+# enable Sequel plugins
+Sequel::Model.plugin :update_or_create
+
+# run available migrations
+load 'Rakefile'
+Rake::Task['db:migrate'].invoke
+
+# connect to the database and load models
+DB = Sequel.connect('sqlite://data/qbop.sqlite3')
+Dir['./models/*.rb'].sort.each { |file| require_relative file }
+
+# seed tables if empty
+Service::Seed.new
 
 # map sinatra and grape apps
 map '/' do

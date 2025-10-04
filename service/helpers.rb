@@ -2,7 +2,7 @@ module Service
   # The Helpers class provides utility methods for accessing environment variables
   # and parsing specific configuration values used in the application.
   class Helpers # rubocop:disable Metrics/ClassLength
-    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize
+    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity
       {
         ui_mode: format_ui_mode(ENV['UI_MODE']),
         script_version: ENV['VERSION'],
@@ -48,13 +48,10 @@ module Service
     end
 
     def get_db_version
-      user_version = 0
-
-      SQLite3::Database.open 'data/prod.db' do |db|
-        user_version = db.execute('pragma user_version;').flatten.first
-      end
-
-      user_version
+      info = DB[:schema_info]
+      info.first[:version] if info.any?
+    rescue StandardError
+      'unknown'
     end
 
     def time_delta(last_checked, last_updated)
@@ -99,52 +96,38 @@ module Service
       false
     end
 
-    def job_uptime
-      job_started_at = Service::Stats.new.get_job_started_at
-      time_delta(Time.now.to_s, job_started_at)
-    rescue StandardError
-      'unknown'
-    end
-
-    def job_uptime_to_s
-      job_started_at = Service::Stats.new.get_job_started_at
-      time_delta_to_s(Time.now.to_s, job_started_at)
-    rescue StandardError
-      'unknown'
-    end
-
     def get_proton_longest_time_on_same_port
-      Service::Stats.new.get_proton_same_port
+      Source[name: 'proton'].get_same_port
     rescue StandardError
       'unknown'
     end
 
     def get_opn_longest_time_on_same_port
-      Service::Stats.new.get_opn_same_port
+      Source[name: 'opnsense'].get_same_port
     rescue StandardError
       'unknown'
     end
 
     def get_qbit_longest_time_on_same_port
-      Service::Stats.new.get_qbit_same_port
+      Source[name: 'qbit'].get_same_port
     rescue StandardError
       'unknown'
     end
 
     def get_proton_longest_time_on_same_port_to_s
-      seconds_to_s(Service::Stats.new.get_proton_same_port)
+      seconds_to_s(Source[name: 'proton'].get_same_port)
     rescue StandardError
       'unknown'
     end
 
     def get_opn_longest_time_on_same_port_to_s
-      seconds_to_s(Service::Stats.new.get_opn_same_port)
+      seconds_to_s(Source[name: 'opnsense'].get_same_port)
     rescue StandardError
       'unknown'
     end
 
     def get_qbit_longest_time_on_same_port_to_s
-      seconds_to_s(Service::Stats.new.get_qbit_same_port)
+      seconds_to_s(Source[name: 'qbit'].get_same_port)
     rescue StandardError
       'unknown'
     end
@@ -156,6 +139,34 @@ module Service
       Gem::Version.new(newest_tag) > Gem::Version.new(app_tag) if newest_tag && app_tag
     rescue StandardError
       false
+    end
+
+    def log_lines_to_a(log_lines)
+      output = []
+
+      File.readlines('log/qbop.log').last(log_lines.to_i).each do |line|
+        output << line
+      end
+
+      formatted_output = true?(env_variables[:log_reverse]) ? output.reverse : output
+
+      last_line = formatted_output.pop
+      formatted_output << last_line.strip
+    rescue StandardError
+      []
+    end
+
+    def gemfile_to_a
+      gemfile = []
+
+      File.readlines('Gemfile').each do |line|
+        gemfile << line
+      end
+
+      last_line = gemfile.pop
+      gemfile << last_line.strip
+    rescue StandardError
+      []
     end
   end
 end

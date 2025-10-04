@@ -21,7 +21,7 @@ There is also a community compose directory that currently contains a compose fi
 ### Requirements
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
 * [Docker Engine](https://docs.docker.com/engine/install/)
-* OPNsense
+* [OPNsense](https://docs.opnsense.org/)
     * [Selective routing](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html)
     * [API](https://docs.opnsense.org/development/how-tos/api.html)
 * [qBittorrent](https://www.qbittorrent.org/)

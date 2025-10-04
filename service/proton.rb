@@ -6,7 +6,7 @@ module Service
       @helpers = helpers
     end
 
-    def proton_natpmpc(proton_gateway)
+    def natpmpc(proton_gateway)
       loop_freq = @helpers.env_variables[:loop_freq]
       timeout = (loop_freq - 5) >= 5 ? loop_freq - 5 : 5
 
@@ -17,7 +17,7 @@ module Service
       { stdout: stdout, stderr: stderr, status: status }
     end
 
-    def parse_proton_response(proton_response)
+    def parse_response(proton_response)
       return unless !proton_response.nil? && proton_response.include?('Mapped public port')
 
       marker_string0 = 'port '

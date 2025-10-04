@@ -19,14 +19,11 @@
 <button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
 
 <h4><em>last <%= @log_lines %> lines of log output</em></h4>
-
 <section>
   <pre>
-    <code>
 <% @output.each do |line| %>
 <%= line %>
 <% end %>
-    </code>
   </pre>
 </section>
 

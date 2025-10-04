@@ -3,22 +3,24 @@ module Framework
   # for displaying statistics, logs, and about information.
   class Web < Sinatra::Application
     get '/' do
-      stats = Service::Stats.new.get_all
       helpers = Service::Helpers.new
-      notification = Service::Notification.new
+      stats = Stat.as_hash
 
-      @update_available = helpers.true?(notification.get_update_available)
-      @recent_tag = notification.get_update_version
+      update = Notification.select(:info, :active).where(name: 'update_available').first
+      @recent_tag = update[:info]
+      @update_available = update[:active]
 
-      @stats = stats
+      @proton_stats = stats[1]
+      @opn_stats = stats[2]
+      @qbit_stats = stats[3]
 
-      @proton_connected = helpers.connected_to_service?(stats['proton_last_checked'])
-      @opn_connected = helpers.connected_to_service?(stats['opn_last_checked'])
-      @qbit_connected = helpers.connected_to_service?(stats['qbit_last_checked'])
+      @proton_connected = helpers.connected_to_service?(@proton_stats[:last_checked])
+      @opn_connected = helpers.connected_to_service?(@opn_stats[:last_checked])
+      @qbit_connected = helpers.connected_to_service?(@qbit_stats[:last_checked])
 
-      @proton_delta = helpers.time_delta_to_s(stats['proton_last_checked'], stats['proton_updated_at'])
-      @opn_delta = helpers.time_delta_to_s(stats['opn_last_checked'], stats['opn_updated_at'])
-      @qbit_delta = helpers.time_delta_to_s(stats['qbit_last_checked'], stats['qbit_updated_at'])
+      @proton_delta = helpers.time_delta_to_s(@proton_stats[:last_checked], @proton_stats[:updated_at])
+      @opn_delta = helpers.time_delta_to_s(@opn_stats[:last_checked], @opn_stats[:updated_at])
+      @qbit_delta = helpers.time_delta_to_s(@qbit_stats[:last_checked], @qbit_stats[:updated_at])
 
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
@@ -31,43 +33,34 @@ module Framework
     end
 
     get '/api-docs' do
-      helpers = Service::Helpers.new
-      notification = Service::Notification.new
-
-      @update_available = helpers.true?(notification.get_update_available)
-      @recent_tag = notification.get_update_version
+      update = Notification.select(:info, :active).where(name: 'update_available').first
+      @recent_tag = update[:info]
+      @update_available = update[:active]
 
       erb :api_docs
     end
 
     get '/logs' do
       helpers = Service::Helpers.new
-      notification = Service::Notification.new
 
-      @update_available = helpers.true?(notification.get_update_available)
-      @recent_tag = notification.get_update_version
+      update = Notification.select(:info, :active).where(name: 'update_available').first
+      @recent_tag = update[:info]
+      @update_available = update[:active]
 
-      log_lines = helpers.env_variables[:log_lines]
-      output = []
-
-      File.readlines('data/log/qbop.log').last(log_lines.to_i).each do |line|
-        output << line
-      end
-
-      @output = helpers.true?(helpers.env_variables[:log_reverse]) ? output.reverse : output
-      @log_lines = log_lines
+      @log_lines = helpers.env_variables[:log_lines]
+      @output = helpers.log_lines_to_a(@log_lines)
 
       erb :logs
     end
 
     get '/about' do
       helpers = Service::Helpers.new
-      notification = Service::Notification.new
+
+      update = Notification.select(:info, :active).where(name: 'update_available').first
+      @recent_tag = update[:info]
+      @update_available = update[:active]
 
       @app_version = ENV['VERSION']
-      @update_available = helpers.true?(notification.get_update_available)
-      @recent_tag = notification.get_update_version
-      @app_uptime = helpers.job_uptime_to_s
       @schema_version = helpers.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
       @repo_url = 'https://github.com/clajiness/qbop'
@@ -87,6 +80,8 @@ module Framework
       @qbit_addr = ENV['QBIT_ADDR']
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
+
+      @gemfile = helpers.gemfile_to_a
 
       erb :about
     end
