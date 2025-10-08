@@ -168,5 +168,19 @@ module Service
     rescue StandardError
       []
     end
+
+    def generate_wg_public_key(private_key)
+      stdout, stderr = Open3.capture3(
+        "echo #{private_key.shellescape} | wg pubkey"
+      )
+
+      if !stdout.empty?
+        stdout.chomp
+      else
+        stderr.chomp
+      end
+    rescue StandardError
+      'error generating public key'
+    end
   end
 end

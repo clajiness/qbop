@@ -40,6 +40,18 @@ module Framework
       erb :api_docs
     end
 
+    get '/tools' do
+      erb :tools
+    end
+
+    post '/tools' do
+      helpers = Service::Helpers.new
+
+      @public_key = helpers.generate_wg_public_key(params['privatekey'])
+
+      erb :tools
+    end
+
     get '/logs' do
       helpers = Service::Helpers.new
 

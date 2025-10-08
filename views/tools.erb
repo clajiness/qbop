@@ -1,0 +1,41 @@
+<div class="terminal-nav">
+  <div class="terminal-logo">
+    <div class="logo terminal-prompt"><a href="/" class="no-style">qbop</a></div>
+  </div>
+  <nav class="terminal-menu">
+    <ul>
+      <li><a class="menu-item" href="/">stats</a></li>
+      <li><a class="menu-item" href="/api-docs">api</a></li>
+      <li><a class="menu-item active" href="/tools">tools</a></li>
+      <li><a class="menu-item" href="/logs">logs</a></li>
+      <li><a class="menu-item" href="/about">about</a></li>
+    </ul>
+  </nav>
+</div>
+<% if @update_available %>
+<div class="terminal-alert terminal-alert-primary"><a href="https://github.com/clajiness/qbop/releases" target="_blank">an update is available:</a> <a href="https://github.com/clajiness/qbop/releases/tag/<%= @recent_tag %>" target="_blank"><%= @recent_tag %></a></div>
+<% end %>
+<hr>
+
+<div class="terminal-card">
+  <header>generate wireguard public key</header>
+  <div>
+    Enter a WireGuard private key to generate the corresponding public key. For example, enter the private key from your ProtonVPN WireGuard config file.
+  </div>
+</div>
+<br>
+
+<form action="/tools" method="post" id="wgform">
+  <fieldset>
+    <legend>generate wireguard public key</legend>
+    <div class="form-group">
+      <input id="privatekey" name="privatekey" type="text" placeholder="private key"/>
+    </div>
+    <div class="form-group">
+      <input id="publickey" name="publickey" type="text" value="<%= @public_key %>" readonly/>
+    </div>
+    <div class="form-group">
+      <button class="btn btn-default btn-ghost" type="submit" name="submit" id="submit">generate</button>
+    </div>
+  </fieldset>
+</form>
