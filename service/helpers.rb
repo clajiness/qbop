@@ -96,42 +96,6 @@ module Service
       false
     end
 
-    def get_proton_longest_time_on_same_port
-      Source[name: 'proton'].get_same_port
-    rescue StandardError
-      'unknown'
-    end
-
-    def get_opn_longest_time_on_same_port
-      Source[name: 'opnsense'].get_same_port
-    rescue StandardError
-      'unknown'
-    end
-
-    def get_qbit_longest_time_on_same_port
-      Source[name: 'qbit'].get_same_port
-    rescue StandardError
-      'unknown'
-    end
-
-    def get_proton_longest_time_on_same_port_to_s
-      seconds_to_s(Source[name: 'proton'].get_same_port)
-    rescue StandardError
-      'unknown'
-    end
-
-    def get_opn_longest_time_on_same_port_to_s
-      seconds_to_s(Source[name: 'opnsense'].get_same_port)
-    rescue StandardError
-      'unknown'
-    end
-
-    def get_qbit_longest_time_on_same_port_to_s
-      seconds_to_s(Source[name: 'qbit'].get_same_port)
-    rescue StandardError
-      'unknown'
-    end
-
     def update_available?
       newest_tag = Service::Github.new.get_most_recent_tag[1..]
       app_tag = ENV['VERSION'][1..]
@@ -174,11 +138,7 @@ module Service
         "echo #{private_key.shellescape} | wg pubkey"
       )
 
-      if !stdout.empty?
-        stdout.chomp
-      else
-        stderr.chomp
-      end
+      stdout.empty? ? stderr.chomp : stdout.chomp
     rescue StandardError
       'error generating public key'
     end

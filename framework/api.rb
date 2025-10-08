@@ -38,9 +38,9 @@ module Framework
         },
         'records' => {
           'longest_time_on_same_port' => {
-            'proton': helpers.get_proton_longest_time_on_same_port,
-            'opnsense': helpers.get_opn_longest_time_on_same_port,
-            'qbit': helpers.get_qbit_longest_time_on_same_port
+            'proton': @proton_stats[:same_port],
+            'opnsense': @opn_stats[:same_port],
+            'qbit': @qbit_stats[:same_port]
           }
         } }
     end
