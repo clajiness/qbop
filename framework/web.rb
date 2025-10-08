@@ -25,9 +25,9 @@ module Framework
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
 
-      @proton_longest_time_on_same_port = helpers.get_proton_longest_time_on_same_port_to_s
-      @opn_longest_time_on_same_port = helpers.get_opn_longest_time_on_same_port_to_s
-      @qbit_longest_time_on_same_port = helpers.get_qbit_longest_time_on_same_port_to_s
+      @proton_longest_time_on_same_port = helpers.seconds_to_s(@proton_stats[:same_port])
+      @opn_longest_time_on_same_port = helpers.seconds_to_s(@opn_stats[:same_port])
+      @qbit_longest_time_on_same_port = helpers.seconds_to_s(@qbit_stats[:same_port])
 
       erb :index
     end
