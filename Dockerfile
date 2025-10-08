@@ -28,7 +28,7 @@ VOLUME /opt/qbop/log/
 # install necessary packages
 RUN \
 apt update; \
-apt install -y build-essential pkg-config natpmpc; \
+apt install -y build-essential pkg-config natpmpc wireguard; \
 bundle install;
 
 # expose the ui port
