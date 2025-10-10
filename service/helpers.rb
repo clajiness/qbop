@@ -142,5 +142,24 @@ module Service
     rescue StandardError
       'error generating public key'
     end
+
+    def get_public_ip(provider) # rubocop:disable Metrics/MethodLength,Metrics/CyclomaticComplexity
+      case provider
+      when 'akamai'
+        stdout, stderr = Open3.capture3('timeout 5 dig whoami.akamai.net. @ns1-1.akamaitech.net. +short')
+      when 'cloudflare'
+        stdout, stderr = Open3.capture3('timeout 5 dig whoami.cloudflare ch txt @1.1.1.1 +short')
+      when 'google'
+        stdout, stderr = Open3.capture3('timeout 5 dig o-o.myaddr.l.google.com txt @ns1.google.com +short')
+      when 'opendns'
+        stdout, stderr = Open3.capture3('timeout 5 dig myip.opendns.com @dns.opendns.com +short')
+      else
+        return 'unknown provider'
+      end
+
+      stdout.empty? ? stderr&.tr('"', '') : "#{provider} -> #{stdout&.tr('"', '')}"
+    rescue StandardError
+      'error retrieving public IP'
+    end
   end
 end

@@ -1,5 +1,5 @@
 # Description: Dockerfile for qbop
-FROM ruby:3.4.6-slim
+FROM ruby:3.4.7-slim
 
 # set the version environment variable
 ARG VERSION
@@ -28,7 +28,7 @@ VOLUME /opt/qbop/log/
 # install necessary packages
 RUN \
 apt update; \
-apt install -y build-essential pkg-config natpmpc wireguard; \
+apt install -y build-essential pkg-config natpmpc wireguard dnsutils; \
 bundle install;
 
 # expose the ui port
