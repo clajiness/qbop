@@ -44,10 +44,18 @@ module Framework
       erb :tools
     end
 
-    post '/tools' do
+    post '/pubkey' do
       helpers = Service::Helpers.new
 
       @public_key = helpers.generate_wg_public_key(params['privatekey'])
+
+      erb :tools
+    end
+
+    post '/public-ip' do
+      helpers = Service::Helpers.new
+
+      @public_ip = helpers.get_public_ip(params['select']&.strip)
 
       erb :tools
     end

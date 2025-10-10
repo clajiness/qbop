@@ -20,12 +20,12 @@
 <div class="terminal-card">
   <header>generate wireguard public key</header>
   <div>
-    Enter a WireGuard private key to generate the corresponding public key. For example, enter the private key from your ProtonVPN WireGuard config file. This tool is not logged and key generation is local to this container.
+    enter a protonvpn wireguard private key to generate the corresponding public key. this tool is not logged, and key generation is local to this container.
   </div>
 </div>
 <br>
 
-<form action="/tools" method="post" id="wgform">
+<form action="/pubkey" method="post" id="wgform">
   <fieldset>
     <legend>generate wireguard public key</legend>
     <div class="form-group">
@@ -35,7 +35,38 @@
       <input id="publickey" name="publickey" type="text" value="<%= @public_key %>" readonly/>
     </div>
     <div class="form-group">
-      <button class="btn btn-default btn-ghost" type="submit" name="submit" id="submit">generate</button>
+      <button class="btn btn-default btn-ghost" type="submit" name="keysubmit" id="keysubmit">generate</button>
     </div>
   </fieldset>
 </form>
+<hr>
+
+<div class="terminal-card">
+  <header>get public ip address</header>
+  <div>
+    get your current public ip address as seen by qbop. select your preferred whoami service. this tool is not logged.
+  </div>
+</div>
+<br>
+
+<form action="/public-ip" method="post" id="ipform">
+  <fieldset>
+    <legend>get public ip address</legend>
+    <div class="form-group">
+      <label for="select">select whoami service:</label>
+      <select id="select" name="select">
+        <option>akamai</option>
+        <option>cloudflare</option>
+        <option>google</option>
+        <option>opendns</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <input id="ipaddress" name="ipaddress" type="text" value="<%= @public_ip %>" readonly/>
+    </div>
+    <div class="form-group">
+      <button class="btn btn-default btn-ghost" type="submit" name="ipsubmit" id="ipsubmit">retrieve</button>
+    </div>
+  </fieldset>
+</form>
+<br>
