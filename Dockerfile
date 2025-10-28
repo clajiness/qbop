@@ -29,10 +29,6 @@ COPY views/ /opt/qbop/views/
 RUN mkdir -p /opt/qbop/data/
 RUN mkdir -p /opt/qbop/log/
 
-# create volumes
-VOLUME /opt/qbop/data/
-VOLUME /opt/qbop/log/
-
 # set ownership
 RUN chown -R qbop:qbop /opt/qbop/
 
@@ -41,6 +37,10 @@ USER qbop
 
 # install necessary ruby gems
 RUN bundle install;
+
+# create volumes
+VOLUME /opt/qbop/data/
+VOLUME /opt/qbop/log/
 
 # expose the ui port
 EXPOSE 4567
