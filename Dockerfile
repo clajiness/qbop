@@ -5,22 +5,25 @@ FROM ruby:3.4.7-slim
 ARG VERSION
 ENV VERSION=${VERSION}
 
+# set the working directory
+WORKDIR /opt/qbop/
+
 # install necessary packages
 RUN \
 apt update; \
-apt install -y build-essential pkg-config natpmpc wireguard dnsutils; \
-bundle install; \
-groupadd -g 1234 qbop; \
-useradd -m -u 1234 -g qbop qbop;
+apt install -y build-essential pkg-config natpmpc wireguard dnsutils;
 
-# set the working directory
-WORKDIR /opt/qbop/
+# create qbop user and group
+RUN groupadd -g 1234 qbop && useradd -m -u 1234 -g qbop qbop;
 
 # set ownership
 RUN chown -R qbop:qbop /opt/qbop/
 
 # switch to non-root user
 USER qbop
+
+# install gems
+RUN bundle install;
 
 # create necessary directories and copy files
 COPY config.ru Gemfile Gemfile.lock Rakefile /opt/qbop/
