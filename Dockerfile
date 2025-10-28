@@ -5,8 +5,22 @@ FROM ruby:3.4.7-slim
 ARG VERSION
 ENV VERSION=${VERSION}
 
+# install necessary packages
+RUN \
+apt update; \
+apt install -y build-essential pkg-config natpmpc wireguard dnsutils; \
+bundle install; \
+groupadd -g 1234 qbop; \
+useradd -m -u 1234 -g qbop qbop;
+
 # set the working directory
 WORKDIR /opt/qbop/
+
+# set ownership
+RUN chown -R qbop:qbop /opt/qbop/
+
+# switch to non-root user
+USER qbop
 
 # create necessary directories and copy files
 COPY config.ru Gemfile Gemfile.lock Rakefile /opt/qbop/
@@ -24,12 +38,6 @@ RUN mkdir -p /opt/qbop/log/
 # create volumes
 VOLUME /opt/qbop/data/
 VOLUME /opt/qbop/log/
-
-# install necessary packages
-RUN \
-apt update; \
-apt install -y build-essential pkg-config natpmpc wireguard dnsutils; \
-bundle install;
 
 # expose the ui port
 EXPOSE 4567
