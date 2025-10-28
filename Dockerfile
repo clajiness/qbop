@@ -16,15 +16,6 @@ apt install -y build-essential pkg-config natpmpc wireguard dnsutils;
 # create qbop user and group
 RUN groupadd -g 1234 qbop && useradd -m -u 1234 -g qbop qbop;
 
-# set ownership
-RUN chown -R qbop:qbop /opt/qbop/
-
-# switch to non-root user
-USER qbop
-
-# install gems
-RUN bundle install;
-
 # create necessary directories and copy files
 COPY config.ru Gemfile Gemfile.lock Rakefile /opt/qbop/
 COPY db/ /opt/qbop/db/
@@ -41,6 +32,15 @@ RUN mkdir -p /opt/qbop/log/
 # create volumes
 VOLUME /opt/qbop/data/
 VOLUME /opt/qbop/log/
+
+# set ownership
+RUN chown -R qbop:qbop /opt/qbop/
+
+# switch to non-root user
+USER qbop
+
+# install necessary ruby gems
+RUN bundle install;
 
 # expose the ui port
 EXPOSE 4567
