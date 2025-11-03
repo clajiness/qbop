@@ -5,6 +5,9 @@ FROM ruby:3.4.7-slim
 ARG VERSION
 ENV VERSION=${VERSION}
 
+ARG QBOP_BIND=tcp://127.0.0.1:4567
+ENV QBOP_BIND=$QBOP_BIND
+
 # set the working directory
 WORKDIR /opt/qbop/
 
@@ -46,4 +49,4 @@ VOLUME /opt/qbop/log/
 EXPOSE 4567
 
 # set up entrypoint
-ENTRYPOINT ["bundle", "exec", "puma", "-p", "4567", "-e", "production"]
+ENTRYPOINT ["bundle", "exec", "puma", "-b", $QBOP_BIND, "-e", "production"]
