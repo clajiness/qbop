@@ -81,5 +81,20 @@ module Framework
         'active' => notifications[1][:active]
       } }
     end
+
+    get '/health' do
+      helpers = Service::Helpers.new
+      stats = Stat.as_hash
+
+      @proton_stats = stats[1]
+      @opn_stats = stats[2]
+      @qbit_stats = stats[3]
+
+      { 'health' => {
+        'protonvpn': helpers.connected_to_service?(@proton_stats[:last_checked]) ? (status 200) : (status 503),
+        'opnsense': helpers.connected_to_service?(@opn_stats[:last_checked]) ? (status 200) : (status 503),
+        'qbit': helpers.connected_to_service?(@qbit_stats[:last_checked]) ? (status 200) : (status 503)
+      } }
+    end
   end
 end
