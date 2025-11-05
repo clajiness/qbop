@@ -90,6 +90,7 @@ module Framework
       @required_attempts = ENV['REQUIRED_ATTEMPTS']
       @log_lines = ENV['LOG_LINES']
       @log_reverse = helpers.true?(ENV['LOG_REVERSE'])
+      @log_to_stdout = helpers.true?(ENV['LOG_TO_STDOUT'])
       @proton_gateway = ENV['PROTON_GATEWAY']
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']

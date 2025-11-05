@@ -20,7 +20,7 @@ module Service
         qbit_pass: ENV['QBIT_PASS'],
         log_lines: ENV['LOG_LINES'] || 50,
         log_reverse: ENV['LOG_REVERSE'] || 'false',
-        log_to_sdout: ENV['LOG_TO_STDOUT'] || 'false'
+        log_to_stdout: ENV['LOG_TO_STDOUT'] || 'false'
       }
     end
 
@@ -166,7 +166,7 @@ module Service
     def logger_instance
       default = Logger.new('log/qbop.log', 10, 5_120_000)
 
-      if true?(env_variables[:log_to_sdout])
+      if true?(env_variables[:log_to_stdout])
         Logger.new($stdout)
       else
         default
