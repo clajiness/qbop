@@ -35,6 +35,7 @@ There is also a community compose directory that currently contains a compose fi
 | `REQUIRED_ATTEMPTS` | `3` | The number of loops with a new forwarded port before updating OPNsense and qBit. The min is 1, and max is 10. |
 | `LOG_LINES` | `50` | The number of log lines displayed on the "logs" page |
 | `LOG_REVERSE` | `false` | Reverse the display order of log lines, showing newest logs at the top when enabled. |
+| `LOG_TO_STDOUT` | `false` | Log to STDOUT instead of the default log directory |
 | `PROTON_GATEWAY` | `10.2.0.1` | ProtonVPN provided gateway IP address. Do not use `http(s)://` or a trailing slash. |
 | `OPN_SKIP` | `false` | [`true`/`false`] Skip OPNsense. If `true`, subsequent OPNsense environment variables are not required. |
 | `OPN_INTERFACE_ADDR` | | OPNsense Interface Address. Requires `http(s)://` and no trailing slash. |
