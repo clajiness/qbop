@@ -2,7 +2,7 @@ module Service
   # The Helpers class provides utility methods for accessing environment variables
   # and parsing specific configuration values used in the application.
   class Helpers # rubocop:disable Metrics/ClassLength
-    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity
+    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
       {
         ui_mode: format_ui_mode(ENV['UI_MODE']),
         script_version: ENV['VERSION'],
@@ -19,7 +19,8 @@ module Service
         qbit_user: ENV['QBIT_USER'],
         qbit_pass: ENV['QBIT_PASS'],
         log_lines: ENV['LOG_LINES'] || 50,
-        log_reverse: ENV['LOG_REVERSE'] || 'false'
+        log_reverse: ENV['LOG_REVERSE'] || 'false',
+        log_to_stdout: ENV['LOG_TO_STDOUT'] || 'false'
       }
     end
 
@@ -160,6 +161,18 @@ module Service
       stdout.empty? ? stderr&.tr('"', '') : "#{provider} -> #{stdout&.tr('"', '')}"
     rescue StandardError
       'error retrieving public IP'
+    end
+
+    def logger_instance
+      default = Logger.new('log/qbop.log', 10, 5_120_000)
+
+      if true?(env_variables[:log_to_stdout])
+        Logger.new($stdout)
+      else
+        default
+      end
+    rescue StandardError
+      default
     end
   end
 end

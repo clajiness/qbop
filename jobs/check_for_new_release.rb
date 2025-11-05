@@ -3,11 +3,11 @@ class CheckForNewReleases # rubocop:disable Style/Documentation
   SuckerPunch.shutdown_timeout = 1
 
   def perform # rubocop:disable Metrics/MethodLength
-    @logger = Logger.new('log/qbop.log', 10, 5_120_000)
-    @logger.info('[CheckForNewReleases] starting new releases job...')
-
     helpers = Service::Helpers.new
     github = Service::Github.new
+
+    @logger = helpers.logger_instance
+    @logger.info('[CheckForNewReleases] starting new releases job...')
 
     loop do
       @logger.info('[CheckForNewReleases] checking for new releases...')

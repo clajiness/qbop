@@ -4,7 +4,7 @@ class TestJob
   SuckerPunch.shutdown_timeout = 1
 
   def perform
-    @logger = Logger.new('log/qbop.log', 10, 5_120_000)
+    @logger = helpers.logger_instance
     @logger.info('[TestJob] starting TestJob...')
 
     loop do

@@ -24,7 +24,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     qbit_data = Source[name: 'qbit']
 
     # set up logger
-    @logger = Logger.new('log/qbop.log', 10, 1_024_000)
+    @logger = helpers.logger_instance
     @logger.info("starting qbop #{config[:script_version]}")
     @logger.info("the tool will loop every #{config[:loop_freq]} seconds")
     @logger.info('----------')
