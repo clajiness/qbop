@@ -47,7 +47,7 @@ module Framework
     post '/pubkey' do
       helpers = Service::Helpers.new
 
-      @public_key = helpers.generate_wg_public_key(params['privatekey'])
+      @public_key = helpers.generate_wg_public_key(params['privatekey']&.strip)
 
       erb :tools
     end
@@ -55,7 +55,9 @@ module Framework
     post '/public-ip' do
       helpers = Service::Helpers.new
 
-      @public_ip = helpers.get_public_ip(params['select']&.strip)
+      service = params['select']&.strip&.downcase&.shellescape
+      public_ip = helpers.get_public_ip(service)
+      @public_ip = "#{service} -> #{public_ip}"
 
       erb :tools
     end
@@ -73,7 +75,7 @@ module Framework
       erb :logs
     end
 
-    get '/about' do
+    get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
 
       update = Notification.select(:info, :active).where(name: 'update_available').first

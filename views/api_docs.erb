@@ -17,10 +17,28 @@
 <% end %>
 <hr>
 
-<h4><em>api endpoints</em></h4>
-<blockquote>
-  GET <a class="menu-item" href="/api/stats" target="_blank">/api/stats</a><br>
-  GET <a class="menu-item" href="/api/health" target="_blank">/api/health</a><br>
-  GET <a class="menu-item" href="/api/about" target="_blank">/api/about</a><br>
-  GET <a class="menu-item" href="/api/notifications" target="_blank">/api/notifications</a>
-</blockquote>
+<section>
+  <h4><em>api endpoints</em></h4>
+  <ul>
+    <li>GET <a class="menu-item" href="/api/stats" target="_blank">/api/stats</a></li>
+    <li>
+      GET /api/tools
+      <ul>
+        <li>/pubkey?private-key={your_private_key}</li>
+        <li>
+          /public-ip
+          <ul>
+            <li><a class="menu-item" href="/api/tools/public-ip?service=akamai" target="_blank">?service=akamai</a></li>
+            <li><a class="menu-item" href="/api/tools/public-ip?service=cloudflare" target="_blank">?service=cloudflare</a></li>
+            <li><a class="menu-item" href="/api/tools/public-ip?service=google" target="_blank">?service=google</a></li>
+            <li><a class="menu-item" href="/api/tools/public-ip?service=opendns" target="_blank">?service=opendns</a></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li>GET <a class="menu-item" href="/api/logs" target="_blank">/api/logs</a></li>
+    <li>GET <a class="menu-item" href="/api/about" target="_blank">/api/about</a></li>
+    <li>GET <a class="menu-item" href="/api/health" target="_blank">/api/health</a></li>
+    <li>GET <a class="menu-item" href="/api/notifications" target="_blank">/api/notifications</a></li>
+  </ul>
+</section>

@@ -4,7 +4,7 @@ module Service
   class Helpers # rubocop:disable Metrics/ClassLength
     def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
       {
-        ui_mode: format_ui_mode(ENV['UI_MODE']),
+        ui_mode: format_ui_mode(ENV['UI_MODE'] || 'dark'),
         script_version: ENV['VERSION'],
         loop_freq: validate_loop_frequency(ENV['LOOP_FREQ'] || 45),
         required_attempts: validate_required_attempts(ENV['REQUIRED_ATTEMPTS'] || 3),
@@ -155,10 +155,10 @@ module Service
       when 'opendns'
         stdout, stderr = Open3.capture3('timeout 5 dig myip.opendns.com @dns.opendns.com +short')
       else
-        return 'unknown provider'
+        return 'unknown service'
       end
 
-      stdout.empty? ? stderr&.tr('"', '') : "#{provider} -> #{stdout&.tr('"', '')}"
+      stdout.empty? ? stderr&.tr('"', '') : stdout&.tr('"', '')
     rescue StandardError
       'error retrieving public IP'
     end
