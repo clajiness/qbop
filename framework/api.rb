@@ -1,7 +1,7 @@
 module Framework
   # This class defines an API using the Grape framework.
   # It sets the response format to JSON and prefixes all routes with '/api'.
-  class API < Grape::API
+  class API < Grape::API # rubocop:disable Metrics/ClassLength
     format :json
     prefix :api
 
@@ -45,6 +45,42 @@ module Framework
         } }
     end
 
+    get '/tools/pubkey' do
+      helpers = Service::Helpers.new
+
+      public_key = helpers.generate_wg_public_key(params['private-key']&.strip)
+
+      {
+        'public_key' => public_key
+      }
+    end
+
+    get '/tools/public-ip' do
+      helpers = Service::Helpers.new
+      service = params['service']&.strip&.downcase&.shellescape
+      public_ip = helpers.get_public_ip(service)&.strip
+
+      if public_ip == 'unknown provider'
+        {
+          'service' => service,
+          'public_ip' => 'Unknown service - Please use Akamai, Cloudflare, Google, or OpenDNS'
+        }
+      else
+        {
+          'service' => service,
+          'public_ip' => public_ip
+        }
+      end
+    end
+
+    get '/logs' do
+      helpers = Service::Helpers.new
+
+      log_lines = helpers.log_lines_to_a(ENV['LOG_LINES'] || 100)
+
+      { 'log_lines' => log_lines.map(&:strip) }
+    end
+
     get '/about' do
       helpers = Service::Helpers.new
 
@@ -73,16 +109,6 @@ module Framework
         } }
     end
 
-    get '/notifications' do
-      notifications = Notification.as_hash
-
-      { 'notifications' => {
-        'name' => notifications[1][:name],
-        'info' => notifications[1][:info],
-        'active' => notifications[1][:active]
-      } }
-    end
-
     get '/health' do
       helpers = Service::Helpers.new
       stats = Stat.as_hash
@@ -95,6 +121,16 @@ module Framework
         'protonvpn': helpers.connected_to_service?(@proton_stats[:last_checked]) ? (status 200) : (status 503),
         'opnsense': helpers.connected_to_service?(@opn_stats[:last_checked]) ? (status 200) : (status 503),
         'qbit': helpers.connected_to_service?(@qbit_stats[:last_checked]) ? (status 200) : (status 503)
+      } }
+    end
+
+    get '/notifications' do
+      notifications = Notification.as_hash
+
+      { 'notifications' => {
+        'name' => notifications[1][:name],
+        'info' => notifications[1][:info],
+        'active' => notifications[1][:active]
       } }
     end
   end
