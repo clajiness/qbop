@@ -81,7 +81,7 @@ module Framework
       { 'log_lines' => log_lines.map(&:strip) }
     end
 
-    get '/about' do
+    get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
 
       { 'about' => {
@@ -105,7 +105,10 @@ module Framework
           'qbit_skip': helpers.true?(ENV['QBIT_SKIP']),
           'qbit_addr': ENV['QBIT_ADDR'],
           'qbit_user': ENV['QBIT_USER'],
-          'qbit_pass': '***'
+          'qbit_pass': '***',
+          'basic_auth_enabled': helpers.true?(ENV['BASIC_AUTH_ENABLED']),
+          'basic_auth_user': ENV['BASIC_AUTH_USER'],
+          'basic_auth_pass': '***'
         } }
     end
 

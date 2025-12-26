@@ -28,6 +28,9 @@ services:
       - LOG_LINES=
       - LOG_REVERSE=
       - LOG_TO_STDOUT=
+      - BASIC_AUTH_ENABLED=
+      - BASIC_AUTH_USER=
+      - BASIC_AUTH_PASS=
 
 volumes:
   data:
