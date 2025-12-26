@@ -111,6 +111,21 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
         expect(Service::Helpers.new.env_variables[:log_to_stdout]).not_to eq(nil)
       end
     end
+    context 'when basic_auth_enabled is not set' do
+      it 'returns basic_auth_enabled as false' do
+        expect(Service::Helpers.new.env_variables[:basic_auth_enabled]).to eq('false')
+      end
+    end
+    context 'when basic_auth_user is not set' do
+      it 'returns basic_auth_user as admin' do
+        expect(Service::Helpers.new.env_variables[:basic_auth_user]).to eq('admin')
+      end
+    end
+    context 'when basic_auth_pass is not set' do
+      it 'returns basic_auth_pass as admin' do
+        expect(Service::Helpers.new.env_variables[:basic_auth_pass]).to eq('admin')
+      end
+    end
   end
 
   describe '#format_ui_mode' do

@@ -103,6 +103,9 @@ module Framework
       @qbit_addr = ENV['QBIT_ADDR']
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
+      @basic_auth_enabled = helpers.true?(ENV['BASIC_AUTH_ENABLED'])
+      @basic_auth_user = ENV['BASIC_AUTH_USER']
+      @basic_auth_pass = '***'
 
       @gemfile = helpers.gemfile_to_a
 

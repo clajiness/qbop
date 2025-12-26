@@ -19,6 +19,14 @@ Dir['./models/*.rb'].sort.each { |file| require_relative file }
 # seed tables if empty
 Service::Seed.new
 
+# enable basic auth if configured
+helpers = Service::Helpers.new
+if helpers.env_variables[:basic_auth_enabled] == 'true'
+  use Rack::Auth::Basic, 'Restricted Content' do |username, password|
+    username.eql?(helpers.env_variables[:basic_auth_user]) and password.eql?(helpers.env_variables[:basic_auth_pass])
+  end
+end
+
 # map sinatra and grape apps
 map '/' do
   use Rack::Session::Cookie, secret: SecureRandom.alphanumeric(64)

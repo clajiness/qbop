@@ -20,7 +20,10 @@ module Service
         qbit_pass: ENV['QBIT_PASS'],
         log_lines: ENV['LOG_LINES'] || 50,
         log_reverse: ENV['LOG_REVERSE'] || 'false',
-        log_to_stdout: ENV['LOG_TO_STDOUT'] || 'false'
+        log_to_stdout: ENV['LOG_TO_STDOUT'] || 'false',
+        basic_auth_enabled: ENV['BASIC_AUTH_ENABLED'] || 'false',
+        basic_auth_user: ENV['BASIC_AUTH_USER'] || 'admin',
+        basic_auth_pass: ENV['BASIC_AUTH_PASS'] || 'admin'
       }
     end
 
