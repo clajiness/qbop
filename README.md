@@ -40,6 +40,6 @@ There is also an unmaintained (by me) [community compose directory](https://gith
 | `QBIT_ADDR` | | The IP address of your qBittorrent app. Requires `http(s)://` and no trailing slash. |
 | `QBIT_USER` | | qBittorrent username |
 | `QBIT_PASS` | | qBittorrent password |
-| `BASIC_AUTH_ENABLED` | `false` | Enable basic auth. If `true`, subsequent `BASIC_AUTH` variables are required.
-| `BASIC_AUTH_USER` | | Set basic auth username
-| `BASIC_AUTH_PASS` | | Set basic auth password
+| `BASIC_AUTH_ENABLED` | `false` | Enable basic auth. If `true`, subsequent `BASIC_AUTH` variables are used. |
+| `BASIC_AUTH_USER` | `admin` | Set basic auth username |
+| `BASIC_AUTH_PASS` | `admin` | Set basic auth password |
