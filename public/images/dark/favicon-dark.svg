@@ -1,0 +1,26 @@
+<svg
+  viewBox="0 0 48 48"
+  xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Background -->
+  <rect
+    x="0"
+    y="0"
+    width="48"
+    height="48"
+    rx="2"
+    ry="2"
+    fill="#000000"
+  />
+
+  <!-- Lowercase q -->
+  <g
+    fill="none"
+    stroke="#7bc2fa"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round">
+    <path d="m29.5605 22.0538a5.5606 5.5606 0 0 1 -5.5605 5.5606 5.5606 5.5606 0 0 1 -5.56-5.5606v-3.6138a5.5606 5.5606 0 0 1 5.56-5.5611 5.5606 5.5606 0 0 1 5.5605 5.5611"/>
+    <path d="m29.5605 12.8789v22.2422"/>
+  </g>
+</svg>
