@@ -1,3 +1,5 @@
+![qbop logo](https://github.com/clajiness/qbop/blob/main/public/images/android-chrome-192x192.png)
+
 # qbop
 A tool for maintaining a forwarded port from ProtonVPN, while optionally keeping OPNsense and qBittorrent in sync. The tool offers a simple web UI and API via `http://<host_ip>:4567/`.
 
