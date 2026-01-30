@@ -2,13 +2,15 @@ module Framework
   # The Web class is a Sinatra application that provides three routes
   # for displaying statistics, logs, and about information.
   class Web < Sinatra::Application
-    get '/' do
-      helpers = Service::Helpers.new
-      stats = Stat.as_hash
-
+    before do
       update = Notification.select(:info, :active).where(name: 'update_available').first
       @recent_tag = update[:info]
       @update_available = update[:active]
+    end
+
+    get '/' do
+      helpers = Service::Helpers.new
+      stats = Stat.as_hash
 
       @proton_stats = stats[1]
       @opn_stats = stats[2]
@@ -33,10 +35,6 @@ module Framework
     end
 
     get '/api-docs' do
-      update = Notification.select(:info, :active).where(name: 'update_available').first
-      @recent_tag = update[:info]
-      @update_available = update[:active]
-
       erb :api_docs
     end
 
@@ -57,6 +55,7 @@ module Framework
 
       service = params['select']&.strip&.downcase&.shellescape
       public_ip = helpers.get_public_ip(service)
+
       @public_ip = "#{service} -> #{public_ip}"
 
       erb :tools
@@ -64,10 +63,6 @@ module Framework
 
     get '/logs' do
       helpers = Service::Helpers.new
-
-      update = Notification.select(:info, :active).where(name: 'update_available').first
-      @recent_tag = update[:info]
-      @update_available = update[:active]
 
       @log_lines = helpers.env_variables[:log_lines]
       @output = helpers.log_lines_to_a(@log_lines)
@@ -77,10 +72,6 @@ module Framework
 
     get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
-
-      update = Notification.select(:info, :active).where(name: 'update_available').first
-      @recent_tag = update[:info]
-      @update_available = update[:active]
 
       @app_version = ENV['VERSION']
       @schema_version = helpers.get_db_version
