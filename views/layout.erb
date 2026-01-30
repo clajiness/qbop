@@ -7,32 +7,33 @@
     <meta name="theme-color" content="#ffffff" />
     <meta name="description" content="the qbop ui" />
     <link rel="stylesheet" href="https://unpkg.com/terminal.css@0.7.5/dist/terminal.min.css" integrity="sha512-X8PpCFdlyXfQ93O7R/tmLP0uln53P5/hY29faFCjhpfinyggAeQbcwiv8pDvu49vHvZPWJN+yfb4VomHJK6sJA==" crossorigin="anonymous" />
+    
+    <!-- Theme stylesheets -->
     <% if Service::Helpers.new.env_variables[:ui_mode] == "light" %>
     <link rel="stylesheet" href="/css/light.css" />
     <% else %>
     <link rel="stylesheet" href="/css/dark.css" />
     <% end %>
 
-    <!-- Default favicons (fallback) -->
-    <link rel="icon" type="image/x-icon" href="/images/favicon.ico" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/images/light/favicon-light-32x32.png" />
-
     <!-- Light mode favicons -->
-    <link rel="icon" type="image/x-icon" href="/images/light/favicon-light.ico" media="(prefers-color-scheme: light)" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/images/light/apple-touch-icon-light.png" media="(prefers-color-scheme: light)" />
-    <link rel="icon" sizes="32x32" href="/images/light/favicon-light-32x32.png" media="(prefers-color-scheme: light)" />
-    <link rel="icon" sizes="16x16" href="/images/light/favicon-light-16x16.png" media="(prefers-color-scheme: light)" />
-    <link rel="icon" href="/images/light/favicon-light.svg" media="(prefers-color-scheme: light)" />
-    <link rel="manifest" href="/images/light/site.webmanifest" media="(prefers-color-scheme: light)" />
+    <% if Service::Helpers.new.env_variables[:ui_mode] == "light" %>
+    <link rel="icon" type="image/x-icon" href="/images/light/favicon-light.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/light/apple-touch-icon-light.png" />
+    <link rel="icon" sizes="32x32" href="/images/light/favicon-light-32x32.png" />
+    <link rel="icon" sizes="16x16" href="/images/light/favicon-light-16x16.png" />
+    <link rel="icon" href="/images/light/favicon-light.svg" />
+    <link rel="manifest" href="/images/light/site.webmanifest" />
 
     <!-- Dark mode favicons -->
-    <link rel="icon" type="image/x-icon" href="/images/dark/favicon-dark.ico" media="(prefers-color-scheme: dark)" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/images/dark/apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)" />
-    <link rel="icon" sizes="32x32" href="/images/dark/favicon-dark-32x32.png" media="(prefers-color-scheme: dark)" />
-    <link rel="icon" sizes="16x16" href="/images/dark/favicon-dark-16x16.png" media="(prefers-color-scheme: dark)" />
-    <link rel="icon" href="/images/dark/favicon-dark.svg" media="(prefers-color-scheme: dark)" />
-    <link rel="manifest" href="/images/dark/site.webmanifest" media="(prefers-color-scheme: dark)" />
-    
+    <% else %>
+    <link rel="icon" type="image/x-icon" href="/images/dark/favicon-dark.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/dark/apple-touch-icon-dark.png" />
+    <link rel="icon" sizes="32x32" href="/images/dark/favicon-dark-32x32.png" />
+    <link rel="icon" sizes="16x16" href="/images/dark/favicon-dark-16x16.png" />
+    <link rel="icon" href="/images/dark/favicon-dark.svg" />
+    <link rel="manifest" href="/images/dark/site.webmanifest" />
+    <% end %>
+
     <title>qbop</title>
   </head>
   <body class="terminal">
