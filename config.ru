@@ -29,7 +29,7 @@ end
 
 # map sinatra and grape apps
 map '/' do
-  use Rack::Session::Cookie, secret: SecureRandom.alphanumeric(64)
+  use Rack::Session::Cookie, secret: Framework::SessionSecret.load_or_create('data/session_secret.txt')
   run Rack::Cascade.new([Framework::Web, Framework::API])
 end
 
