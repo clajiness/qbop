@@ -87,7 +87,9 @@ module Framework
       { 'about' => {
           app_version: ENV['VERSION'],
           schema_version: helpers.get_db_version,
-          ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
+          ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})",
+          start_time: Framework::Uptime.started_at,
+          uptime: Framework::Uptime.uptime_seconds.to_i
         },
         'env_variables' => {
           'ui_mode': ENV['UI_MODE'],

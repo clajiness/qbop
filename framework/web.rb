@@ -76,6 +76,8 @@ module Framework
       @app_version = ENV['VERSION']
       @schema_version = helpers.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
+      @uptime = helpers.seconds_to_s(Framework::Uptime.uptime_seconds)
+      @start_time = Framework::Uptime.started_at
       @repo_url = 'https://github.com/clajiness/qbop'
 
       @ui_mode = ENV['UI_MODE']

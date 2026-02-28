@@ -11,7 +11,7 @@ gem 'rack-session', '~> 2.1', '>= 2.1.1'
 gem 'rackup', '~> 2.3', '>= 2.3.1'
 gem 'rake', '~> 13.3', '>= 13.3.1'
 gem 'rspec', '~> 3.13', '>= 3.13.2'
-gem 'rubocop', '~> 1.84', '>= 1.84.2', require: false
+gem 'rubocop', '~> 1.85', require: false
 gem 'sequel', '~> 5.101'
 gem 'sinatra', '~> 4.2', '>= 4.2.1'
 gem 'sqlite3', '~> 2.9'

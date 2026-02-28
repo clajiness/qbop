@@ -1,4 +1,5 @@
 data/qbop.sqlite3
+data/session_secret.txt
 log/*.log
 log/*.log.*
 .DS_Store
