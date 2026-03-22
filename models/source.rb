@@ -28,7 +28,7 @@ class Source < Sequel::Model # rubocop:disable Style/Documentation
   end
 
   def set_same_port
-    seconds = Time.now - Time.new(get_updated_at)
+    seconds = Time.new(get_last_checked) - Time.new(get_updated_at)
     return unless seconds > get_same_port
 
     stats.first.update(same_port: seconds.to_i)
