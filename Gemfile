@@ -1,8 +1,9 @@
 source 'https://gem.coop'
 
+gem 'activesupport', '~> 8.1', '>= 8.1.3'
 gem 'faraday', '~> 2.14', '>= 2.14.1'
 gem 'grape', '~> 3.1', '>= 3.1.1'
-gem 'json', '~> 2.19', '>= 2.19.2'
+gem 'json', '~> 2.19', '>= 2.19.3'
 gem 'logger', '~> 1.7'
 gem 'open3', '~> 0.2.1'
 gem 'puma', '~> 7.2'
@@ -11,7 +12,7 @@ gem 'rack-session', '~> 2.1', '>= 2.1.1'
 gem 'rackup', '~> 2.3', '>= 2.3.1'
 gem 'rake', '~> 13.3', '>= 13.3.1'
 gem 'rspec', '~> 3.13', '>= 3.13.2'
-gem 'rubocop', '~> 1.85', '>= 1.85.1', require: false
+gem 'rubocop', '~> 1.86', require: false
 gem 'sequel', '~> 5.102'
 gem 'sinatra', '~> 4.2', '>= 4.2.1'
 gem 'sqlite3', '~> 2.9', '>= 2.9.2'
