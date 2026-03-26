@@ -62,16 +62,20 @@ jobs:
       - name: Docker metadata for non-main
         if: github.event_name == 'push' && github.ref != 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
         id: meta_non_main
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=${{ steps.version.outputs.full }}
+          labels: |
+            org.opencontainers.image.title=qbop
+            org.opencontainers.image.description=A lightweight Sinatra + Grape app with uptime tracking and API support
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Docker metadata for main
         if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
         id: meta_main
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -79,6 +83,10 @@ jobs:
             type=raw,value=${{ steps.version.outputs.major }}
             type=raw,value=${{ steps.version.outputs.minor }}
             type=raw,value=${{ steps.version.outputs.full }}
+          labels: |
+            org.opencontainers.image.title=qbop
+            org.opencontainers.image.description=A lightweight Sinatra + Grape app with uptime tracking and API support
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and push to non-main
         if: github.event_name == 'push' && github.ref != 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
