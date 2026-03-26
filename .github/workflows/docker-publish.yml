@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - "**"
-      - "!main"
-  pull_request:
-    types:
-      - closed
 
 jobs:
   build:
@@ -60,7 +56,7 @@ jobs:
           tag: ${{ steps.version.outputs.full }}
 
       - name: Docker metadata for non-main
-        if: github.event_name == 'push' && github.ref != 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
+        if: github.ref != 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
         id: meta_non_main
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
@@ -73,7 +69,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Docker metadata for main
-        if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
+        if: github.ref == 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
         id: meta_main
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
@@ -89,7 +85,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and push to non-main
-        if: github.event_name == 'push' && github.ref != 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
+        if: github.ref != 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
@@ -102,7 +98,7 @@ jobs:
           labels: ${{ steps.meta_non_main.outputs.labels }}
 
       - name: Build and push to main
-        if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
+        if: github.ref == 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
