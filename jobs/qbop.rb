@@ -109,7 +109,10 @@ class Qbop # rubocop:disable Metrics/ClassLength
     log_error('qBit', e)
   end
 
-  def sync_target_port(source_data, current_port, forwarded_port, source_name) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+  def sync_target_port(source_data, current_port, forwarded_port, source_name) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength,Metrics/CyclomaticComplexity
+    current_port = current_port.to_i
+    forwarded_port = forwarded_port.to_i
+
     unless valid_forwarded_port?(forwarded_port)
       @logger.info("#{source_name} rejected Proton's forwarded port as it is not within a valid range of 1024-65535")
       return false
@@ -122,9 +125,10 @@ class Qbop # rubocop:disable Metrics/ClassLength
       return source_data.change?
     end
 
+    source_data.reset_change if source_data.change?
     source_data.reset_attempt if source_data.attempt != 0
     @logger.info("#{source_name} port #{current_port} matches Proton forwarded port #{forwarded_port}")
-    source_data.set_current_port(forwarded_port) if forwarded_port.to_i != source_data.get_current_port
+    source_data.set_current_port(forwarded_port) if forwarded_port != source_data.get_current_port
     source_data.set_updated_at if source_data.get_updated_at == 'unknown'
     source_data.set_same_port
     false
