@@ -61,8 +61,9 @@ Image tags are published as follows:
 | `OPN_PROTON_ALIAS_NAME` | | The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`. |
 | `QBIT_SKIP` | `false` | [`true`/`false`] Skip qBittorrent. If `true`, subsequent qBittorrent environment variables are not required. |
 | `QBIT_ADDR` | | The IP address of your qBittorrent app. Requires `http(s)://` and no trailing slash. |
-| `QBIT_USER` | | qBittorrent username |
-| `QBIT_PASS` | | qBittorrent password |
+| `QBIT_API_KEY` | | qBittorrent API key. If set, this is used instead of `QBIT_USER` and `QBIT_PASS`. Requires qBittorrent 5.2.0 or newer. |
+| `QBIT_USER` | | qBittorrent username. Used when `QBIT_API_KEY` is not set. |
+| `QBIT_PASS` | | qBittorrent password. Used when `QBIT_API_KEY` is not set. |
 | `BASIC_AUTH_ENABLED` | `false` | Enable basic auth. If `true`, subsequent `BASIC_AUTH` variables are used. |
 | `BASIC_AUTH_USER` | `admin` | Set basic auth username |
 | `BASIC_AUTH_PASS` | `admin` | Set basic auth password |

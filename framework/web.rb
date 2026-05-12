@@ -94,6 +94,7 @@ module Framework
       @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
       @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
       @qbit_addr = ENV['QBIT_ADDR']
+      @qbit_api_key = '***'
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
       @basic_auth_enabled = helpers.true?(ENV['BASIC_AUTH_ENABLED'])

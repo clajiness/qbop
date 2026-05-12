@@ -47,7 +47,7 @@ GEM
       logger
     faraday-net_http (3.4.0)
       net-http (>= 0.5.0)
-    grape (3.2.0)
+    grape (3.2.1)
       activesupport (>= 7.2)
       dry-configurable
       dry-types (>= 1.1)
@@ -56,7 +56,7 @@ GEM
       zeitwerk
     i18n (1.14.6)
       concurrent-ruby (~> 1.0)
-    json (2.19.3)
+    json (2.19.5)
     language_server-protocol (3.17.0.3)
     lint_roller (1.1.0)
     logger (1.7.0)
@@ -74,7 +74,7 @@ GEM
       ast (~> 2.4.1)
       racc
     prism (1.9.0)
-    puma (7.2.0)
+    puma (8.0.1)
       nio4r (~> 2.0)
     racc (1.8.1)
     rack (3.2.6)
@@ -88,7 +88,7 @@ GEM
     rackup (2.3.1)
       rack (>= 3)
     rainbow (3.1.1)
-    rake (13.3.1)
+    rake (13.4.2)
     regexp_parser (2.10.0)
     rspec (3.13.2)
       rspec-core (~> 3.13.0)
@@ -103,11 +103,11 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.2)
-    rubocop (1.86.0)
+    rubocop (1.86.1)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
       lint_roller (~> 1.1.0)
-      parallel (~> 1.10)
+      parallel (>= 1.10)
       parser (>= 3.3.0.2)
       rainbow (>= 2.2.2, < 4.0)
       regexp_parser (>= 2.9.3, < 3.0)
@@ -120,7 +120,7 @@ GEM
     ruby-progressbar (1.13.0)
     ruby2_keywords (0.0.5)
     securerandom (0.4.1)
-    sequel (5.103.0)
+    sequel (5.104.0)
       bigdecimal
     sinatra (4.2.1)
       logger (>= 1.6.0)
@@ -129,7 +129,7 @@ GEM
       rack-protection (= 4.2.1)
       rack-session (>= 2.0.0, < 3)
       tilt (~> 2.0)
-    sqlite3 (2.9.2-arm64-darwin)
+    sqlite3 (2.9.4-arm64-darwin)
     sucker_punch (3.3.0)
       concurrent-ruby (~> 1.0)
     tilt (2.6.0)
@@ -148,20 +148,20 @@ PLATFORMS
 DEPENDENCIES
   activesupport (~> 8.1, >= 8.1.3)
   faraday (~> 2.14, >= 2.14.1)
-  grape (~> 3.2)
-  json (~> 2.19, >= 2.19.3)
+  grape (~> 3.2, >= 3.2.1)
+  json (~> 2.19, >= 2.19.5)
   logger (~> 1.7)
   open3 (~> 0.2.1)
-  puma (~> 7.2)
+  puma (~> 8.0, >= 8.0.1)
   rack (~> 3.2, >= 3.2.6)
   rack-session (~> 2.1, >= 2.1.2)
   rackup (~> 2.3, >= 2.3.1)
-  rake (~> 13.3, >= 13.3.1)
+  rake (~> 13.4, >= 13.4.2)
   rspec (~> 3.13, >= 3.13.2)
-  rubocop (~> 1.86)
-  sequel (~> 5.103)
+  rubocop (~> 1.86, >= 1.86.1)
+  sequel (~> 5.104)
   sinatra (~> 4.2, >= 4.2.1)
-  sqlite3 (~> 2.9, >= 2.9.2)
+  sqlite3 (~> 2.9, >= 2.9.4)
   sucker_punch (~> 3.3)
   uri (~> 1.1, >= 1.1.1)
 
@@ -181,9 +181,9 @@ CHECKSUMS
   dry-types (1.8.0) sha256=bdf444e0d2ff83f500271c7d38cb29690c2654fa78e588f68349a7b1e7341131
   faraday (2.14.1) sha256=a43cceedc1e39d188f4d2cdd360a8aaa6a11da0c407052e426ba8d3fb42ef61c
   faraday-net_http (3.4.0) sha256=a1f1e4cd6a2cf21599c8221595e27582d9936819977bbd4089a601f24c64e54a
-  grape (3.2.0) sha256=2aeeb020e5605f6314ce8ca8d30d90c9ee8f26bc959c5b34db7b8486764e4d2c
+  grape (3.2.1) sha256=448072f55904e5a4dca2e3781f0a373942514be65402cafb6177f5bc73db1b94
   i18n (1.14.6) sha256=dc229a74f5d181f09942dd60ab5d6e667f7392c4ee826f35096db36d1fe3614c
-  json (2.19.3) sha256=289b0bb53052a1fa8c34ab33cc750b659ba14a5c45f3fcf4b18762dc67c78646
+  json (2.19.5) sha256=218a18553e4801d579ca7e0f5bc72bafd776d7397238a1fb4e74db5b0a812c59
   language_server-protocol (3.17.0.3) sha256=3d5c58c02f44a20d972957a9febe386d7e7468ab3900ce6bd2b563dd910c6b3f
   lint_roller (1.1.0) sha256=2c0c845b632a7d172cb849cc90c1bce937a28c5c8ccccb50dfd46a485003cc87
   logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203
@@ -196,28 +196,28 @@ CHECKSUMS
   parallel (1.26.3) sha256=d86babb7a2b814be9f4b81587bf0b6ce2da7d45969fab24d8ae4bf2bb4d4c7ef
   parser (3.3.7.4) sha256=2b26282274280e13f891080dc4ef3f65ce658d62e13255b246b28ec6754e98ab
   prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
-  puma (7.2.0) sha256=bf8ef4ab514a4e6d4554cb4326b2004eba5036ae05cf765cfe51aba9706a72a8
+  puma (8.0.1) sha256=7b94e50c07655718c1fb8ae41a11fc06c7d61293208b3aa608ff71a46d3ad37c
   racc (1.8.1) sha256=4a7f6929691dbec8b5209a0b373bc2614882b55fc5d2e447a21aaa691303d62f
   rack (3.2.6) sha256=5ed78e1f73b2e25679bec7d45ee2d4483cc4146eb1be0264fc4d94cb5ef212c2
   rack-protection (4.2.1) sha256=cf6e2842df8c55f5e4d1a4be015e603e19e9bc3a7178bae58949ccbb58558bac
   rack-session (2.1.2) sha256=595434f8c0c3473ae7d7ac56ecda6cc6dfd9d37c0b2b5255330aa1576967ffe8
   rackup (2.3.1) sha256=6c79c26753778e90983761d677a48937ee3192b3ffef6bc963c0950f94688868
   rainbow (3.1.1) sha256=039491aa3a89f42efa1d6dec2fc4e62ede96eb6acd95e52f1ad581182b79bc6a
-  rake (13.3.1) sha256=8c9e89d09f66a26a01264e7e3480ec0607f0c497a861ef16063604b1b08eb19c
+  rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
   regexp_parser (2.10.0) sha256=cb6f0ddde88772cd64bff1dbbf68df66d376043fe2e66a9ef77fcb1b0c548c61
   rspec (3.13.2) sha256=206284a08ad798e61f86d7ca3e376718d52c0bc944626b2349266f239f820587
   rspec-core (3.13.2) sha256=94fbda6e4738e478f1c7532b7cc241272fcdc8b9eac03a97338b1122e4573300
   rspec-expectations (3.13.3) sha256=0e6b5af59b900147698ea0ff80456c4f2e69cac4394fbd392fbd1ca561f66c58
   rspec-mocks (3.13.2) sha256=2327335def0e1665325a9b617e3af9ae20272741d80ac550336309a7c59abdef
   rspec-support (3.13.2) sha256=cea3a2463fd9b84b9dcc9685efd80ea701aa8f7b3decb3b3ce795ed67737dbec
-  rubocop (1.86.0) sha256=4ff1186fe16ebe9baff5e7aad66bb0ad4cabf5cdcd419f773146dbba2565d186
+  rubocop (1.86.1) sha256=44415f3f01d01a21e01132248d2fd0867572475b566ca188a0a42133a08d4531
   rubocop-ast (1.49.0) sha256=49c3676d3123a0923d333e20c6c2dbaaae2d2287b475273fddee0c61da9f71fd
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   ruby2_keywords (0.0.5) sha256=ffd13740c573b7301cf7a2e61fc857b2a8e3d3aff32545d6f8300d8bae10e3ef
   securerandom (0.4.1) sha256=cc5193d414a4341b6e225f0cb4446aceca8e50d5e1888743fac16987638ea0b1
-  sequel (5.103.0) sha256=51bf23374cc585724fc51a2ae8b95283422c97ca4585ce28f3db27a26ce55a69
+  sequel (5.104.0) sha256=1521819b9204aa7f5c25b29fbb2a609ba3f6a82d2271f34f718e1169d31bf03e
   sinatra (4.2.1) sha256=b7aeb9b11d046b552972ade834f1f9be98b185fa8444480688e3627625377080
-  sqlite3 (2.9.2-arm64-darwin) sha256=d15bd9609a05f9d54930babe039585efc8cadd57517c15b64ec7dfa75158a5e9
+  sqlite3 (2.9.4-arm64-darwin) sha256=1d5aad413a815d236e96d43f05a1acc600b6cd086800770342a3f9c2877499ff
   sucker_punch (3.3.0) sha256=ad70e6663daae1f646cc92843a7fc74a2f2f172896cdbd5e9852c99e21a9dca2
   tilt (2.6.0) sha256=263d748466e0d83e510aa1a2e2281eff547937f0ef06be33d3632721e255f76b
   tzinfo (2.0.6) sha256=8daf828cc77bcf7d63b0e3bdb6caa47e2272dcfaf4fbfe46f8c3a9df087a829b

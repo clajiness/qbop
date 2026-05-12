@@ -21,25 +21,40 @@ module Service
       response['set-cookie'].split(';')[0]
     end
 
-    def qbt_app_preferences(sid)
+    def qbt_app_preferences
+      @auth_headers = auth_headers
       response = @conn.get do |req|
         req.url '/api/v2/app/preferences'
-        req.headers['Cookie'] = sid
+        authenticate(req, @auth_headers)
       end
 
       JSON.parse(response.body)['listen_port']
     end
 
-    def qbt_app_set_preferences(forwarded_port, sid)
+    def qbt_app_set_preferences(forwarded_port)
       @conn.post do |req|
         req.url '/api/v2/app/setPreferences'
-        req.headers['Cookie'] = sid
+        authenticate(req, @auth_headers || auth_headers)
         req.headers['Content-Type'] = 'application/x-www-form-urlencoded'
         req.body = URI.encode_www_form({ 'json': "{\"listen_port\": #{forwarded_port.to_i}}" })
       end
     end
 
     private
+
+    def authenticate(req, headers)
+      headers.each do |key, value|
+        req.headers[key] = value
+      end
+    end
+
+    def auth_headers
+      if @config[:qbit_api_key]
+        { 'Authorization' => "Bearer #{@config[:qbit_api_key]}" }
+      else
+        { 'Cookie' => qbt_auth_login }
+      end
+    end
 
     def faraday_conn(config)
       Faraday.new(
