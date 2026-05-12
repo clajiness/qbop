@@ -16,6 +16,7 @@ module Service
         opnsense_alias_name: ENV['OPN_PROTON_ALIAS_NAME'],
         qbit_skip: ENV['QBIT_SKIP'] || 'false',
         qbit_addr: ENV['QBIT_ADDR'],
+        qbit_api_key: ENV['QBIT_API_KEY'],
         qbit_user: ENV['QBIT_USER'],
         qbit_pass: ENV['QBIT_PASS'],
         log_lines: ENV['LOG_LINES'] || 50,

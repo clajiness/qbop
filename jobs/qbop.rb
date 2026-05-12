@@ -96,15 +96,14 @@ class Qbop # rubocop:disable Metrics/ClassLength
       return
     end
 
-    sid = @qbit.qbt_auth_login
-    qbt_port = @qbit.qbt_app_preferences(sid)
+    qbt_port = @qbit.qbt_app_preferences
 
     @qbit_data.set_current_port(qbt_port)
     @qbit_data.set_last_checked if qbt_port
 
     return unless sync_target_port(@qbit_data, qbt_port, forwarded_port, 'qBit')
 
-    update_qbit_port(forwarded_port, sid)
+    update_qbit_port(forwarded_port)
   rescue StandardError => e
     log_error('qBit', e)
   end
@@ -154,8 +153,8 @@ class Qbop # rubocop:disable Metrics/ClassLength
     mark_source_updated(@opnsense_data, forwarded_port)
   end
 
-  def update_qbit_port(forwarded_port, sid)
-    response = @qbit.qbt_app_set_preferences(forwarded_port, sid)
+  def update_qbit_port(forwarded_port)
+    response = @qbit.qbt_app_set_preferences(forwarded_port)
 
     if response.status != 200
       @logger.error("qBit port was not updated - response code: #{response.status}")

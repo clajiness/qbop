@@ -77,6 +77,11 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
         expect(Service::Helpers.new.env_variables[:qbit_addr]).to eq(nil)
       end
     end
+    context 'when qbit_api_key is not set' do
+      it 'returns nil' do
+        expect(Service::Helpers.new.env_variables[:qbit_api_key]).to eq(nil)
+      end
+    end
     context 'when qbit_user is not set' do
       it 'returns nil' do
         expect(Service::Helpers.new.env_variables[:qbit_user]).to eq(nil)

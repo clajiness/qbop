@@ -23,6 +23,7 @@ services:
       - OPN_PROTON_ALIAS_NAME=
       - QBIT_SKIP=
       - QBIT_ADDR=
+      - QBIT_API_KEY=
       - QBIT_USER=
       - QBIT_PASS=
       - LOG_LINES=
