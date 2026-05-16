@@ -22,12 +22,38 @@ RSpec.describe Service::Qbit do # rubocop:disable Metrics/BlockLength
     {
       qbit_addr: 'https://qbittorrent.local',
       qbit_user: 'test_user',
-      qbit_pass: 'test_pass'
+      qbit_pass: 'test_pass',
+      qbit_ssl_verify: false
     }
   end
 
   before do
     allow(Faraday).to receive(:new).and_return(conn)
+  end
+
+  it 'passes SSL verification and timeout config to Faraday' do
+    described_class.new(config)
+
+    expect(Faraday).to have_received(:new).with(
+      url: 'https://qbittorrent.local',
+      ssl: { verify: false },
+      request: described_class::REQUEST_TIMEOUT
+    )
+  end
+
+  describe '#qbt_auth_login' do
+    it 'returns the qBittorrent session cookie' do
+      response = { 'set-cookie' => 'SID=test_sid; HttpOnly' }
+
+      allow(conn).to receive(:post).and_yield(request).and_return(response)
+
+      cookie = described_class.new(config).qbt_auth_login
+
+      expect(request.url_path).to eq('/api/v2/auth/login')
+      expect(request.headers['Content-Type']).to eq('application/x-www-form-urlencoded')
+      expect(request.body).to eq('username=test_user&password=test_pass')
+      expect(cookie).to eq('SID=test_sid')
+    end
   end
 
   describe '#qbt_app_preferences' do
@@ -72,7 +98,7 @@ RSpec.describe Service::Qbit do # rubocop:disable Metrics/BlockLength
       expect(request.url_path).to eq('/api/v2/app/setPreferences')
       expect(request.headers['Authorization']).to eq('Bearer qbt_test_key')
       expect(request.headers['Content-Type']).to eq('application/x-www-form-urlencoded')
-      expect(request.body).to eq('json=%7B%22listen_port%22%3A+54321%7D')
+      expect(request.body).to eq('json=%7B%22listen_port%22%3A54321%7D')
     end
   end
 end

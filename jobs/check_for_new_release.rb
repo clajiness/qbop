@@ -23,8 +23,8 @@ class CheckForNewReleases # rubocop:disable Style/Documentation
   def run_loop_iteration # rubocop:disable Metrics/MethodLength
     @logger.info('[CheckForNewReleases] checking for new releases...')
 
-    update_available = @helpers.update_available?
     tag = @github.get_most_recent_tag
+    update_available = @helpers.update_available?(tag)
 
     persist_notification(tag, update_available)
     log_update_status(update_available)

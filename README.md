@@ -27,13 +27,13 @@ I recommend using the provided sample Docker Compose files to simplify setting u
 
 You can ignore OPNsense and/or qBittorrent by using the `OPN_SKIP` and/or `QBIT_SKIP` environment variables. This is handy if you're using a firewall and routing platform like a Unifi gateway or a different BitTorrent client.
 
-The container image is available [here](https://github.com/clajiness/qbop/pkgs/container/qbop). The sample docker-compose.yml file is available [here](https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml). There is also a [community compose directory](https://github.com/clajiness/qbop/blob/main/docker-compose/community/). Feel free to open a pull request to share your own compose files.
+The container image is available [here](https://github.com/clajiness/qbop/pkgs/container/qbop). The sample docker-compose.yml file is available [here](https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml).
 
 Image tags are published as follows:
 - `latest` → most recent release
 - `v2` → latest `v2.x.x` release
-- `v2.5` → latest `v2.5.x` release
-- `v2.5.8` → exact version
+- `v2.minor` → latest patch release for that minor version, e.g. `v2.7`
+- `v2.minor.patch` → exact version, e.g. `v2.7.0`
 
 ### Requirements
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
@@ -59,11 +59,13 @@ Image tags are published as follows:
 | `OPN_API_KEY` | | OPNsense API Key |
 | `OPN_API_SECRET` | | OPNsense API Secret |
 | `OPN_PROTON_ALIAS_NAME` | | The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`. |
+| `OPN_SSL_VERIFY` | `false` | [`true`/`false`] Verify OPNsense TLS certificates. Defaults to `false` for self-signed/private deployments. |
 | `QBIT_SKIP` | `false` | [`true`/`false`] Skip qBittorrent. If `true`, subsequent qBittorrent environment variables are not required. |
 | `QBIT_ADDR` | | The IP address of your qBittorrent app. Requires `http(s)://` and no trailing slash. |
 | `QBIT_API_KEY` | | qBittorrent API key. If set, this is used instead of `QBIT_USER` and `QBIT_PASS`. Requires qBittorrent 5.2.0 or newer. |
 | `QBIT_USER` | | qBittorrent username. Used when `QBIT_API_KEY` is not set. |
 | `QBIT_PASS` | | qBittorrent password. Used when `QBIT_API_KEY` is not set. |
+| `QBIT_SSL_VERIFY` | `false` | [`true`/`false`] Verify qBittorrent TLS certificates. Defaults to `false` for self-signed/private deployments. |
 | `BASIC_AUTH_ENABLED` | `false` | Enable basic auth. If `true`, subsequent `BASIC_AUTH` variables are used. |
 | `BASIC_AUTH_USER` | `admin` | Set basic auth username |
 | `BASIC_AUTH_PASS` | `admin` | Set basic auth password |

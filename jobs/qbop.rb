@@ -57,7 +57,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
       @logger.error("Proton didn't return a forwarded port.")
     elsif forwarded_port == @proton_data.get_current_port
       @logger.info("Proton returned the forwarded port #{forwarded_port}")
-      @proton_data.set_updated_at if @proton_data.get_updated_at == 'unknown'
+      @proton_data.set_updated_at unless @proton_data.updated?
       @proton_data.set_same_port
     else
       @logger.info("Proton returned the new forwarded port #{forwarded_port}")
@@ -128,7 +128,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     source_data.reset_attempt if source_data.attempt != 0
     @logger.info("#{source_name} port #{current_port} matches Proton forwarded port #{forwarded_port}")
     source_data.set_current_port(forwarded_port) if forwarded_port != source_data.get_current_port
-    source_data.set_updated_at if source_data.get_updated_at == 'unknown'
+    source_data.set_updated_at unless source_data.updated?
     source_data.set_same_port
     false
   end

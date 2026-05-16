@@ -1,6 +1,8 @@
 module Service
   # Handles interactions with the GitHub API for the Service module.
   class Github
+    REQUEST_TIMEOUT = { open_timeout: 5, timeout: 10 }.freeze
+
     def initialize
       @conn = faraday_conn
     end
@@ -20,7 +22,8 @@ module Service
 
     def faraday_conn
       Faraday.new(
-        url: 'https://api.github.com'
+        url: 'https://api.github.com',
+        request: REQUEST_TIMEOUT
       )
     end
   end

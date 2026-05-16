@@ -4,32 +4,32 @@ module Framework
   class Web < Sinatra::Application
     before do
       update = Notification.select(:info, :active).where(name: 'update_available').first
-      @recent_tag = update[:info]
-      @update_available = update[:active]
+      @recent_tag = update&.info
+      @update_available = update&.active || false
     end
 
     get '/' do
       helpers = Service::Helpers.new
-      stats = Stat.as_hash
+      stats = Stat.by_source_name
 
-      @proton_stats = stats[1]
-      @opn_stats = stats[2]
-      @qbit_stats = stats[3]
+      @proton_stats = stats['proton']
+      @opn_stats = stats['opnsense']
+      @qbit_stats = stats['qbit']
 
-      @proton_connected = helpers.connected_to_service?(@proton_stats[:last_checked])
-      @opn_connected = helpers.connected_to_service?(@opn_stats[:last_checked])
-      @qbit_connected = helpers.connected_to_service?(@qbit_stats[:last_checked])
+      @proton_connected = helpers.connected_to_service?(@proton_stats.last_checked)
+      @opn_connected = helpers.connected_to_service?(@opn_stats.last_checked)
+      @qbit_connected = helpers.connected_to_service?(@qbit_stats.last_checked)
 
-      @proton_delta = helpers.time_delta_to_s(@proton_stats[:last_checked], @proton_stats[:updated_at])
-      @opn_delta = helpers.time_delta_to_s(@opn_stats[:last_checked], @opn_stats[:updated_at])
-      @qbit_delta = helpers.time_delta_to_s(@qbit_stats[:last_checked], @qbit_stats[:updated_at])
+      @proton_delta = helpers.time_delta_to_s(@proton_stats.last_checked, @proton_stats.updated_at)
+      @opn_delta = helpers.time_delta_to_s(@opn_stats.last_checked, @opn_stats.updated_at)
+      @qbit_delta = helpers.time_delta_to_s(@qbit_stats.last_checked, @qbit_stats.updated_at)
 
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
 
-      @proton_longest_time_on_same_port = helpers.seconds_to_s(@proton_stats[:same_port])
-      @opn_longest_time_on_same_port = helpers.seconds_to_s(@opn_stats[:same_port])
-      @qbit_longest_time_on_same_port = helpers.seconds_to_s(@qbit_stats[:same_port])
+      @proton_longest_time_on_same_port = helpers.seconds_to_s(@proton_stats.same_port)
+      @opn_longest_time_on_same_port = helpers.seconds_to_s(@opn_stats.same_port)
+      @qbit_longest_time_on_same_port = helpers.seconds_to_s(@qbit_stats.same_port)
 
       erb :index
     end
@@ -53,7 +53,7 @@ module Framework
     post '/public-ip' do
       helpers = Service::Helpers.new
 
-      service = params['select']&.strip&.downcase&.shellescape
+      service = params['select']&.strip&.downcase
       public_ip = helpers.get_public_ip(service)
 
       @public_ip = "#{service} -> #{public_ip}"
@@ -92,11 +92,13 @@ module Framework
       @opn_api_key = '***'
       @opn_api_secret = '***'
       @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
+      @opn_ssl_verify = helpers.true?(ENV['OPN_SSL_VERIFY'])
       @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
       @qbit_addr = ENV['QBIT_ADDR']
       @qbit_api_key = '***'
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
+      @qbit_ssl_verify = helpers.true?(ENV['QBIT_SSL_VERIFY'])
       @basic_auth_enabled = helpers.true?(ENV['BASIC_AUTH_ENABLED'])
       @basic_auth_user = ENV['BASIC_AUTH_USER']
       @basic_auth_pass = '***'

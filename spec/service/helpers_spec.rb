@@ -3,14 +3,49 @@ Bundler.require(:default)
 
 require_relative '../../service/helpers'
 
+HELPERS_SPEC_ENV_KEYS = %w[
+  UI_MODE
+  VERSION
+  LOOP_FREQ
+  REQUIRED_ATTEMPTS
+  PROTON_GATEWAY
+  OPN_SKIP
+  OPN_INTERFACE_ADDR
+  OPN_API_KEY
+  OPN_API_SECRET
+  OPN_PROTON_ALIAS_NAME
+  OPN_SSL_VERIFY
+  QBIT_SKIP
+  QBIT_ADDR
+  QBIT_API_KEY
+  QBIT_USER
+  QBIT_PASS
+  QBIT_SSL_VERIFY
+  LOG_LINES
+  LOG_REVERSE
+  LOG_TO_STDOUT
+  BASIC_AUTH_ENABLED
+  BASIC_AUTH_USER
+  BASIC_AUTH_PASS
+].freeze
+
 RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
+  around do |example|
+    original_env = HELPERS_SPEC_ENV_KEYS.to_h { |key| [key, ENV[key]] }
+    HELPERS_SPEC_ENV_KEYS.each { |key| ENV.delete(key) }
+
+    example.run
+  ensure
+    HELPERS_SPEC_ENV_KEYS.each { |key| original_env[key].nil? ? ENV.delete(key) : ENV[key] = original_env[key] }
+  end
+
   describe '#env_variables' do # rubocop:disable Metrics/BlockLength
     context 'when ui_mode is not set' do
       it 'returns dark' do
         expect(Service::Helpers.new.env_variables[:ui_mode]).to eq('dark')
       end
       it 'does not return nil' do
-        expect(Service::Helpers.new.env_variables[:ui_mode]).not_to eq('nil')
+        expect(Service::Helpers.new.env_variables[:ui_mode]).not_to eq(nil)
       end
     end
     context 'when script_version is not set' do
@@ -67,6 +102,11 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
         expect(Service::Helpers.new.env_variables[:opnsense_alias_name]).to eq(nil)
       end
     end
+    context 'when opnsense_ssl_verify is not set' do
+      it 'returns false' do
+        expect(Service::Helpers.new.env_variables[:opnsense_ssl_verify]).to eq(false)
+      end
+    end
     context 'when qbit_skip is not set' do
       it 'returns nil' do
         expect(Service::Helpers.new.env_variables[:qbit_skip]).to eq('false')
@@ -90,6 +130,11 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     context 'when qbit_pass is not set' do
       it 'returns nil' do
         expect(Service::Helpers.new.env_variables[:qbit_pass]).to eq(nil)
+      end
+    end
+    context 'when qbit_ssl_verify is not set' do
+      it 'returns false' do
+        expect(Service::Helpers.new.env_variables[:qbit_ssl_verify]).to eq(false)
       end
     end
     context 'when log_lines is not set' do
@@ -239,9 +284,20 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
   end
 
   describe '#update_available?' do
-    it 'returns true or false' do
-      result = Service::Helpers.new.update_available?
-      expect([true, false]).to include(result)
+    it 'returns true when the newest tag is newer than the app version' do
+      ENV['VERSION'] = 'v2.6.0'
+
+      expect(Service::Helpers.new.update_available?('v2.7.0')).to eq(true)
+    end
+
+    it 'returns false when the newest tag matches the app version' do
+      ENV['VERSION'] = 'v2.7.0'
+
+      expect(Service::Helpers.new.update_available?('v2.7.0')).to eq(false)
+    end
+
+    it 'returns false when the app version is missing' do
+      expect(Service::Helpers.new.update_available?('v2.7.0')).to eq(false)
     end
   end
 
@@ -260,13 +316,25 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
 
   describe '#generate_wg_public_key' do
     it 'returns error for invalid private key' do
+      allow(Open3).to receive(:capture3)
+        .with('wg', 'pubkey', stdin_data: "invalid_key\n")
+        .and_return(['', "wg: Key is not the correct length or format\n"])
+
       expect(Service::Helpers.new.generate_wg_public_key('invalid_key')).to eq('wg: Key is not the correct length or format') # rubocop:disable Layout/LineLength
     end
   end
 
   describe '#get_public_ip' do
     it 'returns unknown provider when given an invalid argument' do
-      expect(Service::Helpers.new.get_public_ip('invalid_argument')).to eq('unknown service')
+      expect(Service::Helpers.new.get_public_ip('invalid_argument')).to eq('unknown provider')
+    end
+
+    it 'uses array command arguments for known providers' do
+      allow(Open3).to receive(:capture3)
+        .with('timeout', '5', 'dig', 'myip.opendns.com', '@dns.opendns.com', '+short')
+        .and_return(["192.0.2.1\n", ''])
+
+      expect(Service::Helpers.new.get_public_ip('opendns')).to eq("192.0.2.1\n")
     end
   end
 
