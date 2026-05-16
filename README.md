@@ -27,13 +27,13 @@ I recommend using the provided sample Docker Compose files to simplify setting u
 
 You can ignore OPNsense and/or qBittorrent by using the `OPN_SKIP` and/or `QBIT_SKIP` environment variables. This is handy if you're using a firewall and routing platform like a Unifi gateway or a different BitTorrent client.
 
-The container image is available [here](https://github.com/clajiness/qbop/pkgs/container/qbop). The sample docker-compose.yml file is available [here](https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml). There is also a [community compose directory](https://github.com/clajiness/qbop/blob/main/docker-compose/community/). Feel free to open a pull request to share your own compose files.
+The container image is available [here](https://github.com/clajiness/qbop/pkgs/container/qbop). The sample docker-compose.yml file is available [here](https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml).
 
 Image tags are published as follows:
 - `latest` → most recent release
 - `v2` → latest `v2.x.x` release
-- `v2.5` → latest `v2.5.x` release
-- `v2.5.8` → exact version
+- `v2.minor` → latest patch release for that minor version, e.g. `v2.7`
+- `v2.minor.patch` → exact version, e.g. `v2.7.0`
 
 ### Requirements
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
