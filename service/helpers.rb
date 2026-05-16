@@ -1,3 +1,5 @@
+require 'time'
+
 module Service
   # The Helpers class provides utility methods for accessing environment variables
   # and parsing specific configuration values used in the application.
@@ -14,11 +16,13 @@ module Service
         opnsense_api_key: ENV['OPN_API_KEY'],
         opnsense_api_secret: ENV['OPN_API_SECRET'],
         opnsense_alias_name: ENV['OPN_PROTON_ALIAS_NAME'],
+        opnsense_ssl_verify: true?(ENV['OPN_SSL_VERIFY'] || 'false'),
         qbit_skip: ENV['QBIT_SKIP'] || 'false',
         qbit_addr: ENV['QBIT_ADDR'],
         qbit_api_key: ENV['QBIT_API_KEY'],
         qbit_user: ENV['QBIT_USER'],
         qbit_pass: ENV['QBIT_PASS'],
+        qbit_ssl_verify: true?(ENV['QBIT_SSL_VERIFY'] || 'false'),
         log_lines: ENV['LOG_LINES'] || 50,
         log_reverse: ENV['LOG_REVERSE'] || 'false',
         log_to_stdout: ENV['LOG_TO_STDOUT'] || 'false',
@@ -60,8 +64,9 @@ module Service
     end
 
     def time_delta(last_checked, last_updated)
-      last_checked_time = Time.new(last_checked)
-      last_updated_time = Time.new(last_updated)
+      last_checked_time = time_value(last_checked)
+      last_updated_time = time_value(last_updated)
+      return 'unknown' unless last_checked_time && last_updated_time
 
       seconds = last_checked_time - last_updated_time
 
@@ -71,8 +76,9 @@ module Service
     end
 
     def time_delta_to_s(last_checked, last_updated)
-      last_checked_time = Time.new(last_checked)
-      last_updated_time = Time.new(last_updated)
+      last_checked_time = time_value(last_checked)
+      last_updated_time = time_value(last_updated)
+      return 'unknown' unless last_checked_time && last_updated_time
 
       seconds = last_checked_time - last_updated_time
 
@@ -96,16 +102,20 @@ module Service
     end
 
     def connected_to_service?(last_checked)
-      Time.new(last_checked) >= (Time.now - ((ENV['LOOP_FREQ'] || 45).to_i * 3))
+      last_checked_time = time_value(last_checked)
+
+      !!(last_checked_time && last_checked_time >= (Time.now - ((ENV['LOOP_FREQ'] || 45).to_i * 3)))
     rescue StandardError
       false
     end
 
-    def update_available?
-      newest_tag = Service::Github.new.get_most_recent_tag[1..]
-      app_tag = ENV['VERSION'][1..]
+    def update_available?(tag = nil)
+      tag ||= Service::Github.new.get_most_recent_tag
+      newest_tag = tag&.delete_prefix('v')
+      app_tag = ENV['VERSION']&.delete_prefix('v')
+      return false unless newest_tag && app_tag
 
-      Gem::Version.new(newest_tag) > Gem::Version.new(app_tag) if newest_tag && app_tag
+      Gem::Version.new(newest_tag) > Gem::Version.new(app_tag)
     rescue StandardError
       false
     end
@@ -159,7 +169,7 @@ module Service
       when 'opendns'
         stdout, stderr = Open3.capture3('timeout 5 dig myip.opendns.com @dns.opendns.com +short')
       else
-        return 'unknown service'
+        return 'unknown provider'
       end
 
       stdout.empty? ? stderr&.tr('"', '') : stdout&.tr('"', '')
@@ -177,6 +187,17 @@ module Service
       end
     rescue StandardError
       default
+    end
+
+    private
+
+    def time_value(value)
+      return value if value.is_a?(Time)
+      return value.to_time if value.respond_to?(:to_time)
+
+      Time.parse(value.to_s)
+    rescue StandardError
+      nil
     end
   end
 end

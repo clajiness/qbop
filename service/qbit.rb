@@ -36,7 +36,7 @@ module Service
         req.url '/api/v2/app/setPreferences'
         authenticate(req, @auth_headers || auth_headers)
         req.headers['Content-Type'] = 'application/x-www-form-urlencoded'
-        req.body = URI.encode_www_form({ 'json': "{\"listen_port\": #{forwarded_port.to_i}}" })
+        req.body = URI.encode_www_form({ 'json': JSON.generate(listen_port: forwarded_port.to_i) })
       end
     end
 
@@ -59,7 +59,7 @@ module Service
     def faraday_conn(config)
       Faraday.new(
         url: config[:qbit_addr],
-        ssl: { verify: false }
+        ssl: { verify: config[:qbit_ssl_verify] }
       )
     end
   end

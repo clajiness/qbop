@@ -9,7 +9,21 @@ RSpec.describe Service::Opnsense do
       opnsense_interface_addr: 'https://opnsense.local',
       opnsense_api_key: 'test_api_key',
       opnsense_api_secret: 'test_api_secret',
-      opnsense_alias_name: 'test_alias'
+      opnsense_alias_name: 'test_alias',
+      opnsense_ssl_verify: false
     }
+  end
+
+  it 'passes SSL verification config to Faraday' do
+    conn = instance_double(Faraday::Connection)
+
+    allow(Faraday).to receive(:new).and_return(conn)
+
+    described_class.new(config)
+
+    expect(Faraday).to have_received(:new).with(
+      url: 'https://opnsense.local',
+      ssl: { verify: false }
+    )
   end
 end

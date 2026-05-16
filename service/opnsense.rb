@@ -42,7 +42,7 @@ module Service
     def faraday_conn(config)
       Faraday.new(
         url: config[:opnsense_interface_addr],
-        ssl: { verify: false }
+        ssl: { verify: config[:opnsense_ssl_verify] }
       ) do |faraday|
         faraday.request :authorization, :basic, config[:opnsense_api_key], config[:opnsense_api_secret]
       end

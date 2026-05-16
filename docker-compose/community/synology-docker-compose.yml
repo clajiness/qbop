@@ -87,10 +87,12 @@ services:
       - OPN_API_KEY=
       - OPN_API_SECRET=
       - OPN_PROTON_ALIAS_NAME=
+      - OPN_SSL_VERIFY=false
       - QBIT_SKIP=false
       - QBIT_ADDR=https://127.0.0.1:9090
       - QBIT_USER=
       - QBIT_PASS=
+      - QBIT_SSL_VERIFY=false
       - LOG_LINES=50
 
     network_mode: service:gluetun # run on the vpn network

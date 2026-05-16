@@ -21,11 +21,13 @@ services:
       - OPN_API_KEY=
       - OPN_API_SECRET=
       - OPN_PROTON_ALIAS_NAME=
+      - OPN_SSL_VERIFY=false
       - QBIT_SKIP=
       - QBIT_ADDR=
       - QBIT_API_KEY=
       - QBIT_USER=
       - QBIT_PASS=
+      - QBIT_SSL_VERIFY=false
       - LOG_LINES=
       - LOG_REVERSE=
       - LOG_TO_STDOUT=

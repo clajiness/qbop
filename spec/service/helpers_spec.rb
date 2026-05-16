@@ -67,6 +67,11 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
         expect(Service::Helpers.new.env_variables[:opnsense_alias_name]).to eq(nil)
       end
     end
+    context 'when opnsense_ssl_verify is not set' do
+      it 'returns false' do
+        expect(Service::Helpers.new.env_variables[:opnsense_ssl_verify]).to eq(false)
+      end
+    end
     context 'when qbit_skip is not set' do
       it 'returns nil' do
         expect(Service::Helpers.new.env_variables[:qbit_skip]).to eq('false')
@@ -90,6 +95,11 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     context 'when qbit_pass is not set' do
       it 'returns nil' do
         expect(Service::Helpers.new.env_variables[:qbit_pass]).to eq(nil)
+      end
+    end
+    context 'when qbit_ssl_verify is not set' do
+      it 'returns false' do
+        expect(Service::Helpers.new.env_variables[:qbit_ssl_verify]).to eq(false)
       end
     end
     context 'when log_lines is not set' do
@@ -266,7 +276,7 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
 
   describe '#get_public_ip' do
     it 'returns unknown provider when given an invalid argument' do
-      expect(Service::Helpers.new.get_public_ip('invalid_argument')).to eq('unknown service')
+      expect(Service::Helpers.new.get_public_ip('invalid_argument')).to eq('unknown provider')
     end
   end
 
