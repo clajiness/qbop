@@ -1,44 +1,13 @@
 require 'bundler/setup'
 Bundler.require(:default)
 
-Object.send(:remove_const, :DB) if defined?(DB)
-DB = Sequel.sqlite
-Sequel::Model.db = DB
+require_relative '../support/database_helper'
 
-DB.create_table(:sources) do
-  primary_key :id
-  String :name, null: false, unique: true
-end
-
-DB.create_table(:stats) do
-  primary_key :id
-  foreign_key :source_id, :sources, null: false
-  Integer :current_port, default: 0, null: false
-  Integer :same_port, default: 0, null: false
-  DateTime :updated_at
-  DateTime :last_checked
-
-  index :source_id, unique: true
-end
-
-DB.create_table(:counters) do
-  primary_key :id
-  foreign_key :source_id, :sources, null: false
-  Integer :attempt, default: 0, null: false
-  Boolean :change, default: false, null: false
-
-  index :source_id, unique: true
-end
-
-require_relative '../../models/counter'
-require_relative '../../models/stat'
-require_relative '../../models/source'
+SpecDatabase.reset!
 
 RSpec.describe Source do # rubocop:disable Metrics/BlockLength
   before do
-    DB[:counters].delete
-    DB[:stats].delete
-    DB[:sources].delete
+    SpecDatabase.reset!
   end
 
   it 'seeds one stat and one counter per source' do

@@ -1,6 +1,8 @@
 module Service
   # Qbit is a class responsible for interacting with the qBittorrent Web API.
   class Qbit
+    REQUEST_TIMEOUT = { open_timeout: 5, timeout: 10 }.freeze
+
     def initialize(config)
       @config = config
       @conn = faraday_conn(config)
@@ -59,7 +61,8 @@ module Service
     def faraday_conn(config)
       Faraday.new(
         url: config[:qbit_addr],
-        ssl: { verify: config[:qbit_ssl_verify] }
+        ssl: { verify: config[:qbit_ssl_verify] },
+        request: REQUEST_TIMEOUT
       )
     end
   end

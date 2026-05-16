@@ -57,7 +57,7 @@ module Framework
 
     get '/tools/public-ip' do
       helpers = Service::Helpers.new
-      service = params['service']&.strip&.downcase&.shellescape
+      service = params['service']&.strip&.downcase
       public_ip = helpers.get_public_ip(service)&.strip
 
       if public_ip == 'unknown provider'
@@ -124,11 +124,12 @@ module Framework
       @proton_stats = stats['proton']
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
+      service_status = ->(source_stats) { helpers.connected_to_service?(source_stats.last_checked) ? 200 : 503 }
 
       health = {
-        'protonvpn' => helpers.connected_to_service?(@proton_stats.last_checked) ? 200 : 503,
-        'opnsense' => helpers.connected_to_service?(@opn_stats.last_checked) ? 200 : 503,
-        'qbit' => helpers.connected_to_service?(@qbit_stats.last_checked) ? 200 : 503
+        'protonvpn' => service_status.call(@proton_stats),
+        'opnsense' => helpers.true?(ENV['OPN_SKIP']) ? 'skipped' : service_status.call(@opn_stats),
+        'qbit' => helpers.true?(ENV['QBIT_SKIP']) ? 'skipped' : service_status.call(@qbit_stats)
       }
 
       status health.value?(503) ? 503 : 200

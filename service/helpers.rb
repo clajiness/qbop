@@ -150,7 +150,7 @@ module Service
 
     def generate_wg_public_key(private_key)
       stdout, stderr = Open3.capture3(
-        "echo #{private_key.shellescape} | wg pubkey"
+        'wg', 'pubkey', stdin_data: "#{private_key}\n"
       )
 
       stdout.empty? ? stderr.chomp : stdout.chomp
@@ -161,13 +161,15 @@ module Service
     def get_public_ip(provider) # rubocop:disable Metrics/MethodLength,Metrics/CyclomaticComplexity
       case provider
       when 'akamai'
-        stdout, stderr = Open3.capture3('timeout 5 dig whoami.akamai.net. @ns1-1.akamaitech.net. +short')
+        stdout, stderr = Open3.capture3('timeout', '5', 'dig', 'whoami.akamai.net.', '@ns1-1.akamaitech.net.', '+short')
       when 'cloudflare'
-        stdout, stderr = Open3.capture3('timeout 5 dig whoami.cloudflare ch txt @1.1.1.1 +short')
+        stdout, stderr = Open3.capture3('timeout', '5', 'dig', 'whoami.cloudflare', 'ch', 'txt', '@1.1.1.1', '+short')
       when 'google'
-        stdout, stderr = Open3.capture3('timeout 5 dig o-o.myaddr.l.google.com txt @ns1.google.com +short')
+        stdout, stderr = Open3.capture3(
+          'timeout', '5', 'dig', 'o-o.myaddr.l.google.com', 'txt', '@ns1.google.com', '+short'
+        )
       when 'opendns'
-        stdout, stderr = Open3.capture3('timeout 5 dig myip.opendns.com @dns.opendns.com +short')
+        stdout, stderr = Open3.capture3('timeout', '5', 'dig', 'myip.opendns.com', '@dns.opendns.com', '+short')
       else
         return 'unknown provider'
       end

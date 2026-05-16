@@ -31,6 +31,31 @@ RSpec.describe Service::Qbit do # rubocop:disable Metrics/BlockLength
     allow(Faraday).to receive(:new).and_return(conn)
   end
 
+  it 'passes SSL verification and timeout config to Faraday' do
+    described_class.new(config)
+
+    expect(Faraday).to have_received(:new).with(
+      url: 'https://qbittorrent.local',
+      ssl: { verify: false },
+      request: described_class::REQUEST_TIMEOUT
+    )
+  end
+
+  describe '#qbt_auth_login' do
+    it 'returns the qBittorrent session cookie' do
+      response = { 'set-cookie' => 'SID=test_sid; HttpOnly' }
+
+      allow(conn).to receive(:post).and_yield(request).and_return(response)
+
+      cookie = described_class.new(config).qbt_auth_login
+
+      expect(request.url_path).to eq('/api/v2/auth/login')
+      expect(request.headers['Content-Type']).to eq('application/x-www-form-urlencoded')
+      expect(request.body).to eq('username=test_user&password=test_pass')
+      expect(cookie).to eq('SID=test_sid')
+    end
+  end
+
   describe '#qbt_app_preferences' do
     it 'uses bearer authentication when an API key is configured' do
       config[:qbit_api_key] = 'qbt_test_key'

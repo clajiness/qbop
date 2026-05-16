@@ -1,3 +1,5 @@
+require 'securerandom'
+
 module Framework
   # handles loading or creating session secrets for the application
   class SessionSecret

@@ -12,13 +12,15 @@ class Stat < Sequel::Model # rubocop:disable Style/Documentation
   end
 
   def self.by_source_name
-    eager(:source).all.to_h { |stat| [stat.source.name, stat.to_snapshot] }
+    source_names = Source.all.to_h { |source| [source.id, source.name] }
+
+    all.to_h { |stat| [source_names[stat.source_id], stat.to_snapshot(source_names[stat.source_id])] }
   end
 
-  def to_snapshot
+  def to_snapshot(source_name = source&.name)
     Snapshot.new(
       source_id: source_id,
-      source_name: source&.name,
+      source_name: source_name,
       current_port: current_port,
       same_port: same_port,
       updated_at: updated_at,

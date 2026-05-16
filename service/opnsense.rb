@@ -1,6 +1,8 @@
 module Service
   # The Opnsense class provides methods to interact with the OPNsense firewall API.
   class Opnsense
+    REQUEST_TIMEOUT = { open_timeout: 5, timeout: 10 }.freeze
+
     def initialize(config)
       @config = config
       @conn = faraday_conn(config)
@@ -42,7 +44,8 @@ module Service
     def faraday_conn(config)
       Faraday.new(
         url: config[:opnsense_interface_addr],
-        ssl: { verify: config[:opnsense_ssl_verify] }
+        ssl: { verify: config[:opnsense_ssl_verify] },
+        request: REQUEST_TIMEOUT
       ) do |faraday|
         faraday.request :authorization, :basic, config[:opnsense_api_key], config[:opnsense_api_secret]
       end

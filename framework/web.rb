@@ -53,7 +53,7 @@ module Framework
     post '/public-ip' do
       helpers = Service::Helpers.new
 
-      service = params['select']&.strip&.downcase&.shellescape
+      service = params['select']&.strip&.downcase
       public_ip = helpers.get_public_ip(service)
 
       @public_ip = "#{service} -> #{public_ip}"
