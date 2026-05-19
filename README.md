@@ -70,8 +70,11 @@ Image tags are published as follows:
 | `BASIC_AUTH_USER` | `admin` | Set basic auth username |
 | `BASIC_AUTH_PASS` | `admin` | Set basic auth password |
 
+## Usage
 ### Query Parameters
 The stats and logs pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
+
+Query parameters are per-request overrides and do not change environment variables.
 
 Examples:
 - `/?refresh=5`
@@ -90,3 +93,8 @@ Logs UI and API parameters:
 | :--- | :--- | :--- |
 | `lines` | `LOG_LINES` or `50` | Number of log lines to show, from 1 to 5000. |
 | `direction` | `LOG_REVERSE` or `asc` | `asc` shows oldest first, `desc` shows newest first. |
+
+Notes:
+- `refresh` only applies to the web UI.
+- Invalid `lines` values fall back to `LOG_LINES`, then `50`.
+- Invalid `direction` values fall back to `LOG_REVERSE`, then `asc`.
