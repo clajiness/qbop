@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <% if defined?(@refresh_seconds) && @refresh_seconds.to_i.positive? %>
+    <meta http-equiv="refresh" content="<%= @refresh_seconds %>" />
+    <% end %>
     <meta name="theme-color" content="#ffffff" />
     <meta name="description" content="the qbop ui" />
     <link rel="stylesheet" href="https://unpkg.com/terminal.css@0.7.5/dist/terminal.min.css" integrity="sha512-X8PpCFdlyXfQ93O7R/tmLP0uln53P5/hY29faFCjhpfinyggAeQbcwiv8pDvu49vHvZPWJN+yfb4VomHJK6sJA==" crossorigin="anonymous" />

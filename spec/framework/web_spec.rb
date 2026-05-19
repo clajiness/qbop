@@ -29,6 +29,13 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('unknown')
   end
 
+  it 'renders the stats page with meta refresh when requested' do
+    response = Rack::MockRequest.new(described_class).get('/?refresh=5')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
+  end
+
   it 'renders update notification details when present' do
     Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
 
@@ -68,5 +75,16 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(200)
     expect(response.body).to include('log line')
+  end
+
+  it 'renders logs with query string controls' do
+    expect_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).with(500, true).and_return(['new log'])
+
+    response = Rack::MockRequest.new(described_class).get('/logs?lines=500&direction=desc&refresh=5')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('new log')
+    expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
+    expect(response.body).to include('last 500 lines of log output, newest first')
   end
 end

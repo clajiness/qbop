@@ -52,6 +52,31 @@ module Service
       end
     end
 
+    def validate_refresh_interval(refresh)
+      return 0 if refresh.nil?
+
+      refresh.to_i.clamp(0, 3600)
+    end
+
+    def validate_log_lines(log_lines, default = env_variables[:log_lines])
+      lines = log_lines.to_i
+      return lines.clamp(1, 5000) if lines.positive?
+
+      default_lines = default.to_i
+      default_lines.positive? ? default_lines.clamp(1, 5000) : 50
+    end
+
+    def format_log_direction(direction, default_reverse: false)
+      return default_reverse ? 'desc' : 'asc' if direction.nil? || direction.to_s.strip.empty?
+
+      case direction.to_s.downcase
+      when 'asc', 'desc'
+        direction.to_s.downcase
+      else
+        default_reverse ? 'desc' : 'asc'
+      end
+    end
+
     def true?(obj)
       obj&.to_s&.downcase == 'true'
     end
@@ -120,17 +145,15 @@ module Service
       false
     end
 
-    def log_lines_to_a(log_lines)
-      output = []
+    def log_lines_to_a(log_lines, reverse = nil)
+      return [] if log_lines.nil?
 
-      File.readlines('log/qbop.log').last(log_lines.to_i).each do |line|
-        output << line
-      end
+      output = File.readlines('log/qbop.log').last(validate_log_lines(log_lines))
+      reverse = true?(env_variables[:log_reverse]) if reverse.nil?
+      output.reverse! if reverse
 
-      formatted_output = true?(env_variables[:log_reverse]) ? output.reverse : output
-
-      last_line = formatted_output.pop
-      formatted_output << last_line.strip
+      output[-1] = output.last.strip if output.any?
+      output
     rescue StandardError
       []
     end

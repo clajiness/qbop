@@ -27,6 +27,19 @@ color: var(--primary-color);
   display: inline-block;
 }
 
+.control-bar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.control-bar input[type="number"],
+.control-bar select {
+  width: 10rem;
+}
+
 pre {
   white-space: pre-wrap;
   word-break: break-word;

@@ -76,7 +76,12 @@ module Framework
     get '/logs' do
       helpers = Service::Helpers.new
 
-      log_lines = helpers.log_lines_to_a(ENV['LOG_LINES'] || 100)
+      log_line_count = helpers.validate_log_lines(params['lines'])
+      log_direction = helpers.format_log_direction(
+        params['direction'],
+        default_reverse: helpers.true?(helpers.env_variables[:log_reverse])
+      )
+      log_lines = helpers.log_lines_to_a(log_line_count, log_direction == 'desc')
 
       { 'log_lines' => log_lines.map(&:strip) }
     end
