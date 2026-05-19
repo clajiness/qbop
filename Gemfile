@@ -1,7 +1,7 @@
 source 'https://gem.coop'
 
 gem 'activesupport', '~> 8.1', '>= 8.1.3'
-gem 'faraday', '~> 2.14', '>= 2.14.1'
+gem 'faraday', '~> 2.14', '>= 2.14.2'
 gem 'grape', '~> 3.2', '>= 3.2.1'
 gem 'json', '~> 2.19', '>= 2.19.5'
 gem 'logger', '~> 1.7'
@@ -18,7 +18,7 @@ gem 'sucker_punch', '~> 3.3'
 gem 'uri', '~> 1.1', '>= 1.1.1'
 
 group :development do
-  gem 'rubocop', '~> 1.86', '>= 1.86.1', require: false
+  gem 'rubocop', '~> 1.86', '>= 1.86.2', require: false
 end
 
 group :development, :test do
