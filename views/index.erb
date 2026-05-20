@@ -17,10 +17,12 @@
 <% end %>
 <hr>
 
-<form action="/" method="get" class="control-bar">
+<a class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>">refresh</a><br><br>
+
+<form action="/" method="get" class="control-bar control-panel">
   <span class="control-field">
     <label for="refresh">auto-refresh</label>
-    <input id="refresh" name="refresh" type="number" min="0" max="3600" value="<%= @refresh_seconds %>">
+    <input id="refresh" name="refresh" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="3600" value="<%= @refresh_seconds %>">
     <span>sec</span>
   </span>
   <span class="control-actions">

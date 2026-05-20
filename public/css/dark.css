@@ -35,6 +35,11 @@ color: var(--primary-color);
   margin-bottom: 1rem;
 }
 
+.control-panel {
+  border: 1px solid var(--font-color);
+  padding: 1rem;
+}
+
 .control-bar input[type="number"] {
   width: 7ch;
 }
