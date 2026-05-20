@@ -41,7 +41,7 @@ GEM
       dry-inflector (~> 1.0)
       dry-logic (~> 1.4)
       zeitwerk (~> 2.6)
-    faraday (2.14.1)
+    faraday (2.14.2)
       faraday-net_http (>= 2.0, < 3.5)
       json
       logger
@@ -103,7 +103,7 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.2)
-    rubocop (1.86.1)
+    rubocop (1.86.2)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
       lint_roller (~> 1.1.0)
@@ -147,7 +147,7 @@ PLATFORMS
 
 DEPENDENCIES
   activesupport (~> 8.1, >= 8.1.3)
-  faraday (~> 2.14, >= 2.14.1)
+  faraday (~> 2.14, >= 2.14.2)
   grape (~> 3.2, >= 3.2.1)
   json (~> 2.19, >= 2.19.5)
   logger (~> 1.7)
@@ -158,7 +158,7 @@ DEPENDENCIES
   rackup (~> 2.3, >= 2.3.1)
   rake (~> 13.4, >= 13.4.2)
   rspec (~> 3.13, >= 3.13.2)
-  rubocop (~> 1.86, >= 1.86.1)
+  rubocop (~> 1.86, >= 1.86.2)
   sequel (~> 5.104)
   sinatra (~> 4.2, >= 4.2.1)
   sqlite3 (~> 2.9, >= 2.9.4)
@@ -179,7 +179,7 @@ CHECKSUMS
   dry-inflector (1.2.0) sha256=22f5d0b50fd57074ae57e2ca17e3b300e57564c218269dcf82ff3e42d3f38f2e
   dry-logic (1.6.0) sha256=da6fedbc0f90fc41f9b0cc7e6f05f5d529d1efaef6c8dcc8e0733f685745cea2
   dry-types (1.8.0) sha256=bdf444e0d2ff83f500271c7d38cb29690c2654fa78e588f68349a7b1e7341131
-  faraday (2.14.1) sha256=a43cceedc1e39d188f4d2cdd360a8aaa6a11da0c407052e426ba8d3fb42ef61c
+  faraday (2.14.2) sha256=73ccb9994a9e8648f010e32eca2ae82e41c57860aa10932cda29418b9e0223ad
   faraday-net_http (3.4.0) sha256=a1f1e4cd6a2cf21599c8221595e27582d9936819977bbd4089a601f24c64e54a
   grape (3.2.1) sha256=448072f55904e5a4dca2e3781f0a373942514be65402cafb6177f5bc73db1b94
   i18n (1.14.6) sha256=dc229a74f5d181f09942dd60ab5d6e667f7392c4ee826f35096db36d1fe3614c
@@ -210,7 +210,7 @@ CHECKSUMS
   rspec-expectations (3.13.3) sha256=0e6b5af59b900147698ea0ff80456c4f2e69cac4394fbd392fbd1ca561f66c58
   rspec-mocks (3.13.2) sha256=2327335def0e1665325a9b617e3af9ae20272741d80ac550336309a7c59abdef
   rspec-support (3.13.2) sha256=cea3a2463fd9b84b9dcc9685efd80ea701aa8f7b3decb3b3ce795ed67737dbec
-  rubocop (1.86.1) sha256=44415f3f01d01a21e01132248d2fd0867572475b566ca188a0a42133a08d4531
+  rubocop (1.86.2) sha256=bb2e97f635eda42c448f2588f4a6ff78f221b8bdfdf65b1e9b07fbd57521b45d
   rubocop-ast (1.49.0) sha256=49c3676d3123a0923d333e20c6c2dbaaae2d2287b475273fddee0c61da9f71fd
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   ruby2_keywords (0.0.5) sha256=ffd13740c573b7301cf7a2e61fc857b2a8e3d3aff32545d6f8300d8bae10e3ef

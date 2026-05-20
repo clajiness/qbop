@@ -220,6 +220,58 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  describe '#validate_refresh_interval' do
+    it 'returns a positive refresh interval' do
+      expect(Service::Helpers.new.validate_refresh_interval('5')).to eq(5)
+    end
+
+    it 'returns 0 when refresh is disabled' do
+      expect(Service::Helpers.new.validate_refresh_interval('0')).to eq(0)
+    end
+
+    it 'clamps very large refresh intervals' do
+      expect(Service::Helpers.new.validate_refresh_interval('9999')).to eq(3600)
+    end
+  end
+
+  describe '#validate_log_lines' do
+    it 'returns a positive line count' do
+      expect(Service::Helpers.new.validate_log_lines('500')).to eq(500)
+    end
+
+    it 'returns the default for invalid line counts' do
+      expect(Service::Helpers.new.validate_log_lines('invalid')).to eq(50)
+    end
+
+    it 'uses the configured default for invalid line counts' do
+      ENV['LOG_LINES'] = '250'
+
+      expect(Service::Helpers.new.validate_log_lines('invalid')).to eq(250)
+    end
+
+    it 'clamps very large line counts' do
+      expect(Service::Helpers.new.validate_log_lines('9999')).to eq(5000)
+    end
+  end
+
+  describe '#format_log_direction' do
+    it 'returns desc for descending direction' do
+      expect(Service::Helpers.new.format_log_direction('desc')).to eq('desc')
+    end
+
+    it 'returns asc by default' do
+      expect(Service::Helpers.new.format_log_direction(nil)).to eq('asc')
+    end
+
+    it 'uses the reverse default when no direction is passed' do
+      expect(Service::Helpers.new.format_log_direction(nil, default_reverse: true)).to eq('desc')
+    end
+
+    it 'uses the reverse default when an invalid direction is passed' do
+      expect(Service::Helpers.new.format_log_direction('test', default_reverse: true)).to eq('desc')
+    end
+  end
+
   describe '#true?' do
     it 'returns true for "true" string' do
       expect(Service::Helpers.new.true?('true')).to eq(true)

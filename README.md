@@ -44,7 +44,7 @@ Image tags are published as follows:
 * [qBittorrent](https://www.qbittorrent.org/)
 * [ProtonVPN](https://protonvpn.com/support/port-forwarding)
 
-### ENV variables
+### ENV Variables
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `UI_MODE` | `dark` | [`dark`/`light`] This value sets the UI mode of the web app. The default value is `dark`. |
@@ -69,3 +69,32 @@ Image tags are published as follows:
 | `BASIC_AUTH_ENABLED` | `false` | Enable basic auth. If `true`, subsequent `BASIC_AUTH` variables are used. |
 | `BASIC_AUTH_USER` | `admin` | Set basic auth username |
 | `BASIC_AUTH_PASS` | `admin` | Set basic auth password |
+
+## Usage
+### Query Parameters
+The stats and logs pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
+
+Query parameters are per-request overrides and do not change environment variables.
+
+Examples:
+- `/?refresh=5`
+- `/?refresh=0`
+- `/logs?lines=500&direction=desc&refresh=5`
+- `/logs?lines=500&direction=asc&refresh=0`
+- `/api/logs?lines=500&direction=desc`
+
+Stats and logs UI parameters:
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `refresh` | `0` | Auto-refresh interval in seconds, from 0 to 3600. |
+
+Logs UI and API parameters:
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `lines` | `LOG_LINES` or `50` | Number of log lines to show, from 1 to 5000. |
+| `direction` | `LOG_REVERSE` or `asc` | `asc` shows oldest first, `desc` shows newest first. |
+
+Notes:
+- `refresh` only applies to the web UI.
+- Invalid `lines` values fall back to `LOG_LINES`, then `50`.
+- Invalid `direction` values fall back to `LOG_REVERSE`, then `asc`.

@@ -25,14 +25,14 @@ jobs:
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read file contents
-        uses: guibranco/github-file-reader-action-v2@0bde70edb8e1a58f31372048472b5d914b7f81e1 # v2.2.910
+        uses: guibranco/github-file-reader-action-v2@a582a1e72db30a1f4d88d386509e465a9492e352 # v2.3.12
         id: file-contents
         with:
           path: "version.yml"
@@ -50,7 +50,7 @@ jobs:
           echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
 
       - name: Check if full tag exists
-        uses: action-pack/tag-exists@e3a3c2baef96878a14417f8c1424e6da5c2167bd # v1.08
+        uses: action-pack/tag-exists@d737dc8748d10e12ac894f86e846de514e6c1f1a # v1.08
         id: check-tag
         with:
           tag: ${{ steps.version.outputs.full }}
@@ -86,7 +86,7 @@ jobs:
 
       - name: Build and push to non-main
         if: github.ref != 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           build-args: |
@@ -99,7 +99,7 @@ jobs:
 
       - name: Build and push to main
         if: github.ref == 'refs/heads/main' && (steps.check-tag.outputs.exists == 'false' || steps.check-tag.outputs.exists == '')
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           build-args: |

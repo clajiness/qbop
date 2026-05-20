@@ -12,6 +12,8 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
+      @refresh_seconds = helpers.validate_refresh_interval(params['refresh'])
+
       @proton_stats = stats['proton']
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
@@ -64,8 +66,14 @@ module Framework
     get '/logs' do
       helpers = Service::Helpers.new
 
-      @log_lines = helpers.env_variables[:log_lines]
-      @output = helpers.log_lines_to_a(@log_lines)
+      @refresh_seconds = helpers.validate_refresh_interval(params['refresh'])
+      @log_lines = helpers.validate_log_lines(params['lines'])
+      @log_direction = helpers.format_log_direction(
+        params['direction'],
+        default_reverse: helpers.true?(helpers.env_variables[:log_reverse])
+      )
+      log_reverse = @log_direction == 'desc'
+      @output = helpers.log_lines_to_a(@log_lines, log_reverse)
 
       erb :logs
     end

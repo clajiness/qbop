@@ -119,6 +119,17 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response_json(response)['log_lines']).to eq(['line one', 'line two'])
   end
 
+  it 'returns log lines using query string controls' do
+    expect_any_instance_of(Service::Helpers)
+      .to receive(:log_lines_to_a)
+      .with(500, true)
+      .and_return(["line one\n", "line two\n"])
+
+    response = Rack::MockRequest.new(app).get('/api/logs?lines=500&direction=desc')
+
+    expect(response_json(response)).to eq('log_lines' => ['line one', 'line two'])
+  end
+
   it 'returns about information' do
     response = Rack::MockRequest.new(app).get('/api/about')
     body = response_json(response)

@@ -17,7 +17,18 @@
 <% end %>
 <hr>
 
-<button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
+<a class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>">refresh</a><br><br>
+
+<form action="/" method="get" class="control-panel">
+  <label for="refresh">auto-refresh</label>
+  <span class="control-row">
+    <input id="refresh" name="refresh" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="3600" value="<%= @refresh_seconds %>">
+    <span>sec</span>
+    <button class="btn btn-default btn-ghost" type="submit">apply</button>
+    <a class="btn btn-default btn-ghost" href="/?refresh=0">off</a>
+  </span>
+</form>
+<hr>
 
 <h4><em>protonvpn</em> <%= @proton_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
@@ -59,4 +70,4 @@
   qbittorrent: <%= @qbit_longest_time_on_same_port %>
 </blockquote>
 
-<button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
+<a class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>">refresh</a><br><br>

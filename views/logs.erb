@@ -17,9 +17,29 @@
 <% end %>
 <hr>
 
-<button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
+<a class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>">refresh</a><br><br>
 
-<h4><em>last <%= @log_lines %> lines of log output</em></h4>
+<form action="/logs" method="get" class="control-panel">
+  <label for="lines">lines</label>
+  <input id="lines" name="lines" type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="5000" value="<%= @log_lines %>">
+
+  <label for="direction">direction</label>
+  <select id="direction" name="direction">
+    <option value="asc" <%= 'selected' if @log_direction == 'asc' %>>oldest first</option>
+    <option value="desc" <%= 'selected' if @log_direction == 'desc' %>>newest first</option>
+  </select>
+
+  <label for="refresh">auto-refresh</label>
+  <span class="control-row">
+    <input id="refresh" name="refresh" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="3600" value="<%= @refresh_seconds %>">
+    <span>sec</span>
+    <button class="btn btn-default btn-ghost" type="submit">apply</button>
+    <a class="btn btn-default btn-ghost" href="/logs?lines=<%= @log_lines %>&direction=<%= @log_direction %>&refresh=0">off</a>
+  </span>
+</form>
+<hr>
+
+<h4><em>last <%= @log_lines %> lines of log output, <%= @log_direction == 'desc' ? 'newest first' : 'oldest first' %></em></h4>
 <section>
   <pre>
 <% @output.each do |line| %>
@@ -28,4 +48,4 @@
   </pre>
 </section>
 
-<button class="btn btn-default btn-ghost" onClick="window.location.reload()">refresh</button><br><br>
+<a class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>">refresh</a><br><br>
