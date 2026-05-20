@@ -18,11 +18,15 @@
 <hr>
 
 <form action="/" method="get" class="control-bar">
-  <label for="refresh">auto-refresh</label>
-  <input id="refresh" name="refresh" type="number" min="0" max="3600" value="<%= @refresh_seconds %>">
-  <span>sec</span>
-  <button class="btn btn-default btn-ghost" type="submit">apply</button>
-  <a class="btn btn-default btn-ghost" href="/?refresh=0">off</a>
+  <span class="control-field">
+    <label for="refresh">auto-refresh</label>
+    <input id="refresh" name="refresh" type="number" min="0" max="3600" value="<%= @refresh_seconds %>">
+    <span>sec</span>
+  </span>
+  <span class="control-actions">
+    <button class="btn btn-default btn-ghost" type="submit">apply</button>
+    <a class="btn btn-default btn-ghost" href="/?refresh=0">off</a>
+  </span>
 </form>
 <hr>
 

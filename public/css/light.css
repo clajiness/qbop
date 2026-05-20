@@ -35,9 +35,30 @@ color: var(--primary-color);
   margin-bottom: 1rem;
 }
 
-.control-bar input[type="number"],
+.control-bar input[type="number"] {
+  width: 7ch;
+}
+
 .control-bar select {
-  width: 10rem;
+  width: 14ch;
+}
+
+.control-field,
+.control-actions {
+  display: contents;
+}
+
+@media (max-width: 750px) {
+  .control-field,
+  .control-actions {
+    align-items: center;
+    display: inline-flex;
+    gap: 0.5rem;
+  }
+
+  .log-controls .control-actions {
+    flex-basis: 100%;
+  }
 }
 
 pre {
