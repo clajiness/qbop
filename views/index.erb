@@ -17,7 +17,7 @@
 <% end %>
 <hr>
 
-<a class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>">refresh</a><br><br>
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
 
 <form action="/" method="get" class="control-panel">
   <label for="refresh">auto-refresh</label>
@@ -70,4 +70,4 @@
   qbittorrent: <%= @qbit_longest_time_on_same_port %>
 </blockquote>
 
-<a id="stats-refresh-bottom" class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>#stats-refresh-bottom">refresh</a><br><br>
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
