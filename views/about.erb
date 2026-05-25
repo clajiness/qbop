@@ -17,7 +17,7 @@
 <% end %>
 <hr>
 
-<a class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>">refresh</a><br><br>
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
 
 <h4><em>app version</em></h4>
 <blockquote>
@@ -86,4 +86,4 @@
   </pre>
 </section>
 
-<a id="about-refresh-bottom" class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>#about-refresh-bottom">refresh</a><br><br>
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>

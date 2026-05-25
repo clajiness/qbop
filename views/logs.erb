@@ -17,7 +17,7 @@
 <% end %>
 <hr>
 
-<a class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>">refresh</a><br><br>
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
 
 <form action="/logs" method="get" class="control-panel">
   <label for="lines">lines</label>
@@ -48,4 +48,4 @@
   </pre>
 </section>
 
-<a id="logs-refresh-bottom" class="btn btn-default btn-ghost" href="<%= Rack::Utils.escape_html(request.fullpath) %>#logs-refresh-bottom">refresh</a><br><br>
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
