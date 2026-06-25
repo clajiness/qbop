@@ -1,9 +1,10 @@
 source 'https://gem.coop'
 
 gem 'activesupport', '~> 8.1', '>= 8.1.3'
-gem 'faraday', '~> 2.14', '>= 2.14.2'
+gem 'concurrent-ruby', '~> 1.3', '>= 1.3.7'
+gem 'faraday', '~> 2.14', '>= 2.14.3'
 gem 'grape', '~> 3.2', '>= 3.2.1'
-gem 'json', '~> 2.19', '>= 2.19.8'
+gem 'json', '~> 2.20'
 gem 'logger', '~> 1.7'
 gem 'open3', '~> 0.2.1'
 gem 'puma', '~> 8.0', '>= 8.0.2'
@@ -18,7 +19,7 @@ gem 'sucker_punch', '~> 3.3'
 gem 'uri', '~> 1.1', '>= 1.1.1'
 
 group :development do
-  gem 'rubocop', '~> 1.87', require: false
+  gem 'rubocop', '~> 1.88', require: false
 end
 
 group :development, :test do
