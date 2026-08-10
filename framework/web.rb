@@ -1,6 +1,5 @@
 module Framework
-  # The Web class is a Sinatra application that provides three routes
-  # for displaying statistics, logs, and about information.
+  # The Web class is a Sinatra application that provides qbop's web UI routes.
   class Web < Sinatra::Application
     before do
       update = Notification.select(:info, :active).where(name: 'update_available').first
@@ -76,6 +75,16 @@ module Framework
       @output = helpers.log_lines_to_a(@log_lines, log_reverse)
 
       erb :logs
+    end
+
+    get '/history' do
+      helpers = Service::Helpers.new
+      page = helpers.validate_page(params['page'])
+      per_page = helpers.validate_history_page_size(params['per_page'])
+
+      @pagination = PortTransition.paginate(page: page, per_page: per_page)
+
+      erb :history
     end
 
     get '/about' do # rubocop:disable Metrics/BlockLength

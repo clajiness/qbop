@@ -301,6 +301,26 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  describe 'history pagination validation' do
+    it 'accepts positive page numbers' do
+      expect(Service::Helpers.new.validate_page('3')).to eq(3)
+    end
+
+    it 'defaults invalid page numbers to one' do
+      expect(Service::Helpers.new.validate_page('-1')).to eq(1)
+      expect(Service::Helpers.new.validate_page('invalid')).to eq(1)
+    end
+
+    it 'accepts supported page sizes' do
+      expect(Service::Helpers.new.validate_history_page_size('50')).to eq(50)
+    end
+
+    it 'defaults unsupported page sizes to 25' do
+      expect(Service::Helpers.new.validate_history_page_size('500')).to eq(25)
+      expect(Service::Helpers.new.validate_history_page_size('invalid')).to eq(25)
+    end
+  end
+
   describe '#true?' do
     it 'returns true for "true" string' do
       expect(Service::Helpers.new.true?('true')).to eq(true)

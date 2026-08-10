@@ -4,6 +4,8 @@ module Service
   # The Helpers class provides utility methods for accessing environment variables
   # and parsing specific configuration values used in the application.
   class Helpers # rubocop:disable Metrics/ClassLength
+    HISTORY_PAGE_SIZES = [25, 50, 100].freeze
+
     def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
       {
         ui_mode: format_ui_mode(ENV['UI_MODE'] || 'dark'),
@@ -87,6 +89,16 @@ module Service
 
       default_lines = default.to_i
       default_lines.positive? ? default_lines.clamp(1, 5000) : 50
+    end
+
+    def validate_page(page)
+      page = page.to_i
+      page.positive? ? page : 1
+    end
+
+    def validate_history_page_size(per_page)
+      per_page = per_page.to_i
+      HISTORY_PAGE_SIZES.include?(per_page) ? per_page : HISTORY_PAGE_SIZES.first
     end
 
     def format_log_direction(direction, default_reverse: false)

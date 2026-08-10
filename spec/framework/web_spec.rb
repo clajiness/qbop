@@ -112,4 +112,49 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
     expect(response.body).to include('last 500 lines of log output, newest first')
   end
+
+  it 'renders an empty port transition history' do
+    response = Rack::MockRequest.new(described_class).get('/history')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('port transition history')
+    expect(response.body).to include('no port transitions have been recorded yet')
+  end
+
+  it 'renders paginated port transitions with familiar controls' do
+    30.times do |index|
+      PortTransition.record_transition(
+        previous_port: index + 10_000,
+        new_port: index + 10_001,
+        opnsense_skipped: false,
+        qbit_skipped: index.zero?,
+        detected_at: Time.at(index)
+      )
+    end
+
+    response = Rack::MockRequest.new(described_class).get('/history?page=2&per_page=25')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('showing 26&ndash;30 of 30 transitions, newest first')
+    expect(response.body).to include('page 2 of 2')
+    expect(response.body).to include('previous')
+    expect(response.body).to include('skipped')
+    expect(response.body).to include('value="25" selected')
+  end
+
+  it 'constrains invalid history pagination parameters' do
+    PortTransition.record_transition(
+      previous_port: 12_345,
+      new_port: 23_456,
+      opnsense_skipped: false,
+      qbit_skipped: false
+    )
+
+    response = Rack::MockRequest.new(described_class).get('/history?page=999&per_page=500')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('showing 1&ndash;1 of 1 transitions')
+    expect(response.body).to include('page 1 of 1')
+    expect(response.body).to include('value="25" selected')
+  end
 end

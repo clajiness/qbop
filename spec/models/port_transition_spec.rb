@@ -60,4 +60,25 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
     expect(described_class.count).to eq(500)
     expect(described_class.order(:detected_at).first.new_port).to eq(10_002)
   end
+
+  it 'paginates transitions newest first' do
+    30.times do |index|
+      described_class.record_transition(
+        previous_port: index + 10_000,
+        new_port: index + 10_001,
+        opnsense_skipped: false,
+        qbit_skipped: false,
+        detected_at: Time.at(index)
+      )
+    end
+
+    page = described_class.paginate(page: 2, per_page: 25)
+
+    expect(page.total_records).to eq(30)
+    expect(page.total_pages).to eq(2)
+    expect(page.current_page).to eq(2)
+    expect(page.from).to eq(26)
+    expect(page.to).to eq(30)
+    expect(page.records.map(&:new_port)).to eq([10_005, 10_004, 10_003, 10_002, 10_001])
+  end
 end

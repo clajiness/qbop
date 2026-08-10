@@ -1,5 +1,6 @@
 class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
   RETENTION_LIMIT = 500
+  Page = Data.define(:records, :total_records, :current_page, :per_page, :total_pages, :from, :to)
   SYNC_COLUMNS = {
     'opnsense' => :opnsense_synced_at,
     'qbit' => :qbit_synced_at
@@ -25,6 +26,24 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
 
     transition.update(column => at)
     transition
+  end
+
+  def self.paginate(page:, per_page:) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+    total_records = count
+    total_pages = [((total_records + per_page - 1) / per_page), 1].max
+    current_page = page.clamp(1, total_pages)
+    offset = (current_page - 1) * per_page
+    records = order(Sequel.desc(:detected_at), Sequel.desc(:id)).limit(per_page, offset).all
+
+    Page.new(
+      records: records,
+      total_records: total_records,
+      current_page: current_page,
+      per_page: per_page,
+      total_pages: total_pages,
+      from: total_records.zero? ? 0 : offset + 1,
+      to: offset + records.length
+    )
   end
 
   def sync_status(source)
