@@ -52,6 +52,14 @@ color: var(--primary-color);
   gap: 0.5rem;
 }
 
+.history-table-wrapper {
+  overflow-x: auto;
+}
+
+.history-table {
+  min-width: 50rem;
+}
+
 pre {
   white-space: pre-wrap;
   word-break: break-word;

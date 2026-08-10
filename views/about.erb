@@ -5,6 +5,7 @@
   <nav class="terminal-menu">
     <ul>
       <li><a class="menu-item" href="/">stats</a></li>
+      <li><a class="menu-item" href="/history">history</a></li>
       <li><a class="menu-item" href="/api-docs">api</a></li>
       <li><a class="menu-item" href="/tools">tools</a></li>
       <li><a class="menu-item" href="/logs">logs</a></li>
@@ -22,10 +23,23 @@
 <h4><em>app version</em></h4>
 <blockquote>
   <%= @app_version %><br>
-  <% if @update_available %>
+  <% if @main_build %>
+    tracking main
+  <% elsif !@release_build %>
+    development build
+  <% elsif @update_available %>
     <a href="https://github.com/clajiness/qbop/releases" target="_blank">an update is available:</a> <a href="https://github.com/clajiness/qbop/releases/tag/<%= @recent_tag %>" target="_blank"><%= @recent_tag %></a>
   <% else %>
     up to date
+  <% end %>
+</blockquote>
+
+<h4><em>commit</em></h4>
+<blockquote>
+  <% if @app_commit == 'unknown' %>
+    <%= @short_app_commit %>
+  <% else %>
+    <a href="<%= @repo_url %>/commit/<%= @app_commit %>" target="_blank"><%= @short_app_commit %></a>
   <% end %>
 </blockquote>
 

@@ -1,0 +1,103 @@
+<div class="terminal-nav">
+  <div class="terminal-logo">
+    <div class="logo terminal-prompt"><a href="/" class="no-style">qbop</a></div>
+  </div>
+  <nav class="terminal-menu">
+    <ul>
+      <li><a class="menu-item" href="/">stats</a></li>
+      <li><a class="menu-item active" href="/history">history</a></li>
+      <li><a class="menu-item" href="/api-docs">api</a></li>
+      <li><a class="menu-item" href="/tools">tools</a></li>
+      <li><a class="menu-item" href="/logs">logs</a></li>
+      <li><a class="menu-item" href="/about">about</a></li>
+    </ul>
+  </nav>
+</div>
+<% if @update_available %>
+<div class="terminal-alert terminal-alert-primary"><a href="https://github.com/clajiness/qbop/releases" target="_blank">an update is available:</a> <a href="https://github.com/clajiness/qbop/releases/tag/<%= @recent_tag %>" target="_blank"><%= @recent_tag %></a></div>
+<% end %>
+<hr>
+
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
+
+<form action="/history" method="get" class="control-panel">
+  <input name="page" type="hidden" value="<%= @pagination.current_page %>">
+
+  <label for="per_page">transitions per page</label>
+  <select id="per_page" name="per_page">
+    <% Service::Helpers::HISTORY_PAGE_SIZES.each do |page_size| %>
+    <option value="<%= page_size %>" <%= 'selected' if @pagination.per_page == page_size %>><%= page_size %></option>
+    <% end %>
+  </select>
+
+  <label for="refresh">auto-refresh</label>
+  <span class="control-row">
+    <input id="refresh" name="refresh" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="3600" value="<%= @refresh_seconds %>">
+    <span>sec</span>
+    <button class="btn btn-default btn-ghost" type="submit">apply</button>
+    <a class="btn btn-default btn-ghost" href="/history?page=<%= @pagination.current_page %>&per_page=<%= @pagination.per_page %>&refresh=0">off</a>
+  </span>
+</form>
+<hr>
+
+<h4><em>port transition history</em></h4>
+<% if @pagination.records.empty? %>
+<blockquote>
+  no port transitions have been recorded yet
+</blockquote>
+<% else %>
+<p>showing <%= @pagination.from %>&ndash;<%= @pagination.to %> of <%= @pagination.total_records %> transitions, newest first</p>
+
+<div class="history-table-wrapper">
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>detected</th>
+        <th>port</th>
+        <th>opnsense</th>
+        <th>qbittorrent</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @pagination.records.each do |transition| %>
+      <tr>
+        <td><%= transition.detected_at %></td>
+        <td><%= transition.previous_port || 'initial' %> &rarr; <%= transition.new_port %></td>
+        <td>
+          <%= transition.sync_status('opnsense') %>
+          <% if transition.opnsense_synced_at %><br><%= transition.opnsense_synced_at %><% end %>
+        </td>
+        <td>
+          <%= transition.sync_status('qbit') %>
+          <% if transition.qbit_synced_at %><br><%= transition.qbit_synced_at %><% end %>
+        </td>
+      </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<% end %>
+
+<nav aria-label="history pages">
+  <span class="control-row">
+    <% if @pagination.current_page > 1 %>
+    <a class="btn btn-default btn-ghost" href="/history?page=<%= @pagination.current_page - 1 %>&per_page=<%= @pagination.per_page %>&refresh=<%= @refresh_seconds %>">previous</a>
+    <% end %>
+
+    <% 1.upto(@pagination.total_pages) do |page_number| %>
+      <% if page_number == @pagination.current_page %>
+      <span class="btn btn-default" aria-current="page"><%= page_number %></span>
+      <% else %>
+      <a class="btn btn-default btn-ghost" href="/history?page=<%= page_number %>&per_page=<%= @pagination.per_page %>&refresh=<%= @refresh_seconds %>"><%= page_number %></a>
+      <% end %>
+    <% end %>
+
+    <% if @pagination.current_page < @pagination.total_pages %>
+    <a class="btn btn-default btn-ghost" href="/history?page=<%= @pagination.current_page + 1 %>&per_page=<%= @pagination.per_page %>&refresh=<%= @refresh_seconds %>">next</a>
+    <% end %>
+  </span>
+</nav>
+
+<p>page <%= @pagination.current_page %> of <%= @pagination.total_pages %></p>
+
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>

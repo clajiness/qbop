@@ -1,14 +1,28 @@
 module SpecDatabase
+  CLEANUP_TABLES = %i[
+    port_transitions
+    counters
+    stats
+    notifications
+    sources
+  ].freeze
   MODEL_FILES = %w[
     counter
     notification
+    port_transition
     source
     stat
   ].freeze
 
   def self.reset!
+    initialize_database unless @database
+    clear_tables
+  end
+
+  def self.initialize_database
     Object.send(:remove_const, :DB) if defined?(DB)
-    Object.const_set(:DB, Sequel.sqlite)
+    @database = Sequel.sqlite
+    Object.const_set(:DB, @database)
     Sequel::Model.db = DB
     Sequel::Model.plugin :update_or_create
 
@@ -16,6 +30,15 @@ module SpecDatabase
     load_models
     set_datasets
   end
+  private_class_method :initialize_database
+
+  def self.clear_tables
+    DB.transaction do
+      CLEANUP_TABLES.each { |table| DB[table].delete }
+      DB[:sqlite_sequence].delete if DB.table_exists?(:sqlite_sequence)
+    end
+  end
+  private_class_method :clear_tables
 
   def self.create_tables # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
     DB.create_table(:sources) do
@@ -49,6 +72,19 @@ module SpecDatabase
       String :info
       Boolean :active, default: false
     end
+
+    DB.create_table(:port_transitions) do
+      primary_key :id
+      Integer :previous_port
+      Integer :new_port, null: false
+      DateTime :detected_at, null: false
+      DateTime :opnsense_synced_at
+      DateTime :qbit_synced_at
+      Boolean :opnsense_skipped, default: false, null: false
+      Boolean :qbit_skipped, default: false, null: false
+
+      index :detected_at
+    end
   end
 
   def self.load_models
@@ -59,6 +95,7 @@ module SpecDatabase
     {
       Counter => :counters,
       Notification => :notifications,
+      PortTransition => :port_transitions,
       Source => :sources,
       Stat => :stats
     }.each do |model, table|

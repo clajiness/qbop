@@ -13,6 +13,17 @@ Framework::Web.set :run, false
 Framework::Web.set :views, File.expand_path('../../views', __dir__)
 
 RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
+  around do |example|
+    version = ENV['VERSION']
+    commit_sha = ENV['COMMIT_SHA']
+    ENV.delete('VERSION')
+    ENV.delete('COMMIT_SHA')
+    example.run
+  ensure
+    version.nil? ? ENV.delete('VERSION') : ENV['VERSION'] = version
+    commit_sha.nil? ? ENV.delete('COMMIT_SHA') : ENV['COMMIT_SHA'] = commit_sha
+  end
+
   before do
     SpecDatabase.reset!
     %w[proton opnsense qbit].each do |name|
@@ -37,6 +48,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'renders update notification details when present' do
+    ENV['VERSION'] = 'v2.6.0'
     Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
 
     response = Rack::MockRequest.new(described_class).get('/about')
@@ -45,9 +57,25 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('v2.7.0')
   end
 
+  it 'renders main build identity without a release status' do
+    ENV['VERSION'] = 'main'
+    ENV['COMMIT_SHA'] = '0123456789abcdef'
+    Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
+
+    response = Rack::MockRequest.new(described_class).get('/about')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('tracking main')
+    expect(response.body).to include('0123456789ab')
+    expect(response.body).not_to include('an update is available')
+  end
+
   it 'renders tools and API docs pages' do
     expect(Rack::MockRequest.new(described_class).get('/tools').status).to eq(200)
-    expect(Rack::MockRequest.new(described_class).get('/api-docs').status).to eq(200)
+    api_docs_response = Rack::MockRequest.new(described_class).get('/api-docs')
+
+    expect(api_docs_response.status).to eq(200)
+    expect(api_docs_response.body).to include('/api/history?page=1&amp;per_page=25')
   end
 
   it 'renders public key tool results' do
@@ -86,5 +114,53 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('new log')
     expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
     expect(response.body).to include('last 500 lines of log output, newest first')
+  end
+
+  it 'renders an empty port transition history' do
+    response = Rack::MockRequest.new(described_class).get('/history')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('port transition history')
+    expect(response.body).to include('no port transitions have been recorded yet')
+  end
+
+  it 'renders paginated port transitions with familiar controls' do
+    30.times do |index|
+      PortTransition.record_transition(
+        previous_port: index + 10_000,
+        new_port: index + 10_001,
+        opnsense_skipped: false,
+        qbit_skipped: index.zero?,
+        detected_at: Time.at(index)
+      )
+    end
+
+    response = Rack::MockRequest.new(described_class).get('/history?page=2&per_page=25&refresh=5')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('showing 26&ndash;30 of 30 transitions, newest first')
+    expect(response.body).to include('page 2 of 2')
+    expect(response.body).to include('previous')
+    expect(response.body).to include('skipped')
+    expect(response.body).to include('value="25" selected')
+    expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
+    expect(response.body).to include('/history?page=1&per_page=25&refresh=5')
+    expect(response.body).to include('/history?page=2&per_page=25&refresh=0')
+  end
+
+  it 'constrains invalid history pagination parameters' do
+    PortTransition.record_transition(
+      previous_port: 12_345,
+      new_port: 23_456,
+      opnsense_skipped: false,
+      qbit_skipped: false
+    )
+
+    response = Rack::MockRequest.new(described_class).get('/history?page=999&per_page=500')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('showing 1&ndash;1 of 1 transitions')
+    expect(response.body).to include('page 1 of 1')
+    expect(response.body).to include('value="25" selected')
   end
 end

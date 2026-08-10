@@ -1,9 +1,11 @@
 # Description: Dockerfile for qbop
-FROM ruby:4.0.5-slim
+FROM ruby:4.0.6-slim
 
-# set the version environment variable
-ARG VERSION
-ENV VERSION=${VERSION}
+# set build identity environment variables
+ARG VERSION=development
+ARG COMMIT_SHA=unknown
+ENV VERSION=${VERSION} \
+    COMMIT_SHA=${COMMIT_SHA}
 
 # set the working directory
 WORKDIR /opt/qbop/

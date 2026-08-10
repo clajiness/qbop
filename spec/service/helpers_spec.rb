@@ -6,6 +6,7 @@ require_relative '../../service/helpers'
 HELPERS_SPEC_ENV_KEYS = %w[
   UI_MODE
   VERSION
+  COMMIT_SHA
   LOOP_FREQ
   REQUIRED_ATTEMPTS
   PROTON_GATEWAY
@@ -49,8 +50,8 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
       end
     end
     context 'when script_version is not set' do
-      it 'returns nil' do
-        expect(Service::Helpers.new.env_variables[:script_version]).to eq(nil)
+      it 'returns development' do
+        expect(Service::Helpers.new.env_variables[:script_version]).to eq('development')
       end
     end
     context 'when loop_freq is not set' do
@@ -190,6 +191,34 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  describe 'build identity' do
+    it 'returns development defaults' do
+      helpers = Service::Helpers.new
+
+      expect(helpers.app_version).to eq('development')
+      expect(helpers.commit_sha).to eq('unknown')
+      expect(helpers.short_commit_sha).to eq('unknown')
+      expect(helpers.release_build?).to eq(false)
+      expect(helpers.main_build?).to eq(false)
+    end
+
+    it 'identifies main builds and shortens their commit' do
+      ENV['VERSION'] = 'main'
+      ENV['COMMIT_SHA'] = '0123456789abcdef'
+      helpers = Service::Helpers.new
+
+      expect(helpers.main_build?).to eq(true)
+      expect(helpers.release_build?).to eq(false)
+      expect(helpers.short_commit_sha).to eq('0123456789ab')
+    end
+
+    it 'identifies stable release builds' do
+      ENV['VERSION'] = 'v2.9.0'
+
+      expect(Service::Helpers.new.release_build?).to eq(true)
+    end
+  end
+
   describe '#validate_loop_frequency' do
     it 'returns the argument if it is a positive integer' do
       expect(Service::Helpers.new.validate_loop_frequency(45)).to eq(45)
@@ -272,6 +301,26 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  describe 'history pagination validation' do
+    it 'accepts positive page numbers' do
+      expect(Service::Helpers.new.validate_page('3')).to eq(3)
+    end
+
+    it 'defaults invalid page numbers to one' do
+      expect(Service::Helpers.new.validate_page('-1')).to eq(1)
+      expect(Service::Helpers.new.validate_page('invalid')).to eq(1)
+    end
+
+    it 'accepts supported page sizes' do
+      expect(Service::Helpers.new.validate_history_page_size('50')).to eq(50)
+    end
+
+    it 'defaults unsupported page sizes to 25' do
+      expect(Service::Helpers.new.validate_history_page_size('500')).to eq(25)
+      expect(Service::Helpers.new.validate_history_page_size('invalid')).to eq(25)
+    end
+  end
+
   describe '#true?' do
     it 'returns true for "true" string' do
       expect(Service::Helpers.new.true?('true')).to eq(true)
@@ -349,6 +398,12 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
 
     it 'returns false when the app version is missing' do
+      expect(Service::Helpers.new.update_available?('v2.7.0')).to eq(false)
+    end
+
+    it 'returns false for main builds' do
+      ENV['VERSION'] = 'main'
+
       expect(Service::Helpers.new.update_available?('v2.7.0')).to eq(false)
     end
   end

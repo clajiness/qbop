@@ -23,18 +23,21 @@ class CheckForNewReleases # rubocop:disable Style/Documentation
   def run_loop_iteration # rubocop:disable Metrics/MethodLength
     @logger.info('[CheckForNewReleases] checking for new releases...')
 
+    unless @helpers.release_build?
+      persist_notification(nil, false)
+      @logger.info("[CheckForNewReleases] #{@helpers.app_version} build does not track release updates")
+      return sleep_until_next_check
+    end
+
     tag = @github.get_most_recent_tag
     update_available = @helpers.update_available?(tag)
-
     persist_notification(tag, update_available)
     log_update_status(update_available)
 
-    @logger.info('[CheckForNewReleases] sleeping for 6 hours')
-    sleep CHECK_INTERVAL
+    sleep_until_next_check
   rescue StandardError => e
     log_error(e)
-    @logger.info('[CheckForNewReleases] sleeping for 6 hours')
-    sleep CHECK_INTERVAL
+    sleep_until_next_check
   end
 
   def persist_notification(tag, update_available)
@@ -56,5 +59,10 @@ class CheckForNewReleases # rubocop:disable Style/Documentation
   def log_error(error)
     @logger.error('[CheckForNewReleases] error while checking for releases:')
     @logger.error(error)
+  end
+
+  def sleep_until_next_check
+    @logger.info('[CheckForNewReleases] sleeping for 6 hours')
+    sleep CHECK_INTERVAL
   end
 end

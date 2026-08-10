@@ -11,6 +11,7 @@ qbop is built with Ruby and available as a Docker image.
 - Maintains an active ProtonVPN forwarded port
 - Automatically updates OPNsense firewall aliases
 - Keeps qBittorrent in sync with the active port
+- Retains the 500 most recent port transitions and downstream synchronization status
 - Provides a simple web UI and API
 
 ## Quick Start
@@ -31,9 +32,13 @@ The container image is available [here](https://github.com/clajiness/qbop/pkgs/c
 
 Image tags are published as follows:
 - `latest` → most recent release
+- `main` → most recent build from the main branch
+- `sha-<commit>` → exact main-branch build for a Git commit
 - `v2` → latest `v2.x.x` release
 - `v2.minor` → latest patch release for that minor version, e.g. `v2.7`
 - `v2.minor.patch` → exact version, e.g. `v2.7.0`
+
+Pull requests are built without publishing an image. Main-branch builds identify themselves as `main` in the app, while images built from stable Git tags display their exact release version.
 
 ### Requirements
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
@@ -72,7 +77,7 @@ Image tags are published as follows:
 
 ## Usage
 ### Query Parameters
-The stats and logs pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
+The stats, logs, and history pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
 
 Query parameters are per-request overrides and do not change environment variables.
 
@@ -82,8 +87,11 @@ Examples:
 - `/logs?lines=500&direction=desc&refresh=5`
 - `/logs?lines=500&direction=asc&refresh=0`
 - `/api/logs?lines=500&direction=desc`
+- `/history?page=2&per_page=50`
+- `/history?page=2&per_page=50&refresh=5`
+- `/api/history?page=2&per_page=50`
 
-Stats and logs UI parameters:
+Stats, logs, and history UI parameters:
 | Parameter | Default | Description |
 | :--- | :--- | :--- |
 | `refresh` | `0` | Auto-refresh interval in seconds, from 0 to 3600. |
@@ -94,7 +102,16 @@ Logs UI and API parameters:
 | `lines` | `LOG_LINES` or `50` | Number of log lines to show, from 1 to 5000. |
 | `direction` | `LOG_REVERSE` or `asc` | `asc` shows oldest first, `desc` shows newest first. |
 
+History UI and API parameters:
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `page` | `1` | Page of port transitions to return. Pages beyond the available history use the final page. |
+| `per_page` | `25` | Number of transitions per page. Supported values are `25`, `50`, and `100`. |
+
+The history records only Proton port assignments. Fresh installations include the initial assignment; upgraded installations begin with the next port change. Each transition tracks whether OPNsense and qBittorrent are pending, synchronized, or skipped. Existing logs are not backfilled, and the oldest record is removed when a 501st transition is added.
+
 Notes:
 - `refresh` only applies to the web UI.
 - Invalid `lines` values fall back to `LOG_LINES`, then `50`.
 - Invalid `direction` values fall back to `LOG_REVERSE`, then `asc`.
+- Invalid history pagination values fall back to page `1` and `25` transitions per page.
