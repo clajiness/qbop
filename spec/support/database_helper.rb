@@ -1,4 +1,11 @@
 module SpecDatabase
+  CLEANUP_TABLES = %i[
+    port_transitions
+    counters
+    stats
+    notifications
+    sources
+  ].freeze
   MODEL_FILES = %w[
     counter
     notification
@@ -8,8 +15,14 @@ module SpecDatabase
   ].freeze
 
   def self.reset!
+    initialize_database unless @database
+    clear_tables
+  end
+
+  def self.initialize_database
     Object.send(:remove_const, :DB) if defined?(DB)
-    Object.const_set(:DB, Sequel.sqlite)
+    @database = Sequel.sqlite
+    Object.const_set(:DB, @database)
     Sequel::Model.db = DB
     Sequel::Model.plugin :update_or_create
 
@@ -17,6 +30,15 @@ module SpecDatabase
     load_models
     set_datasets
   end
+  private_class_method :initialize_database
+
+  def self.clear_tables
+    DB.transaction do
+      CLEANUP_TABLES.each { |table| DB[table].delete }
+      DB[:sqlite_sequence].delete if DB.table_exists?(:sqlite_sequence)
+    end
+  end
+  private_class_method :clear_tables
 
   def self.create_tables # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
     DB.create_table(:sources) do
