@@ -61,6 +61,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
       @proton_data.set_same_port
     else
       @logger.info("Proton returned the new forwarded port #{forwarded_port}")
+      record_port_transition(@proton_data.get_current_port, forwarded_port)
       @proton_data.set_current_port(forwarded_port)
       @proton_data.set_updated_at
     end
@@ -83,7 +84,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     @opnsense_data.set_current_port(alias_port)
     @opnsense_data.set_last_checked if alias_port
 
-    return unless sync_target_port(@opnsense_data, alias_port, forwarded_port, 'OPNsense')
+    return unless sync_target_port(@opnsense_data, alias_port, forwarded_port, 'OPNsense', 'opnsense')
 
     update_opnsense_alias(forwarded_port, uuid)
   rescue StandardError => e
@@ -101,14 +102,14 @@ class Qbop # rubocop:disable Metrics/ClassLength
     @qbit_data.set_current_port(qbt_port)
     @qbit_data.set_last_checked if qbt_port
 
-    return unless sync_target_port(@qbit_data, qbt_port, forwarded_port, 'qBit')
+    return unless sync_target_port(@qbit_data, qbt_port, forwarded_port, 'qBit', 'qbit')
 
     update_qbit_port(forwarded_port)
   rescue StandardError => e
     log_error('qBit', e)
   end
 
-  def sync_target_port(source_data, current_port, forwarded_port, source_name) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength,Metrics/CyclomaticComplexity
+  def sync_target_port(source_data, current_port, forwarded_port, source_name, history_source = nil) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
     current_port = current_port.to_i
     forwarded_port = forwarded_port.to_i
 
@@ -130,6 +131,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     source_data.set_current_port(forwarded_port) if forwarded_port != source_data.get_current_port
     source_data.set_updated_at unless source_data.updated?
     source_data.set_same_port
+    PortTransition.mark_synced(history_source, forwarded_port) if history_source
     false
   end
 
@@ -150,7 +152,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     end
 
     @logger.info('OPNsense alias applied successfully')
-    mark_source_updated(@opnsense_data, forwarded_port)
+    mark_source_updated(@opnsense_data, forwarded_port, 'opnsense')
   end
 
   def update_qbit_port(forwarded_port)
@@ -162,14 +164,24 @@ class Qbop # rubocop:disable Metrics/ClassLength
     end
 
     @logger.info("qBit port has been updated to #{forwarded_port}")
-    mark_source_updated(@qbit_data, forwarded_port)
+    mark_source_updated(@qbit_data, forwarded_port, 'qbit')
   end
 
-  def mark_source_updated(source_data, forwarded_port)
+  def mark_source_updated(source_data, forwarded_port, history_source)
     source_data.reset_change
     source_data.reset_attempt
     source_data.set_current_port(forwarded_port)
     source_data.set_updated_at
+    PortTransition.mark_synced(history_source, forwarded_port)
+  end
+
+  def record_port_transition(previous_port, new_port)
+    PortTransition.record_transition(
+      previous_port: previous_port,
+      new_port: new_port,
+      opnsense_skipped: @helpers.true?(@config[:opnsense_skip]),
+      qbit_skipped: @helpers.true?(@config[:qbit_skip])
+    )
   end
 
   def valid_forwarded_port?(forwarded_port)

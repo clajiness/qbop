@@ -2,6 +2,7 @@ module SpecDatabase
   MODEL_FILES = %w[
     counter
     notification
+    port_transition
     source
     stat
   ].freeze
@@ -49,6 +50,19 @@ module SpecDatabase
       String :info
       Boolean :active, default: false
     end
+
+    DB.create_table(:port_transitions) do
+      primary_key :id
+      Integer :previous_port
+      Integer :new_port, null: false
+      DateTime :detected_at, null: false
+      DateTime :opnsense_synced_at
+      DateTime :qbit_synced_at
+      Boolean :opnsense_skipped, default: false, null: false
+      Boolean :qbit_skipped, default: false, null: false
+
+      index :detected_at
+    end
   end
 
   def self.load_models
@@ -59,6 +73,7 @@ module SpecDatabase
     {
       Counter => :counters,
       Notification => :notifications,
+      PortTransition => :port_transitions,
       Source => :sources,
       Stat => :stats
     }.each do |model, table|

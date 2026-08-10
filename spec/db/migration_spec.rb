@@ -24,6 +24,8 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     expect(stats_schema[:source_id][:allow_null]).to eq(false)
     expect(unique_source_id_index?(db, :stats)).to eq(true)
     expect(unique_source_id_index?(db, :counters)).to eq(true)
+    expect(db.table_exists?(:port_transitions)).to eq(true)
+    expect(db.schema(:port_transitions).to_h[:detected_at][:type]).to eq(:datetime)
   end
 
   it 'normalizes a legacy version 1 schema' do
