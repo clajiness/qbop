@@ -28,7 +28,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
   end
 
   def log_startup
-    @logger.info("starting qbop #{@config[:script_version]}")
+    @logger.info("starting qbop #{@config[:script_version]} (#{@config[:commit_sha]})")
     @logger.info("the tool will loop every #{@config[:loop_freq]} seconds")
     @logger.info('----------')
   end

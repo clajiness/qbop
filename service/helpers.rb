@@ -7,7 +7,8 @@ module Service
     def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
       {
         ui_mode: format_ui_mode(ENV['UI_MODE'] || 'dark'),
-        script_version: ENV['VERSION'],
+        script_version: app_version,
+        commit_sha: commit_sha,
         loop_freq: validate_loop_frequency(ENV['LOOP_FREQ'] || 45),
         required_attempts: validate_required_attempts(ENV['REQUIRED_ATTEMPTS'] || 3),
         proton_gateway: ENV['PROTON_GATEWAY'] || '10.2.0.1',
@@ -34,6 +35,28 @@ module Service
 
     def format_ui_mode(ui_mode)
       ui_mode&.to_s&.downcase
+    end
+
+    def app_version
+      ENV.fetch('VERSION', 'development')
+    end
+
+    def commit_sha
+      ENV.fetch('COMMIT_SHA', 'unknown')
+    end
+
+    def short_commit_sha
+      return commit_sha if commit_sha == 'unknown'
+
+      commit_sha[0, 12]
+    end
+
+    def release_build?
+      app_version.match?(/\Av\d+\.\d+\.\d+\z/)
+    end
+
+    def main_build?
+      app_version == 'main'
     end
 
     def validate_loop_frequency(loop_freq)
@@ -137,8 +160,8 @@ module Service
     def update_available?(tag = nil)
       tag ||= Service::Github.new.get_most_recent_tag
       newest_tag = tag&.delete_prefix('v')
-      app_tag = ENV['VERSION']&.delete_prefix('v')
-      return false unless newest_tag && app_tag
+      app_tag = app_version.delete_prefix('v')
+      return false unless newest_tag && release_build?
 
       Gem::Version.new(newest_tag) > Gem::Version.new(app_tag)
     rescue StandardError

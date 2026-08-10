@@ -5,7 +5,7 @@ module Framework
     before do
       update = Notification.select(:info, :active).where(name: 'update_available').first
       @recent_tag = update&.info
-      @update_available = update&.active || false
+      @update_available = Service::Helpers.new.release_build? && (update&.active || false)
     end
 
     get '/' do
@@ -81,7 +81,11 @@ module Framework
     get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
 
-      @app_version = ENV['VERSION']
+      @app_version = helpers.app_version
+      @app_commit = helpers.commit_sha
+      @short_app_commit = helpers.short_commit_sha
+      @release_build = helpers.release_build?
+      @main_build = helpers.main_build?
       @schema_version = helpers.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
       @uptime = helpers.seconds_to_s(Framework::Uptime.uptime_seconds)

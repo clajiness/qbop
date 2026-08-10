@@ -31,9 +31,13 @@ The container image is available [here](https://github.com/clajiness/qbop/pkgs/c
 
 Image tags are published as follows:
 - `latest` → most recent release
+- `main` → most recent build from the main branch
+- `sha-<commit>` → exact main-branch build for a Git commit
 - `v2` → latest `v2.x.x` release
 - `v2.minor` → latest patch release for that minor version, e.g. `v2.7`
 - `v2.minor.patch` → exact version, e.g. `v2.7.0`
+
+Pull requests are built without publishing an image. Main-branch builds identify themselves as `main` in the app, while images built from stable Git tags display their exact release version.
 
 ### Requirements
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.

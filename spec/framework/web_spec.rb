@@ -13,6 +13,17 @@ Framework::Web.set :run, false
 Framework::Web.set :views, File.expand_path('../../views', __dir__)
 
 RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
+  around do |example|
+    version = ENV['VERSION']
+    commit_sha = ENV['COMMIT_SHA']
+    ENV.delete('VERSION')
+    ENV.delete('COMMIT_SHA')
+    example.run
+  ensure
+    version.nil? ? ENV.delete('VERSION') : ENV['VERSION'] = version
+    commit_sha.nil? ? ENV.delete('COMMIT_SHA') : ENV['COMMIT_SHA'] = commit_sha
+  end
+
   before do
     SpecDatabase.reset!
     %w[proton opnsense qbit].each do |name|
@@ -37,12 +48,26 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'renders update notification details when present' do
+    ENV['VERSION'] = 'v2.6.0'
     Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
 
     response = Rack::MockRequest.new(described_class).get('/about')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('v2.7.0')
+  end
+
+  it 'renders main build identity without a release status' do
+    ENV['VERSION'] = 'main'
+    ENV['COMMIT_SHA'] = '0123456789abcdef'
+    Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
+
+    response = Rack::MockRequest.new(described_class).get('/about')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('tracking main')
+    expect(response.body).to include('0123456789ab')
+    expect(response.body).not_to include('an update is available')
   end
 
   it 'renders tools and API docs pages' do

@@ -6,6 +6,7 @@ require_relative '../../service/helpers'
 HELPERS_SPEC_ENV_KEYS = %w[
   UI_MODE
   VERSION
+  COMMIT_SHA
   LOOP_FREQ
   REQUIRED_ATTEMPTS
   PROTON_GATEWAY
@@ -49,8 +50,8 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
       end
     end
     context 'when script_version is not set' do
-      it 'returns nil' do
-        expect(Service::Helpers.new.env_variables[:script_version]).to eq(nil)
+      it 'returns development' do
+        expect(Service::Helpers.new.env_variables[:script_version]).to eq('development')
       end
     end
     context 'when loop_freq is not set' do
@@ -187,6 +188,34 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
     it 'returns nil when ui_mode is nil' do
       expect(Service::Helpers.new.format_ui_mode(nil)).to eq(nil)
+    end
+  end
+
+  describe 'build identity' do
+    it 'returns development defaults' do
+      helpers = Service::Helpers.new
+
+      expect(helpers.app_version).to eq('development')
+      expect(helpers.commit_sha).to eq('unknown')
+      expect(helpers.short_commit_sha).to eq('unknown')
+      expect(helpers.release_build?).to eq(false)
+      expect(helpers.main_build?).to eq(false)
+    end
+
+    it 'identifies main builds and shortens their commit' do
+      ENV['VERSION'] = 'main'
+      ENV['COMMIT_SHA'] = '0123456789abcdef'
+      helpers = Service::Helpers.new
+
+      expect(helpers.main_build?).to eq(true)
+      expect(helpers.release_build?).to eq(false)
+      expect(helpers.short_commit_sha).to eq('0123456789ab')
+    end
+
+    it 'identifies stable release builds' do
+      ENV['VERSION'] = 'v2.9.0'
+
+      expect(Service::Helpers.new.release_build?).to eq(true)
     end
   end
 
@@ -349,6 +378,12 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
 
     it 'returns false when the app version is missing' do
+      expect(Service::Helpers.new.update_available?('v2.7.0')).to eq(false)
+    end
+
+    it 'returns false for main builds' do
+      ENV['VERSION'] = 'main'
+
       expect(Service::Helpers.new.update_available?('v2.7.0')).to eq(false)
     end
   end

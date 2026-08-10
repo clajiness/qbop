@@ -19,15 +19,13 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   around do |example|
-    opn_skip = ENV['OPN_SKIP']
-    qbit_skip = ENV['QBIT_SKIP']
+    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA]
+    original_env = env_keys.to_h { |key| [key, ENV[key]] }
 
-    ENV.delete('OPN_SKIP')
-    ENV.delete('QBIT_SKIP')
+    env_keys.each { |key| ENV.delete(key) }
     example.run
   ensure
-    opn_skip.nil? ? ENV.delete('OPN_SKIP') : ENV['OPN_SKIP'] = opn_skip
-    qbit_skip.nil? ? ENV.delete('QBIT_SKIP') : ENV['QBIT_SKIP'] = qbit_skip
+    env_keys.each { |key| original_env[key].nil? ? ENV.delete(key) : ENV[key] = original_env[key] }
   end
 
   before do
@@ -131,10 +129,14 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   it 'returns about information' do
+    ENV['VERSION'] = 'v2.9.0'
+    ENV['COMMIT_SHA'] = '0123456789abcdef'
     response = Rack::MockRequest.new(app).get('/api/about')
     body = response_json(response)
 
     expect(response.status).to eq(200)
+    expect(body.dig('about', 'app_version')).to eq('v2.9.0')
+    expect(body.dig('about', 'commit_sha')).to eq('0123456789abcdef')
     expect(body.dig('about', 'schema_version')).to eq('unknown')
     expect(body.dig('env_variables', 'opn_ssl_verify')).to eq(false)
   end
