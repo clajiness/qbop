@@ -77,7 +77,7 @@ Pull requests are built without publishing an image. Main-branch builds identify
 
 ## Usage
 ### Query Parameters
-The stats and logs pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
+The stats, logs, and history pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
 
 Query parameters are per-request overrides and do not change environment variables.
 
@@ -88,9 +88,10 @@ Examples:
 - `/logs?lines=500&direction=asc&refresh=0`
 - `/api/logs?lines=500&direction=desc`
 - `/history?page=2&per_page=50`
+- `/history?page=2&per_page=50&refresh=5`
 - `/api/history?page=2&per_page=50`
 
-Stats and logs UI parameters:
+Stats, logs, and history UI parameters:
 | Parameter | Default | Description |
 | :--- | :--- | :--- |
 | `refresh` | `0` | Auto-refresh interval in seconds, from 0 to 3600. |

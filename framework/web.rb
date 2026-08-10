@@ -79,6 +79,7 @@ module Framework
 
     get '/history' do
       helpers = Service::Helpers.new
+      @refresh_seconds = helpers.validate_refresh_interval(params['refresh'])
       page = helpers.validate_page(params['page'])
       per_page = helpers.validate_history_page_size(params['per_page'])
 

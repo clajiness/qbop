@@ -135,7 +135,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       )
     end
 
-    response = Rack::MockRequest.new(described_class).get('/history?page=2&per_page=25')
+    response = Rack::MockRequest.new(described_class).get('/history?page=2&per_page=25&refresh=5')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('showing 26&ndash;30 of 30 transitions, newest first')
@@ -143,6 +143,9 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('previous')
     expect(response.body).to include('skipped')
     expect(response.body).to include('value="25" selected')
+    expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
+    expect(response.body).to include('/history?page=1&per_page=25&refresh=5')
+    expect(response.body).to include('/history?page=2&per_page=25&refresh=0')
   end
 
   it 'constrains invalid history pagination parameters' do
