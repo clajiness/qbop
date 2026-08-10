@@ -1,5 +1,5 @@
 # Description: Dockerfile for qbop
-FROM ruby:4.0.5-slim
+FROM ruby:4.0.6-slim
 
 # set build identity environment variables
 ARG VERSION=development
