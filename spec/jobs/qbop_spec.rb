@@ -108,4 +108,47 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     expect(result).to eq(false)
     expect(transition.refresh.qbit_synced_at).to be_a(Time)
   end
+
+  it 'marks qBit transitions as synchronized after a successful update' do
+    source = Source.create(name: 'qbit')
+    source.seed_tables
+    transition = PortTransition.record_transition(
+      previous_port: 12_345,
+      new_port: 23_456,
+      opnsense_skipped: false,
+      qbit_skipped: false
+    )
+    qbit = double(qbt_app_set_preferences: double(status: 200))
+    job.instance_variable_set(:@qbit, qbit)
+    job.instance_variable_set(:@qbit_data, source)
+
+    job.send(:update_qbit_port, 23_456)
+
+    expect(source.get_current_port).to eq(23_456)
+    expect(transition.refresh.qbit_synced_at).to be_a(Time)
+    expect(transition.sync_status('qbit')).to eq('synced')
+  end
+
+  it 'marks OPNsense transitions as synchronized after changes are applied' do
+    source = Source.create(name: 'opnsense')
+    source.seed_tables
+    transition = PortTransition.record_transition(
+      previous_port: 12_345,
+      new_port: 23_456,
+      opnsense_skipped: false,
+      qbit_skipped: false
+    )
+    opnsense = double(
+      set_alias_value: double(status: 200),
+      apply_changes: double(status: 200)
+    )
+    job.instance_variable_set(:@opnsense, opnsense)
+    job.instance_variable_set(:@opnsense_data, source)
+
+    job.send(:update_opnsense_alias, 23_456, 'alias-uuid')
+
+    expect(source.get_current_port).to eq(23_456)
+    expect(transition.refresh.opnsense_synced_at).to be_a(Time)
+    expect(transition.sync_status('opnsense')).to eq('synced')
+  end
 end
