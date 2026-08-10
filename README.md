@@ -11,6 +11,7 @@ qbop is built with Ruby and available as a Docker image.
 - Maintains an active ProtonVPN forwarded port
 - Automatically updates OPNsense firewall aliases
 - Keeps qBittorrent in sync with the active port
+- Retains the 500 most recent port transitions and downstream synchronization status
 - Provides a simple web UI and API
 
 ## Quick Start
@@ -86,6 +87,8 @@ Examples:
 - `/logs?lines=500&direction=desc&refresh=5`
 - `/logs?lines=500&direction=asc&refresh=0`
 - `/api/logs?lines=500&direction=desc`
+- `/history?page=2&per_page=50`
+- `/api/history?page=2&per_page=50`
 
 Stats and logs UI parameters:
 | Parameter | Default | Description |
@@ -98,7 +101,16 @@ Logs UI and API parameters:
 | `lines` | `LOG_LINES` or `50` | Number of log lines to show, from 1 to 5000. |
 | `direction` | `LOG_REVERSE` or `asc` | `asc` shows oldest first, `desc` shows newest first. |
 
+History UI and API parameters:
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `page` | `1` | Page of port transitions to return. Pages beyond the available history use the final page. |
+| `per_page` | `25` | Number of transitions per page. Supported values are `25`, `50`, and `100`. |
+
+The history records only Proton port assignments. Fresh installations include the initial assignment; upgraded installations begin with the next port change. Each transition tracks whether OPNsense and qBittorrent are pending, synchronized, or skipped. Existing logs are not backfilled, and the oldest record is removed when a 501st transition is added.
+
 Notes:
 - `refresh` only applies to the web UI.
 - Invalid `lines` values fall back to `LOG_LINES`, then `50`.
 - Invalid `direction` values fall back to `LOG_REVERSE`, then `asc`.
+- Invalid history pagination values fall back to page `1` and `25` transitions per page.

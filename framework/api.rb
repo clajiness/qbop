@@ -86,6 +86,40 @@ module Framework
       { 'log_lines' => log_lines.map(&:strip) }
     end
 
+    get '/history' do # rubocop:disable Metrics/BlockLength
+      helpers = Service::Helpers.new
+      page = helpers.validate_page(params['page'])
+      per_page = helpers.validate_history_page_size(params['per_page'])
+      pagination = PortTransition.paginate(page: page, per_page: per_page)
+
+      history = pagination.records.map do |transition|
+        {
+          'id' => transition.id,
+          'previous_port' => transition.previous_port,
+          'new_port' => transition.new_port,
+          'detected_at' => transition.detected_at,
+          'opnsense' => {
+            'status' => transition.sync_status('opnsense'),
+            'synced_at' => transition.opnsense_synced_at
+          },
+          'qbit' => {
+            'status' => transition.sync_status('qbit'),
+            'synced_at' => transition.qbit_synced_at
+          }
+        }
+      end
+
+      { 'history' => history,
+        'pagination' => {
+          'total_records' => pagination.total_records,
+          'current_page' => pagination.current_page,
+          'per_page' => pagination.per_page,
+          'total_pages' => pagination.total_pages,
+          'from' => pagination.from,
+          'to' => pagination.to
+        } }
+    end
+
     get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
 

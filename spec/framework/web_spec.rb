@@ -72,7 +72,10 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
   it 'renders tools and API docs pages' do
     expect(Rack::MockRequest.new(described_class).get('/tools').status).to eq(200)
-    expect(Rack::MockRequest.new(described_class).get('/api-docs').status).to eq(200)
+    api_docs_response = Rack::MockRequest.new(described_class).get('/api-docs')
+
+    expect(api_docs_response.status).to eq(200)
+    expect(api_docs_response.body).to include('/api/history?page=1&amp;per_page=25')
   end
 
   it 'renders public key tool results' do

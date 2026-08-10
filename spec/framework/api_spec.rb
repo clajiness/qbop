@@ -128,6 +128,58 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response_json(response)).to eq('log_lines' => ['line one', 'line two'])
   end
 
+  it 'returns paginated port transition history' do # rubocop:disable Metrics/BlockLength
+    30.times do |index|
+      PortTransition.record_transition(
+        previous_port: index + 10_000,
+        new_port: index + 10_001,
+        opnsense_skipped: false,
+        qbit_skipped: index.zero?,
+        detected_at: Time.at(index)
+      )
+    end
+    PortTransition.mark_synced('opnsense', 10_001, at: Time.at(30))
+
+    response = Rack::MockRequest.new(app).get('/api/history?page=2&per_page=25')
+    body = response_json(response)
+
+    expect(response.status).to eq(200)
+    expect(body['history'].length).to eq(5)
+    expect(body['history'].first['new_port']).to eq(10_005)
+    expect(body['history'].last).to include(
+      'previous_port' => 10_000,
+      'new_port' => 10_001,
+      'opnsense' => include('status' => 'synced'),
+      'qbit' => include('status' => 'skipped')
+    )
+    expect(body['pagination']).to eq(
+      'total_records' => 30,
+      'current_page' => 2,
+      'per_page' => 25,
+      'total_pages' => 2,
+      'from' => 26,
+      'to' => 30
+    )
+  end
+
+  it 'constrains invalid history API pagination parameters' do
+    PortTransition.record_transition(
+      previous_port: 12_345,
+      new_port: 23_456,
+      opnsense_skipped: false,
+      qbit_skipped: false
+    )
+
+    response = Rack::MockRequest.new(app).get('/api/history?page=999&per_page=500')
+    pagination = response_json(response)['pagination']
+
+    expect(pagination).to include(
+      'current_page' => 1,
+      'per_page' => 25,
+      'total_records' => 1
+    )
+  end
+
   it 'returns about information' do
     ENV['VERSION'] = 'v2.9.0'
     ENV['COMMIT_SHA'] = '0123456789abcdef'
