@@ -92,6 +92,36 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     expect(PortTransition.first.new_port).to eq(23_456)
   end
 
+  it 'uses an existing Proton port as the first transition baseline after an upgrade' do
+    source = Source.create(name: 'proton')
+    source.seed_tables
+    source.set_current_port(12_345)
+    helpers = Service::Helpers.new
+    proton = double(natpmpc: { stdout: 'Mapped public port', stderr: '' })
+    allow(proton).to receive(:parse_response).and_return(12_345, 23_456, 23_456)
+    job.instance_variable_set(:@helpers, helpers)
+    job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1', opnsense_skip: 'false', qbit_skip: 'false' })
+    job.instance_variable_set(:@proton, proton)
+    job.instance_variable_set(:@proton_data, source)
+
+    job.send(:handle_proton)
+
+    expect(PortTransition.count).to eq(0)
+    expect(source.get_current_port).to eq(12_345)
+
+    job.send(:handle_proton)
+
+    expect(PortTransition.count).to eq(1)
+    expect(PortTransition.first.previous_port).to eq(12_345)
+    expect(PortTransition.first.new_port).to eq(23_456)
+    expect(source.get_current_port).to eq(23_456)
+
+    job.send(:handle_proton)
+
+    expect(PortTransition.count).to eq(1)
+    expect(source.get_current_port).to eq(23_456)
+  end
+
   it 'marks matching targets as synchronized' do
     source = Source.create(name: 'qbit')
     source.seed_tables
