@@ -16,12 +16,15 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   around do |example|
     version = ENV['VERSION']
     commit_sha = ENV['COMMIT_SHA']
+    build_date = ENV['BUILD_DATE']
     ENV.delete('VERSION')
     ENV.delete('COMMIT_SHA')
+    ENV.delete('BUILD_DATE')
     example.run
   ensure
     version.nil? ? ENV.delete('VERSION') : ENV['VERSION'] = version
     commit_sha.nil? ? ENV.delete('COMMIT_SHA') : ENV['COMMIT_SHA'] = commit_sha
+    build_date.nil? ? ENV.delete('BUILD_DATE') : ENV['BUILD_DATE'] = build_date
   end
 
   before do
@@ -55,11 +58,15 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(200)
     expect(response.body).to include('v2.7.0')
+    expect(response.body).to match(
+      %r{<h4><em>build date</em></h4>\s*<blockquote>\s*unknown\s*</blockquote>}
+    )
   end
 
   it 'renders main build identity without a release status' do
     ENV['VERSION'] = 'main'
     ENV['COMMIT_SHA'] = '0123456789abcdef'
+    ENV['BUILD_DATE'] = '2026-08-11T12:34:56Z'
     Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
 
     response = Rack::MockRequest.new(described_class).get('/about')
@@ -67,6 +74,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.status).to eq(200)
     expect(response.body).to include('tracking main')
     expect(response.body).to include('0123456789ab')
+    expect(response.body).to include('2026-08-11T12:34:56Z')
     expect(response.body).not_to include('an update is available')
   end
 

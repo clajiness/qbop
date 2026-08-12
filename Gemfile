@@ -19,6 +19,7 @@ gem 'sucker_punch', '~> 3.3'
 gem 'uri', '~> 1.1', '>= 1.1.1'
 
 group :development do
+  gem 'bundler-audit', '~> 0.9', require: false
   gem 'rubocop', '~> 1.88', require: false
 end
 

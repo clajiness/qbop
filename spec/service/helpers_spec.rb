@@ -7,6 +7,7 @@ HELPERS_SPEC_ENV_KEYS = %w[
   UI_MODE
   VERSION
   COMMIT_SHA
+  BUILD_DATE
   LOOP_FREQ
   REQUIRED_ATTEMPTS
   PROTON_GATEWAY
@@ -197,6 +198,7 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
 
       expect(helpers.app_version).to eq('development')
       expect(helpers.commit_sha).to eq('unknown')
+      expect(helpers.build_date).to eq('unknown')
       expect(helpers.short_commit_sha).to eq('unknown')
       expect(helpers.release_build?).to eq(false)
       expect(helpers.main_build?).to eq(false)
@@ -205,11 +207,13 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     it 'identifies main builds and shortens their commit' do
       ENV['VERSION'] = 'main'
       ENV['COMMIT_SHA'] = '0123456789abcdef'
+      ENV['BUILD_DATE'] = '2026-08-11T12:34:56Z'
       helpers = Service::Helpers.new
 
       expect(helpers.main_build?).to eq(true)
       expect(helpers.release_build?).to eq(false)
       expect(helpers.short_commit_sha).to eq('0123456789ab')
+      expect(helpers.build_date).to eq('2026-08-11T12:34:56Z')
     end
 
     it 'identifies stable release builds' do

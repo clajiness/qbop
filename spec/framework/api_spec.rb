@@ -19,7 +19,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   around do |example|
-    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA]
+    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE]
     original_env = env_keys.to_h { |key| [key, ENV[key]] }
 
     env_keys.each { |key| ENV.delete(key) }
@@ -183,12 +183,14 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   it 'returns about information' do
     ENV['VERSION'] = 'v2.9.0'
     ENV['COMMIT_SHA'] = '0123456789abcdef'
+    ENV['BUILD_DATE'] = '2026-08-11T12:34:56Z'
     response = Rack::MockRequest.new(app).get('/api/about')
     body = response_json(response)
 
     expect(response.status).to eq(200)
     expect(body.dig('about', 'app_version')).to eq('v2.9.0')
     expect(body.dig('about', 'commit_sha')).to eq('0123456789abcdef')
+    expect(body.dig('about', 'build_date')).to eq('2026-08-11T12:34:56Z')
     expect(body.dig('about', 'schema_version')).to eq('unknown')
     expect(body.dig('env_variables', 'opn_ssl_verify')).to eq(false)
   end

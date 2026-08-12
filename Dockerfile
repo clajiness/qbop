@@ -4,8 +4,10 @@ FROM ruby:4.0.6-slim
 # set build identity environment variables
 ARG VERSION=development
 ARG COMMIT_SHA=unknown
+ARG BUILD_DATE=unknown
 ENV VERSION=${VERSION} \
-    COMMIT_SHA=${COMMIT_SHA}
+    COMMIT_SHA=${COMMIT_SHA} \
+    BUILD_DATE=${BUILD_DATE}
 
 # set the working directory
 WORKDIR /opt/qbop/

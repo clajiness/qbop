@@ -126,6 +126,7 @@ module Framework
       { 'about' => {
           app_version: helpers.app_version,
           commit_sha: helpers.commit_sha,
+          build_date: helpers.build_date,
           schema_version: helpers.get_db_version,
           ruby_version: "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})",
           start_time: Framework::Uptime.started_at,

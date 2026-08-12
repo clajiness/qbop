@@ -47,6 +47,10 @@ module Service
       ENV.fetch('COMMIT_SHA', 'unknown')
     end
 
+    def build_date
+      ENV.fetch('BUILD_DATE', 'unknown')
+    end
+
     def short_commit_sha
       return commit_sha if commit_sha == 'unknown'
 
