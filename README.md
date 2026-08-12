@@ -33,7 +33,7 @@ The container image is available [here](https://github.com/clajiness/qbop/pkgs/c
 Image tags are published as follows:
 - `latest` → most recent release
 - `main` → most recent build from the main branch
-- `sha-<commit>` → exact main-branch build for a Git commit
+- `sha-<12-character commit SHA>` → exact commit used for any published image build
 - `v2` → latest `v2.x.x` release
 - `v2.minor` → latest patch release for that minor version, e.g. `v2.7`
 - `v2.minor.patch` → exact version, e.g. `v2.7.0`

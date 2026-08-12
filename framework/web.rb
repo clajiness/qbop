@@ -68,8 +68,7 @@ module Framework
       @refresh_seconds = helpers.validate_refresh_interval(params['refresh'])
       @log_lines = helpers.validate_log_lines(params['lines'])
       @log_direction = helpers.format_log_direction(
-        params['direction'],
-        default_reverse: helpers.true?(helpers.env_variables[:log_reverse])
+        params['direction'], default_reverse: helpers.true?(helpers.env_variables[:log_reverse])
       )
       log_reverse = @log_direction == 'desc'
       @output = helpers.log_lines_to_a(@log_lines, log_reverse)
@@ -94,6 +93,7 @@ module Framework
       @app_version = helpers.app_version
       @app_commit = helpers.commit_sha
       @short_app_commit = helpers.short_commit_sha
+      @build_date = helpers.build_date
       @release_build = helpers.release_build?
       @main_build = helpers.main_build?
       @schema_version = helpers.get_db_version
