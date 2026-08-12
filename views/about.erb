@@ -34,18 +34,16 @@
   <% end %>
 </blockquote>
 
-<h4><em>commit</em></h4>
+<h4><em>image</em></h4>
 <blockquote>
+  commit:
   <% if @app_commit == 'unknown' %>
     <%= @short_app_commit %>
   <% else %>
     <a href="<%= @repo_url %>/commit/<%= @app_commit %>" target="_blank"><%= @short_app_commit %></a>
   <% end %>
-</blockquote>
-
-<h4><em>build date</em></h4>
-<blockquote>
-  <%= @build_date %>
+  <br>
+  built: <%= @build_date %>
 </blockquote>
 
 <h4><em>schema version</em></h4>
