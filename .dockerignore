@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.ruby-lsp
+.bundle
+data
+log
+spec
+tmp
+vendor
+**/.DS_Store
