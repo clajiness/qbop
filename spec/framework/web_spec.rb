@@ -59,8 +59,13 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.status).to eq(200)
     expect(response.body).to include('v2.7.0')
     expect(response.body).to match(
-      %r{<h4><em>build date</em></h4>\s*<blockquote>\s*unknown\s*</blockquote>}
+      %r{<h4><em>image</em></h4>\s*<blockquote>\s*commit:\s*unknown\s*<br>\s*built: unknown\s*</blockquote>}
     )
+    headings = response.body.scan(%r{<h4><em>(.*?)</em></h4>}).flatten
+    expect(headings.first(6)).to eq(
+      ['app version', 'image', 'schema version', 'ruby version', 'app uptime', 'github repo']
+    )
+    expect(headings).not_to include('commit', 'build date')
   end
 
   it 'renders main build identity without a release status' do
@@ -73,8 +78,14 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(200)
     expect(response.body).to include('tracking main')
-    expect(response.body).to include('0123456789ab')
-    expect(response.body).to include('2026-08-11T12:34:56Z')
+    expect(response.body.scan('<h4><em>image</em></h4>').length).to eq(1)
+    expect(response.body).to match(
+      %r{
+        <h4><em>image</em></h4>\s*
+        <blockquote>\s*commit:\s*<a [^>]+>0123456789ab</a>\s*
+        <br>\s*built:\s*2026-08-11T12:34:56Z\s*</blockquote>
+      }x
+    )
     expect(response.body).not_to include('an update is available')
   end
 
