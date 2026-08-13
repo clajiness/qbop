@@ -1,5 +1,7 @@
-module SpecDatabase
+module SpecDatabase # rubocop:disable Metrics/ModuleLength
   CLEANUP_TABLES = %i[
+    account_password_hashes
+    accounts
     port_transitions
     counters
     stats
@@ -84,6 +86,21 @@ module SpecDatabase
       Boolean :qbit_skipped, default: false, null: false
 
       index :detected_at
+    end
+
+    DB.create_table(:accounts) do
+      primary_key :id, type: :Bignum
+      String :email, null: false, collate: :nocase
+      Integer :single_account_key, null: false, default: 1
+
+      check(single_account_key: 1)
+      index :email, unique: true
+      index :single_account_key, unique: true
+    end
+
+    DB.create_table(:account_password_hashes) do
+      foreign_key :id, :accounts, primary_key: true, type: :Bignum, on_delete: :cascade
+      String :password_hash, null: false
     end
   end
 

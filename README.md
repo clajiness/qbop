@@ -75,6 +75,16 @@ Pull requests are built without publishing an image. Main-branch builds identify
 | `BASIC_AUTH_USER` | `admin` | Set basic auth username |
 | `BASIC_AUTH_PASS` | `admin` | Set basic auth password |
 
+## Authentication development status
+
+qbop now includes a Rodauth foundation for the browser authentication planned for qbop 3.0. Rodauth is integrated as a small Roda middleware in front of the existing Sinatra web UI and Grape API, but Rodauth sessions do not protect either application yet. Existing HTTP Basic Authentication remains the active optional authentication mechanism and its environment variables are unchanged.
+
+The authentication schema deliberately supports one administrator account. A database check plus a unique fixed account key enforce that invariant even if account-creation attempts race. Public account creation and first-run setup are not available; the Rodauth account-creation feature is enabled only for internal provisioning and tests.
+
+Browser sessions use an encrypted `qbop.session` cookie with `HttpOnly` and `SameSite=Lax`. The persisted secret in `data/session_secret.txt` is generated automatically with restrictive permissions, so there is no new required configuration. Cookies are also marked `Secure` when Rack identifies the request as HTTPS, including through `X-Forwarded-Proto: https`; HTTPS reverse proxies must forward the original scheme.
+
+The first-run browser setup flow and revocable API keys will be implemented in later work. WebAuthn/passkeys remain a separate future enhancement.
+
 ## Usage
 ### Query Parameters
 The stats, logs, and history pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
