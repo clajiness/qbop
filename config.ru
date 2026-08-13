@@ -1,7 +1,10 @@
 require 'sucker_punch'
 require 'bundler/setup'
 Bundler.require(:default)
-Dir['./framework/*.rb'].sort.each { |file| require_relative file }
+# Rodauth reads the Sequel connection during setup, so its Roda app loads below.
+Dir['./framework/*.rb'].sort.reject { |file| file.end_with?('/authentication.rb') }.each do |file|
+  require_relative file
+end
 Dir['./jobs/*.rb'].sort.each { |file| require_relative file }
 Dir['./service/*.rb'].sort.each { |file| require_relative file }
 
@@ -14,24 +17,14 @@ Rake::Task['db:migrate'].invoke
 
 # connect to the database and load models
 DB = Sequel.connect('sqlite://data/qbop.sqlite3')
+require_relative './framework/authentication'
 Dir['./models/*.rb'].sort.each { |file| require_relative file }
 
 # seed tables if empty
 Service::Seed.new
 
-# enable basic auth if configured
-helpers = Service::Helpers.new
-if helpers.env_variables[:basic_auth_enabled] == 'true'
-  use Rack::Auth::Basic, 'Restricted Content' do |username, password|
-    username.eql?(helpers.env_variables[:basic_auth_user]) and password.eql?(helpers.env_variables[:basic_auth_pass])
-  end
-end
-
-# map sinatra and grape apps
-map '/' do
-  use Rack::Session::Cookie, secret: Framework::SessionSecret.load_or_create('data/session_secret.txt')
-  run Rack::Cascade.new([Framework::Web, Framework::API])
-end
+# build the web application; Basic Auth remains the active authentication layer
+run Framework::Application.build
 
 # start the job(s)
 Qbop.perform_async
