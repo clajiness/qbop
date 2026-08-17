@@ -126,7 +126,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(redirect_path(setup_response)).to eq('/')
     expect(home.status).to eq(200)
     expect(home.body).to include('protonvpn', 'action="/logout"', 'sign out')
-    expect(home.body).to match(%r{href="/about">about</a></li>\s*<li class="nav-logout-item">})
+    expect(home.body).to match(%r{href="/about">about</a></li>\s*<li>\s*<form action="/logout"})
     expect(DB[:accounts].count).to eq(1)
     expect(client.get('/setup').status).to eq(404)
   end

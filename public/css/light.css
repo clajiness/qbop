@@ -68,19 +68,27 @@ color: var(--primary-color);
 }
 
 .nav-logout-form {
-  display: inline;
   margin: 0;
+  width: 100%;
 }
 
 .nav-logout-button {
   appearance: none;
   background: transparent;
   border: 0;
-  color: var(--primary-color);
+  color: var(--secondary-color);
   cursor: pointer;
+  display: block;
   font: inherit;
+  line-height: inherit;
   margin: 0;
-  padding: 5px;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.nav-logout-button:hover {
+  color: inherit;
 }
 
 .history-table-wrapper {
