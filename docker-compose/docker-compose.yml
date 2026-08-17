@@ -32,9 +32,6 @@ services:
       - LOG_REVERSE=
       - LOG_TO_STDOUT=
       - WEB_AUTH_ENABLED=true
-      - BASIC_AUTH_ENABLED=
-      - BASIC_AUTH_USER=
-      - BASIC_AUTH_PASS=
 
 volumes:
   data:

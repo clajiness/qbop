@@ -7,6 +7,13 @@ module Framework
         DB[:accounts].count.zero? ? redirect('/setup') : authentication.require_authentication
       end
 
+      if request.post? && api_key_management_request?
+        authentication = request.env.fetch('rodauth')
+        halt 403 unless authentication.scope.valid_csrf?
+      end
+
+      headers 'Cache-Control' => 'no-store' if api_key_management_request?
+
       update = Notification.select(:info, :active).where(name: 'update_available').first
       @recent_tag = update&.info
       @update_available = Service::Helpers.new.release_build? && (update&.active || false)
@@ -42,6 +49,33 @@ module Framework
 
     get '/api-docs' do
       erb :api_docs
+    end
+
+    get '/api-keys' do
+      @new_api_key = request.session.delete(:new_api_key)
+      @api_key_error = request.session.delete(:api_key_error)
+      @api_keys = ApiKey.reverse_order(:created_at, :id).all
+
+      erb :api_keys
+    end
+
+    post '/api-keys' do
+      issued_key = ApiKey.issue(params['name'])
+      request.session[:new_api_key] = issued_key.token
+      redirect '/api-keys', 303
+    rescue ApiKey::InvalidName => e
+      request.session[:api_key_error] = e.message
+      redirect '/api-keys', 303
+    end
+
+    post '/api-keys/:id/delete' do
+      halt 404 unless params['id'].match?(/\A[1-9][0-9]*\z/)
+
+      api_key = ApiKey[params['id'].to_i]
+      halt 404 unless api_key
+
+      api_key.delete
+      redirect '/api-keys', 303
     end
 
     get '/tools' do
@@ -127,9 +161,6 @@ module Framework
       @qbit_pass = '***'
       @qbit_ssl_verify = helpers.true?(ENV['QBIT_SSL_VERIFY'])
       @web_auth_enabled = helpers.true?(helpers.env_variables[:web_auth_enabled])
-      @basic_auth_enabled = helpers.true?(ENV['BASIC_AUTH_ENABLED'])
-      @basic_auth_user = ENV['BASIC_AUTH_USER']
-      @basic_auth_pass = '***'
 
       @gemfile = helpers.gemfile_to_a
 
@@ -140,6 +171,10 @@ module Framework
 
     def public_asset_request?
       request.path_info.start_with?('/css/', '/images/')
+    end
+
+    def api_key_management_request?
+      request.path_info == '/api-keys' || request.path_info.start_with?('/api-keys/')
     end
 
     def web_auth_enabled?

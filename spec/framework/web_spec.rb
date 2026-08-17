@@ -69,6 +69,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       ['app version', 'image', 'schema version', 'ruby version', 'app uptime', 'github repo']
     )
     expect(headings).not_to include('commit', 'build date')
+    expect(response.body).not_to include('BASIC_AUTH_ENABLED', 'BASIC_AUTH_USER', 'BASIC_AUTH_PASS')
   end
 
   it 'renders main build identity without a release status' do

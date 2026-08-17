@@ -31,6 +31,31 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     expect(db.schema(:port_transitions).to_h[:detected_at][:type]).to eq(:datetime)
     expect(db.table_exists?(:accounts)).to eq(true)
     expect(db.table_exists?(:account_password_hashes)).to eq(true)
+    expect(db.table_exists?(:api_keys)).to eq(true)
+  end
+
+  it 'creates standalone API keys with unique digests and optional last use' do
+    db = Sequel.sqlite
+    run_migrations(db)
+    schema = db.schema(:api_keys).to_h
+
+    expect(schema).to include(
+      name: include(allow_null: false),
+      token_digest: include(allow_null: false),
+      token_prefix: include(allow_null: false),
+      created_at: include(type: :datetime, allow_null: false),
+      last_used_at: include(type: :datetime, allow_null: true)
+    )
+    expect(unique_index?(db, :api_keys, [:token_digest])).to eq(true)
+
+    attributes = {
+      name: 'automation', token_digest: 'digest', token_prefix: 'qbop_12345678', created_at: Time.now
+    }
+    db[:api_keys].insert(attributes)
+
+    expect { db[:api_keys].insert(attributes.merge(name: 'other')) }
+      .to raise_error(Sequel::UniqueConstraintViolation)
+    expect(db[:accounts].count).to eq(0)
   end
 
   it 'creates the minimal Rodauth schema with unique login and singleton indexes' do

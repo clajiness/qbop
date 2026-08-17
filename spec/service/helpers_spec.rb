@@ -27,9 +27,6 @@ HELPERS_SPEC_ENV_KEYS = %w[
   LOG_REVERSE
   LOG_TO_STDOUT
   WEB_AUTH_ENABLED
-  BASIC_AUTH_ENABLED
-  BASIC_AUTH_USER
-  BASIC_AUTH_PASS
 ].freeze
 
 RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
@@ -167,21 +164,6 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     context 'when web_auth_enabled is not set' do
       it 'returns web_auth_enabled as true' do
         expect(Service::Helpers.new.env_variables[:web_auth_enabled]).to eq('true')
-      end
-    end
-    context 'when basic_auth_enabled is not set' do
-      it 'returns basic_auth_enabled as false' do
-        expect(Service::Helpers.new.env_variables[:basic_auth_enabled]).to eq('false')
-      end
-    end
-    context 'when basic_auth_user is not set' do
-      it 'returns basic_auth_user as admin' do
-        expect(Service::Helpers.new.env_variables[:basic_auth_user]).to eq('admin')
-      end
-    end
-    context 'when basic_auth_pass is not set' do
-      it 'returns basic_auth_pass as admin' do
-        expect(Service::Helpers.new.env_variables[:basic_auth_pass]).to eq('admin')
       end
     end
   end

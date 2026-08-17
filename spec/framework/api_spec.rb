@@ -18,6 +18,11 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     JSON.parse(response.body)
   end
 
+  def api_get(path, token: @api_token, scheme: 'Bearer')
+    headers = token ? { 'HTTP_AUTHORIZATION' => "#{scheme} #{token}" } : {}
+    Rack::MockRequest.new(app).get(path, headers)
+  end
+
   around do |example|
     env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE]
     original_env = env_keys.to_h { |key| [key, ENV[key]] }
@@ -40,10 +45,48 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
         updated_at: Time.now
       )
     end
+    issued_key = ApiKey.issue('api spec')
+    @api_key = issued_key.api_key
+    @api_token = issued_key.token
+  end
+
+  it 'requires the same valid Bearer credential for every API endpoint' do
+    missing = api_get('/api/stats', token: nil)
+    invalid = api_get('/api/stats', token: "#{ApiKey::TOKEN_PREFIX}#{'0' * 64}")
+    basic = api_get('/api/stats', token: @api_token, scheme: 'Basic')
+
+    [missing, invalid, basic].each do |response|
+      expect(response.status).to eq(401)
+      expect(response_json(response)).to eq('error' => 'unauthorized')
+      expect(response['www-authenticate']).to eq('Bearer realm="qbop"')
+    end
+    expect(api_get('/api/stats').status).to eq(200)
+    expect(api_get('/api/health').status).to eq(200)
+  end
+
+  it 'updates last use only after successful authentication' do
+    expect(api_get('/api/health', token: nil).status).to eq(401)
+    expect(api_get('/api/health', token: "#{ApiKey::TOKEN_PREFIX}#{'0' * 64}").status).to eq(401)
+    expect(@api_key.refresh.last_used_at).to be_nil
+
+    expect(api_get('/api/health').status).to eq(200)
+    expect(@api_key.refresh.last_used_at).not_to be_nil
+  end
+
+  it 'supports independent keys and revokes only the deleted key' do
+    other = ApiKey.issue('other client')
+
+    expect(api_get('/api/stats').status).to eq(200)
+    expect(api_get('/api/stats', token: other.token).status).to eq(200)
+
+    @api_key.delete
+
+    expect(api_get('/api/stats').status).to eq(401)
+    expect(api_get('/api/stats', token: other.token).status).to eq(200)
   end
 
   it 'returns stats by source name' do
-    response = Rack::MockRequest.new(app).get('/api/stats')
+    response = api_get('/api/stats')
     body = response_json(response)
 
     expect(response.status).to eq(200)
@@ -52,7 +95,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   it 'returns healthy status when all services checked in recently' do
-    response = Rack::MockRequest.new(app).get('/api/health')
+    response = api_get('/api/health')
 
     expect(response.status).to eq(200)
     expect(response_json(response)['health'].values).to all(eq(200))
@@ -61,7 +104,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   it 'returns unhealthy status when any service is stale' do
     DB[:stats].where(source_id: Source[name: 'qbit'].id).update(last_checked: Time.now - 10_000)
 
-    response = Rack::MockRequest.new(app).get('/api/health')
+    response = api_get('/api/health')
 
     expect(response.status).to eq(503)
     expect(response_json(response).dig('health', 'qbit')).to eq(503)
@@ -71,14 +114,14 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     ENV['QBIT_SKIP'] = 'true'
     DB[:stats].where(source_id: Source[name: 'qbit'].id).update(last_checked: Time.now - 10_000)
 
-    response = Rack::MockRequest.new(app).get('/api/health')
+    response = api_get('/api/health')
 
     expect(response.status).to eq(200)
     expect(response_json(response).dig('health', 'qbit')).to eq('skipped')
   end
 
   it 'returns a default notification when no notification exists' do
-    response = Rack::MockRequest.new(app).get('/api/notifications')
+    response = api_get('/api/notifications')
 
     expect(response_json(response)['notifications']).to eq(
       'name' => 'update_available',
@@ -90,7 +133,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   it 'returns the update notification when it exists' do
     Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
 
-    response = Rack::MockRequest.new(app).get('/api/notifications')
+    response = api_get('/api/notifications')
 
     expect(response_json(response)['notifications']).to include('info' => 'v2.7.0', 'active' => true)
   end
@@ -98,13 +141,13 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   it 'returns public key tool output' do
     allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
 
-    response = Rack::MockRequest.new(app).get('/api/tools/pubkey?private-key=private-key')
+    response = api_get('/api/tools/pubkey?private-key=private-key')
 
     expect(response_json(response)['public_key']).to eq('public-key')
   end
 
   it 'returns unknown provider details for unsupported public IP providers' do
-    response = Rack::MockRequest.new(app).get('/api/tools/public-ip?service=invalid')
+    response = api_get('/api/tools/public-ip?service=invalid')
 
     expect(response_json(response)['public_ip']).to start_with('Unknown provider')
   end
@@ -112,7 +155,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   it 'returns log lines' do
     allow_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).and_return(["line one\n", "line two\n"])
 
-    response = Rack::MockRequest.new(app).get('/api/logs')
+    response = api_get('/api/logs')
 
     expect(response_json(response)['log_lines']).to eq(['line one', 'line two'])
   end
@@ -123,7 +166,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
       .with(500, true)
       .and_return(["line one\n", "line two\n"])
 
-    response = Rack::MockRequest.new(app).get('/api/logs?lines=500&direction=desc')
+    response = api_get('/api/logs?lines=500&direction=desc')
 
     expect(response_json(response)).to eq('log_lines' => ['line one', 'line two'])
   end
@@ -140,7 +183,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     end
     PortTransition.mark_synced('opnsense', 10_001, at: Time.at(30))
 
-    response = Rack::MockRequest.new(app).get('/api/history?page=2&per_page=25')
+    response = api_get('/api/history?page=2&per_page=25')
     body = response_json(response)
 
     expect(response.status).to eq(200)
@@ -170,7 +213,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
       qbit_skipped: false
     )
 
-    response = Rack::MockRequest.new(app).get('/api/history?page=999&per_page=500')
+    response = api_get('/api/history?page=999&per_page=500')
     pagination = response_json(response)['pagination']
 
     expect(pagination).to include(
@@ -184,7 +227,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     ENV['VERSION'] = 'v2.9.0'
     ENV['COMMIT_SHA'] = '0123456789abcdef'
     ENV['BUILD_DATE'] = '2026-08-11T12:34:56Z'
-    response = Rack::MockRequest.new(app).get('/api/about')
+    response = api_get('/api/about')
     body = response_json(response)
 
     expect(response.status).to eq(200)
@@ -193,5 +236,8 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(body.dig('about', 'build_date')).to eq('2026-08-11T12:34:56Z')
     expect(body.dig('about', 'schema_version')).to eq('unknown')
     expect(body.dig('env_variables', 'opn_ssl_verify')).to eq(false)
+    expect(body['env_variables'].keys).not_to include(
+      'basic_auth_enabled', 'basic_auth_user', 'basic_auth_pass'
+    )
   end
 end

@@ -1,5 +1,6 @@
 module SpecDatabase # rubocop:disable Metrics/ModuleLength
   CLEANUP_TABLES = %i[
+    api_keys
     account_password_hashes
     accounts
     port_transitions
@@ -9,6 +10,7 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
     sources
   ].freeze
   MODEL_FILES = %w[
+    api_key
     counter
     notification
     port_transition
@@ -102,6 +104,17 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
       foreign_key :id, :accounts, primary_key: true, type: :Bignum, on_delete: :cascade
       String :password_hash, null: false
     end
+
+    DB.create_table(:api_keys) do
+      primary_key :id
+      String :name, null: false
+      String :token_digest, null: false
+      String :token_prefix, null: false
+      DateTime :created_at, null: false
+      DateTime :last_used_at
+
+      index :token_digest, unique: true
+    end
   end
 
   def self.load_models
@@ -111,6 +124,7 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
   def self.set_datasets
     {
       Counter => :counters,
+      ApiKey => :api_keys,
       Notification => :notifications,
       PortTransition => :port_transitions,
       Source => :sources,
