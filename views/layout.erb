@@ -41,14 +41,6 @@
   </head>
   <body class="terminal">
     <div class="container">
-      <% authentication = request.env['rodauth'] %>
-      <% helpers = Service::Helpers.new %>
-      <% if authentication&.logged_in? && helpers.true?(helpers.env_variables[:web_auth_enabled]) %>
-      <form action="/logout" method="post" class="logout-control">
-        <%= authentication.csrf_tag('/logout') %>
-        <button class="btn btn-default btn-ghost" type="submit">sign out</button>
-      </form>
-      <% end %>
       <%= yield %>
     </div>
   </body>
