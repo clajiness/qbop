@@ -67,10 +67,20 @@ color: var(--primary-color);
   margin-bottom: 1rem;
 }
 
-.logout-control {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 1rem;
+.nav-logout-form {
+  display: inline;
+  margin: 0;
+}
+
+.nav-logout-button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--primary-color);
+  cursor: pointer;
+  font: inherit;
+  margin: 0;
+  padding: 5px;
 }
 
 .history-table-wrapper {
