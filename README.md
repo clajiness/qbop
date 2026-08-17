@@ -33,6 +33,7 @@ The container image is available [here](https://github.com/clajiness/qbop/pkgs/c
 Image tags are published as follows:
 - `latest` → most recent release
 - `main` → most recent build from the main branch
+- `<branch>` → most recent build from any pushed branch; invalid Docker tag characters such as `/` are replaced with `-`
 - `sha-<12-character commit SHA>` → exact commit used for any published image build
 - `v2` → latest `v2.x.x` release
 - `v2.minor` → latest patch release for that minor version, e.g. `v2.7`
