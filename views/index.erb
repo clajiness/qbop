@@ -43,7 +43,7 @@
 <h4><em>opnsense</em> <%= @opn_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
   <% if @opn_skip %>
-  skipped per the OPN_SKIP ENV variable
+  skipped per the OPN_SKIP env variable
   <% else %>
   current port: <%= @opn_stats.current_port %><br>
   last changed: <%= @opn_stats.updated_at || 'unknown' %><br>
@@ -55,7 +55,7 @@
 <h4><em>qbittorrent</em> <%= @qbit_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
   <% if @qbit_skip %>
-  skipped per the QBIT_SKIP ENV variable
+  skipped per the QBIT_SKIP env variable
   <% else %>
   current port: <%= @qbit_stats.current_port %><br>
   last changed: <%= @qbit_stats.updated_at || 'unknown' %><br>

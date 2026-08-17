@@ -86,7 +86,9 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     response = @client.get('/setup')
 
     expect(response.status).to eq(200)
-    expect(response.body).to include('Welcome to qbop', 'Create the administrator account', 'Create account')
+    expect(response.body).to include('welcome to qbop', 'create the administrator account')
+    expect(response.body).to include('>email</label>', '>password</label>', '>confirm password</label>')
+    expect(response.body).to include('value="create account"')
     expect(response.body).to include('name="login"', 'name="password"', 'name="password-confirm"')
     expect(response.body).not_to include('name="login-confirm"')
   end
@@ -170,7 +172,8 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     response = @client.get('/login')
 
     expect(response.status).to eq(200)
-    expect(response.body).to include('Sign in to qbop', 'name="login"', 'name="password"')
+    expect(response.body).to include('sign in to qbop', '>email</label>', '>password</label>')
+    expect(response.body).to include('name="login"', 'name="password"', 'value="sign in"')
     expect(response.body).not_to include('/setup')
   end
 
@@ -227,6 +230,8 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)
 
     logout_page = @client.get('/logout')
+    expect(logout_page.body).to include('sign out', 'value="sign out"')
+
     response = @client.post('/logout', _csrf: csrf_token(logout_page))
 
     expect(response.status).to eq(302)

@@ -453,6 +453,12 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
 
       expect(Service::Helpers.new.get_public_ip('opendns')).to eq("192.0.2.1\n")
     end
+
+    it 'returns a lowercase error when lookup fails' do
+      allow(Open3).to receive(:capture3).and_raise(StandardError)
+
+      expect(Service::Helpers.new.get_public_ip('akamai')).to eq('error retrieving public ip')
+    end
   end
 
   describe '#logger_instance' do

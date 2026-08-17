@@ -11,11 +11,21 @@ module Framework
       create_account_route 'setup'
       require_login_confirmation? false
 
-      login_label 'Email'
-      login_page_title 'Sign in to qbop'
-      login_button 'Sign in'
-      create_account_page_title 'Welcome to qbop'
-      create_account_button 'Create account'
+      login_label 'email'
+      password_label 'password'
+      password_confirm_label 'confirm password'
+      login_page_title 'sign in to qbop'
+      login_button 'sign in'
+      login_notice_flash 'you have been logged in'
+      login_error_flash 'there was an error logging in'
+      require_login_error_flash 'please login to continue'
+      create_account_page_title 'welcome to qbop'
+      create_account_button 'create account'
+      create_account_notice_flash 'your account has been created'
+      create_account_error_flash 'there was an error creating your account'
+      logout_page_title 'sign out'
+      logout_button 'sign out'
+      logout_notice_flash 'you have been logged out'
 
       before_login_route do
         helpers = Service::Helpers.new
