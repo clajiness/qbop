@@ -1,0 +1,12 @@
+<section class="auth-page">
+  <div class="logo terminal-prompt"><a href="/" class="no-style">qbop</a></div>
+  <h1>Sign in to qbop</h1>
+
+  <form method="post" class="auth-form" role="form" id="login-form">
+    <%= rodauth.login_additional_form_tags %>
+    <%= rodauth.csrf_tag %>
+    <%= rodauth.render('login-field') %>
+    <%= rodauth.render('password-field') %>
+    <%= rodauth.button(rodauth.login_button, class: 'btn btn-default') %>
+  </form>
+</section>

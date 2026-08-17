@@ -4,7 +4,7 @@ Bundler.require(:default)
 require 'rack/mock'
 require_relative '../../framework/session_middleware'
 
-RSpec.describe Framework::SessionMiddleware do
+RSpec.describe Framework::SessionMiddleware do # rubocop:disable Metrics/BlockLength
   let(:downstream_app) do
     lambda do |env|
       env.fetch('rack.session')['test'] = 'session-value'
@@ -13,6 +13,16 @@ RSpec.describe Framework::SessionMiddleware do
   end
 
   let(:app) { described_class.new(downstream_app, secret: 's' * 64) }
+
+  it 'configures encrypted sessions through the secrets option' do
+    http = app.instance_variable_get(:@http)
+    https = app.instance_variable_get(:@https)
+
+    expect(http.instance_variable_get(:@encryptors).length).to eq(1)
+    expect(https.instance_variable_get(:@encryptors).length).to eq(1)
+    expect(http.instance_variable_get(:@legacy_hmac_secret)).to be_nil
+    expect(https.instance_variable_get(:@legacy_hmac_secret)).to be_nil
+  end
 
   it 'uses HttpOnly SameSite=Lax cookies over HTTP' do
     cookie = Rack::MockRequest.new(app).get('/').get_header('set-cookie')

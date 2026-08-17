@@ -26,6 +26,7 @@ HELPERS_SPEC_ENV_KEYS = %w[
   LOG_LINES
   LOG_REVERSE
   LOG_TO_STDOUT
+  WEB_AUTH_ENABLED
   BASIC_AUTH_ENABLED
   BASIC_AUTH_USER
   BASIC_AUTH_PASS
@@ -161,6 +162,11 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
       end
       it 'does not return nil' do
         expect(Service::Helpers.new.env_variables[:log_to_stdout]).not_to eq(nil)
+      end
+    end
+    context 'when web_auth_enabled is not set' do
+      it 'returns web_auth_enabled as true' do
+        expect(Service::Helpers.new.env_variables[:web_auth_enabled]).to eq('true')
       end
     end
     context 'when basic_auth_enabled is not set' do

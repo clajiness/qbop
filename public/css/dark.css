@@ -52,6 +52,27 @@ color: var(--primary-color);
   gap: 0.5rem;
 }
 
+.auth-page {
+  margin: 4rem auto;
+  max-width: 32rem;
+}
+
+.auth-form {
+  border: 1px solid var(--font-color);
+  margin-top: 2rem;
+  padding: 1.5rem;
+}
+
+.auth-form .form-group {
+  margin-bottom: 1rem;
+}
+
+.logout-control {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
 .history-table-wrapper {
   overflow-x: auto;
 }

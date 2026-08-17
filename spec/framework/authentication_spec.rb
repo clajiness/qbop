@@ -20,7 +20,7 @@ class AuthenticationSessionClient
     record_cookie(@request.get(path, request_headers))
   end
 
-  def post(path, params)
+  def post(path, params = {})
     record_cookie(
       @request.post(
         path,
@@ -65,22 +65,90 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     end.to_app
   end
 
+  def create_account
+    described_class.rodauth.create_account(login: 'admin@example.com', password: 'correct horse battery staple')
+  end
+
+  around do |example|
+    web_auth_enabled = ENV['WEB_AUTH_ENABLED']
+    ENV.delete('WEB_AUTH_ENABLED')
+    example.run
+  ensure
+    web_auth_enabled.nil? ? ENV.delete('WEB_AUTH_ENABLED') : ENV['WEB_AUTH_ENABLED'] = web_auth_enabled
+  end
+
   before do
     SpecDatabase.reset!
-    described_class.rodauth.create_account(login: 'admin@example.com', password: 'correct horse battery staple')
     @client = AuthenticationSessionClient.new(build_app)
   end
 
-  it 'creates the single account internally with a bcrypt password hash' do
+  it 'renders a qbop-styled setup form with the intended fields' do
+    response = @client.get('/setup')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('Welcome to qbop', 'Create the administrator account', 'Create account')
+    expect(response.body).to include('name="login"', 'name="password"', 'name="password-confirm"')
+    expect(response.body).not_to include('name="login-confirm"')
+  end
+
+  it 'creates the single account, hashes its password, and authenticates the session' do
+    setup_page = @client.get('/setup')
+    response = @client.post(
+      '/setup',
+      login: 'admin@example.com',
+      password: 'correct horse battery staple',
+      'password-confirm': 'correct horse battery staple',
+      _csrf: csrf_token(setup_page)
+    )
     account = DB[:accounts].first
     password_hash = DB[:account_password_hashes].where(id: account[:id]).get(:password_hash)
 
+    expect(response.status).to eq(302)
+    expect(response['location']).to end_with('/')
     expect(account[:email]).to eq('admin@example.com')
     expect(password_hash).to start_with('$2')
     expect(password_hash).not_to include('correct horse battery staple')
+    expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)
   end
 
-  it 'rejects a second account through the internal Rodauth path' do
+  it 'rejects setup submissions without a route-specific CSRF token' do
+    response = @client.post(
+      '/setup',
+      login: 'admin@example.com',
+      password: 'correct horse battery staple',
+      'password-confirm': 'correct horse battery staple'
+    )
+
+    expect(response.status).to eq(403)
+    expect(DB[:accounts].count).to eq(0)
+  end
+
+  it 'returns 404 for setup GET and POST after provisioning' do
+    setup_page = @client.get('/setup')
+    setup_params = {
+      login: 'admin@example.com',
+      password: 'correct horse battery staple',
+      'password-confirm': 'correct horse battery staple',
+      _csrf: csrf_token(setup_page)
+    }
+    @client.post('/setup', setup_params)
+
+    expect(@client.get('/setup').status).to eq(404)
+    expect(@client.post('/setup', setup_params.merge(login: 'other@example.com')).status).to eq(404)
+    expect(DB[:accounts].count).to eq(1)
+  end
+
+  it 'returns 404 for setup GET and POST when web authentication is disabled' do
+    ENV['WEB_AUTH_ENABLED'] = 'false'
+
+    expect(@client.get('/setup').status).to eq(404)
+    expect(@client.post('/setup').status).to eq(404)
+    expect(DB[:accounts].count).to eq(0)
+  end
+
+  it 'keeps the database singleton protection effective for internal Rodauth requests' do
+    create_account
+
     expect do
       described_class.rodauth.create_account(login: 'other@example.com', password: 'another secure password')
     end.to raise_error(Rodauth::InternalRequestError)
@@ -89,31 +157,57 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     expect(DB[:account_password_hashes].count).to eq(1)
   end
 
-  it 'rejects an incorrect password without authenticating the session' do
-    login_page = @client.get('/auth/login')
-    response = @client.post(
-      '/auth/login',
-      login: 'admin@example.com', password: 'incorrect password', _csrf: csrf_token(login_page)
+  it 'redirects login to setup when no account exists' do
+    response = @client.get('/login')
+
+    expect(response.status).to eq(302)
+    expect(response['location']).to end_with('/setup')
+  end
+
+  it 'renders a qbop-styled login form after provisioning' do
+    create_account
+
+    response = @client.get('/login')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('Sign in to qbop', 'name="login"', 'name="password"')
+    expect(response.body).not_to include('/setup')
+  end
+
+  it 'rejects an incorrect password and an unknown login' do
+    create_account
+    login_page = @client.get('/login')
+    invalid_password = @client.post(
+      '/login', login: 'admin@example.com', password: 'incorrect password', _csrf: csrf_token(login_page)
+    )
+    login_page = @client.get('/login')
+    unknown_login = @client.post(
+      '/login', login: 'unknown@example.com', password: 'incorrect password', _csrf: csrf_token(login_page)
     )
 
-    expect(response.status).to eq(401)
-    expect(response.body).to include('invalid password')
+    expect(invalid_password.status).to eq(401)
+    expect(invalid_password.body).to include('invalid password')
+    expect(unknown_login.status).to eq(401)
+    expect(unknown_login.body).to include('no matching login')
     expect(@client.get('/auth-state').body).to eq('anonymous')
   end
 
   it 'rejects login submissions without a route-specific CSRF token' do
+    create_account
+
     response = @client.post(
-      '/auth/login', login: 'admin@example.com', password: 'correct horse battery staple'
+      '/login', login: 'admin@example.com', password: 'correct horse battery staple'
     )
 
     expect(response.status).to eq(403)
     expect(@client.get('/auth-state').body).to eq('anonymous')
   end
 
-  it 'authenticates the password and recognizes the session on a later request' do
-    login_page = @client.get('/auth/login')
+  it 'authenticates valid credentials and recognizes the session later' do
+    create_account
+    login_page = @client.get('/login')
     response = @client.post(
-      '/auth/login',
+      '/login',
       login: 'admin@example.com', password: 'correct horse battery staple', _csrf: csrf_token(login_page)
     )
 
@@ -121,17 +215,22 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)
   end
 
-  it 'logs out the authenticated session' do
-    login_page = @client.get('/auth/login')
+  it 'rejects logout without CSRF and invalidates the session after a valid logout' do
+    create_account
+    login_page = @client.get('/login')
     @client.post(
-      '/auth/login',
+      '/login',
       login: 'admin@example.com', password: 'correct horse battery staple', _csrf: csrf_token(login_page)
     )
-    logout_page = @client.get('/auth/logout')
 
-    response = @client.post('/auth/logout', _csrf: csrf_token(logout_page))
+    expect(@client.post('/logout').status).to eq(403)
+    expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)
+
+    logout_page = @client.get('/logout')
+    response = @client.post('/logout', _csrf: csrf_token(logout_page))
 
     expect(response.status).to eq(302)
+    expect(response['location']).to end_with('/login')
     expect(@client.get('/auth-state').body).to eq('anonymous')
   end
 end

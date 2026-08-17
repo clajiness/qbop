@@ -17,14 +17,17 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     version = ENV['VERSION']
     commit_sha = ENV['COMMIT_SHA']
     build_date = ENV['BUILD_DATE']
+    web_auth_enabled = ENV['WEB_AUTH_ENABLED']
     ENV.delete('VERSION')
     ENV.delete('COMMIT_SHA')
     ENV.delete('BUILD_DATE')
+    ENV['WEB_AUTH_ENABLED'] = 'false'
     example.run
   ensure
     version.nil? ? ENV.delete('VERSION') : ENV['VERSION'] = version
     commit_sha.nil? ? ENV.delete('COMMIT_SHA') : ENV['COMMIT_SHA'] = commit_sha
     build_date.nil? ? ENV.delete('BUILD_DATE') : ENV['BUILD_DATE'] = build_date
+    web_auth_enabled.nil? ? ENV.delete('WEB_AUTH_ENABLED') : ENV['WEB_AUTH_ENABLED'] = web_auth_enabled
   end
 
   before do
