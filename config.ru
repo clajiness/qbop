@@ -23,7 +23,7 @@ Dir['./models/*.rb'].sort.each { |file| require_relative file }
 # seed tables if empty
 Service::Seed.new
 
-# build the web application; Basic Auth remains the active authentication layer
+# build the web application with Rodauth for the UI and optional Basic Auth for the API
 run Framework::Application.build
 
 # start the job(s)

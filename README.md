@@ -71,19 +71,20 @@ Pull requests are built without publishing an image. Main-branch builds identify
 | `QBIT_USER` | | qBittorrent username. Used when `QBIT_API_KEY` is not set. |
 | `QBIT_PASS` | | qBittorrent password. Used when `QBIT_API_KEY` is not set. |
 | `QBIT_SSL_VERIFY` | `false` | [`true`/`false`] Verify qBittorrent TLS certificates. Defaults to `false` for self-signed/private deployments. |
-| `BASIC_AUTH_ENABLED` | `false` | Enable basic auth. If `true`, subsequent `BASIC_AUTH` variables are used. |
-| `BASIC_AUTH_USER` | `admin` | Set basic auth username |
-| `BASIC_AUTH_PASS` | `admin` | Set basic auth password |
+| `WEB_AUTH_ENABLED` | `true` | Require browser authentication for the web UI. Disable only if the UI is protected by another trusted access layer. |
+| `BASIC_AUTH_ENABLED` | `false` | Enable HTTP Basic Auth for the API. If `true`, the subsequent `BASIC_AUTH` variables are used. |
+| `BASIC_AUTH_USER` | `admin` | Set the API Basic Auth username. |
+| `BASIC_AUTH_PASS` | `admin` | Set the API Basic Auth password. |
 
 ## Authentication development status
 
-qbop now includes a Rodauth foundation for the browser authentication planned for qbop 3.0. Rodauth is integrated as a small Roda middleware in front of the existing Sinatra web UI and Grape API, but Rodauth sessions do not protect either application yet. Existing HTTP Basic Authentication remains the active optional authentication mechanism and its environment variables are unchanged.
+Browser authentication is enabled by default. On the first browser visit, qbop prompts you to create the single administrator account at `/setup`. Successful setup signs you in automatically. Subsequent visits require the administrator email and password at `/login`, and the web UI provides a sign-out control.
 
-The authentication schema deliberately supports one administrator account. A database check plus a unique fixed account key enforce that invariant even if account-creation attempts race. Public account creation and first-run setup are not available; the Rodauth account-creation feature is enabled only for internal provisioning and tests.
+The authentication schema deliberately supports one administrator account. A database check plus a unique fixed account key enforce that invariant even if setup attempts race. After the account is created, `/setup` is unavailable. Set `WEB_AUTH_ENABLED=false` to disable browser authentication; this also makes `/setup` unavailable and does not change API authentication.
 
 Browser sessions use an encrypted `qbop.session` cookie with `HttpOnly` and `SameSite=Lax`. The persisted secret in `data/session_secret.txt` is generated automatically with restrictive permissions, so there is no new required configuration. Cookies are also marked `Secure` when Rack identifies the request as HTTPS, including through `X-Forwarded-Proto: https`; HTTPS reverse proxies must forward the original scheme.
 
-The first-run browser setup flow and revocable API keys will be implemented in later work. WebAuthn/passkeys remain a separate future enhancement.
+During qbop 3.0 development, the Grape API continues to use the existing optional HTTP Basic Auth controlled by `BASIC_AUTH_ENABLED`, `BASIC_AUTH_USER`, and `BASIC_AUTH_PASS`. Its behavior and default-disabled setting are unchanged. API authentication will move to revocable API keys before the final qbop 3.0 release; WebAuthn/passkeys remain a separate future enhancement.
 
 ## Usage
 ### Query Parameters

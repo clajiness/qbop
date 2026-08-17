@@ -1,7 +1,12 @@
 module Framework
   # The Web class is a Sinatra application that provides qbop's web UI routes.
-  class Web < Sinatra::Application
+  class Web < Sinatra::Application # rubocop:disable Metrics/ClassLength
     before do
+      unless public_asset_request? || !web_auth_enabled?
+        authentication = request.env.fetch('rodauth')
+        DB[:accounts].count.zero? ? redirect('/setup') : authentication.require_authentication
+      end
+
       update = Notification.select(:info, :active).where(name: 'update_available').first
       @recent_tag = update&.info
       @update_available = Service::Helpers.new.release_build? && (update&.active || false)
@@ -121,6 +126,7 @@ module Framework
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
       @qbit_ssl_verify = helpers.true?(ENV['QBIT_SSL_VERIFY'])
+      @web_auth_enabled = helpers.true?(helpers.env_variables[:web_auth_enabled])
       @basic_auth_enabled = helpers.true?(ENV['BASIC_AUTH_ENABLED'])
       @basic_auth_user = ENV['BASIC_AUTH_USER']
       @basic_auth_pass = '***'
@@ -128,6 +134,17 @@ module Framework
       @gemfile = helpers.gemfile_to_a
 
       erb :about
+    end
+
+    private
+
+    def public_asset_request?
+      request.path_info.start_with?('/css/', '/images/')
+    end
+
+    def web_auth_enabled?
+      helpers = Service::Helpers.new
+      helpers.true?(helpers.env_variables[:web_auth_enabled])
     end
   end
 end

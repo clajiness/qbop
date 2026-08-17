@@ -12,8 +12,8 @@ module Framework
     }.freeze
 
     def initialize(app, secret:)
-      @http = Rack::Session::Cookie.new(app, **COOKIE_OPTIONS, secret: secret, secure: false)
-      @https = Rack::Session::Cookie.new(app, **COOKIE_OPTIONS, secret: secret, secure: true)
+      @http = Rack::Session::Cookie.new(app, **COOKIE_OPTIONS, secrets: [secret], secure: false)
+      @https = Rack::Session::Cookie.new(app, **COOKIE_OPTIONS, secrets: [secret], secure: true)
     end
 
     def call(env)
