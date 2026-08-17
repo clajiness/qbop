@@ -239,7 +239,7 @@ module Service
 
       stdout.empty? ? stderr&.tr('"', '') : stdout&.tr('"', '')
     rescue StandardError
-      'error retrieving public IP'
+      'error retrieving public ip'
     end
 
     def logger_instance
