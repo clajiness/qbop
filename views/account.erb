@@ -3,6 +3,11 @@
 
 <h4><em>account</em></h4>
 
+<% if @account_notice %>
+<div class="terminal-alert terminal-alert-primary" role="status"><%= Rack::Utils.escape_html(@account_notice) %></div>
+<br>
+<% end %>
+
 <% authentication = request.env.fetch('rodauth') %>
 <form action="/account/change-email" method="post">
   <fieldset>

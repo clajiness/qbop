@@ -252,6 +252,56 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(relogin.status).to eq(302)
   end
 
+  it 'shows the email-change notice once and not after a failed change' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    account_page = client.get('/account')
+    expect(account_page.body).not_to include('you have been logged in')
+    failed_change = client.post(
+      '/account/change-email',
+      login: 'new-admin@example.com',
+      password: 'incorrect password',
+      _csrf: csrf_token_for(account_page, '/account/change-email')
+    )
+
+    expect(failed_change.status).to eq(401)
+    expect(failed_change.body).not_to include('email changed successfully')
+    account_page = client.get('/account')
+    expect(account_page.body).not_to include('email changed successfully')
+
+    response = change_email(client, account_page)
+    expect(response.status).to eq(302)
+    expect(redirect_path(response)).to eq('/account')
+    expect(client.get('/account').body).to include('email changed successfully')
+    expect(client.get('/account').body).not_to include('email changed successfully')
+  end
+
+  it 'shows the password-change notice once and not after a failed change' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    account_page = client.get('/account')
+    failed_change = client.post(
+      '/account/change-password',
+      password: 'incorrect password',
+      'new-password': 'even better horse battery staple',
+      'password-confirm': 'even better horse battery staple',
+      _csrf: csrf_token_for(account_page, '/account/change-password')
+    )
+
+    expect(failed_change.status).to eq(401)
+    expect(failed_change.body).not_to include('password changed successfully')
+    account_page = client.get('/account')
+    expect(account_page.body).not_to include('password changed successfully')
+
+    response = change_password(client, account_page)
+    expect(response.status).to eq(302)
+    expect(redirect_path(response)).to eq('/account')
+    expect(client.get('/account').body).to include('password changed successfully')
+    expect(client.get('/account').body).not_to include('password changed successfully')
+  end
+
   it 'allows login, logout, and then requires login again' do
     create_account
     client = ApplicationSessionClient.new(app)

@@ -58,7 +58,11 @@ module Framework
     get '/account' do
       halt 404 unless web_auth_enabled?
 
-      @account_email = request.env.fetch('rodauth').account!.fetch(:email)
+      authentication = request.env.fetch('rodauth')
+      @account_email = authentication.account!.fetch(:email)
+      notice = authentication.flash.delete(authentication.flash_notice_key)
+      account_notices = [authentication.change_login_notice_flash, authentication.change_password_notice_flash]
+      @account_notice = notice if account_notices.include?(notice)
 
       erb :account
     end
