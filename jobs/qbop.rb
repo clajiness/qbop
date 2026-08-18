@@ -81,10 +81,11 @@ class Qbop # rubocop:disable Metrics/ClassLength
     uuid = @opnsense.get_alias_uuid
     alias_port = @opnsense.get_alias_value(uuid)
 
-    @opnsense_data.set_current_port(alias_port)
     @opnsense_data.set_last_checked if alias_port
 
     return apply_opnsense_changes(forwarded_port) if opnsense_apply_retry?(alias_port, forwarded_port)
+
+    @opnsense_data.set_current_port(alias_port)
     return unless sync_target_port(@opnsense_data, alias_port, forwarded_port, 'OPNsense', 'opnsense')
 
     update_opnsense_alias(forwarded_port, uuid)

@@ -41,6 +41,11 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     )
   end
 
+  def expect_opnsense_state(transition, source, status:, current_port:)
+    actual = [transition.refresh.sync_status('opnsense'), source.get_current_port]
+    expect(actual).to eq([status, current_port])
+  end
+
   it 'rejects invalid forwarded ports' do
     source_data = QbopSourceData.new(current_port: 1111, attempt_count: 0, changed: false)
 
@@ -236,8 +241,8 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
 
   it 'retries OPNsense apply after a saved alias is followed by an apply failure' do
     transition = record_transition
-    helpers = instance_double(Service::Helpers, true?: false)
     opnsense_source = Source.create(name: 'opnsense').tap(&:seed_tables)
+    opnsense_source.set_current_port(12_345)
     opnsense = double
     allow(opnsense).to receive(:get_alias_uuid).and_return('alias-uuid')
     allow(opnsense).to receive(:get_alias_value).and_return(12_345, 23_456, 23_456)
@@ -247,22 +252,37 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
       double(status: 500),
       double(status: 200)
     )
-    job.instance_variable_set(:@helpers, helpers)
+    job.instance_variable_set(:@helpers, instance_double(Service::Helpers, true?: false))
     job.instance_variable_set(:@config, { opnsense_skip: false, required_attempts: 1 })
     job.instance_variable_set(:@opnsense, opnsense)
     job.instance_variable_set(:@opnsense_data, opnsense_source)
 
     job.send(:handle_opnsense, 23_456)
-    expect(transition.refresh.sync_status('opnsense')).to eq('error')
+    expect_opnsense_state(transition, opnsense_source, status: 'error', current_port: 12_345)
 
     job.send(:handle_opnsense, 23_456)
-    expect(transition.refresh.sync_status('opnsense')).to eq('error')
+    expect_opnsense_state(transition, opnsense_source, status: 'error', current_port: 12_345)
 
     job.send(:handle_opnsense, 23_456)
-    expect(transition.refresh.sync_status('opnsense')).to eq('synced')
+    expect_opnsense_state(transition, opnsense_source, status: 'synced', current_port: 23_456)
     expect(transition.opnsense_error_at).to be_nil
     expect(opnsense).to have_received(:set_alias_value).once
     expect(opnsense).to have_received(:apply_changes).exactly(3).times
+  end
+
+  it 'updates OPNsense current port from a healthy matching alias read' do
+    transition = record_transition
+    opnsense_source = Source.create(name: 'opnsense').tap(&:seed_tables)
+    opnsense_source.set_current_port(12_345)
+    opnsense = double(get_alias_uuid: 'alias-uuid', get_alias_value: 23_456)
+    job.instance_variable_set(:@helpers, instance_double(Service::Helpers, true?: false))
+    job.instance_variable_set(:@config, { opnsense_skip: false, required_attempts: 1 })
+    job.instance_variable_set(:@opnsense, opnsense)
+    job.instance_variable_set(:@opnsense_data, opnsense_source)
+
+    job.send(:handle_opnsense, 23_456)
+
+    expect_opnsense_state(transition, opnsense_source, status: 'synced', current_port: 23_456)
   end
 
   it 'allows a matching qBit read to recover after a failed single-step write' do
