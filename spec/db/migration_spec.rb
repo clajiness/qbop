@@ -28,10 +28,33 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     expect(unique_source_id_index?(db, :stats)).to eq(true)
     expect(unique_source_id_index?(db, :counters)).to eq(true)
     expect(db.table_exists?(:port_transitions)).to eq(true)
-    expect(db.schema(:port_transitions).to_h[:detected_at][:type]).to eq(:datetime)
+    expect(db.schema(:port_transitions).to_h).to include(
+      detected_at: include(type: :datetime, allow_null: false),
+      opnsense_error_at: include(type: :datetime, allow_null: true),
+      qbit_error_at: include(type: :datetime, allow_null: true)
+    )
     expect(db.table_exists?(:accounts)).to eq(true)
     expect(db.table_exists?(:account_password_hashes)).to eq(true)
     expect(db.table_exists?(:api_keys)).to eq(true)
+  end
+
+  it 'adds nullable error timestamps without inferring errors for existing transitions' do
+    db = Sequel.sqlite
+    Sequel.extension :migration
+    Sequel::Migrator.run(db, 'db/migrate', target: 5)
+    transition_id = db[:port_transitions].insert(
+      previous_port: 12_345,
+      new_port: 23_456,
+      detected_at: Time.now,
+      opnsense_skipped: false,
+      qbit_skipped: false
+    )
+
+    run_migrations(db)
+
+    transition = db[:port_transitions][id: transition_id]
+    expect(transition[:opnsense_error_at]).to be_nil
+    expect(transition[:qbit_error_at]).to be_nil
   end
 
   it 'creates standalone API keys with unique digests and optional last use' do

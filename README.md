@@ -135,7 +135,7 @@ History UI and API parameters:
 | `page` | `1` | Page of port transitions to return. Pages beyond the available history use the final page. |
 | `per_page` | `25` | Number of transitions per page. Supported values are `25`, `50`, and `100`. |
 
-The history records only Proton port assignments. Fresh installations include the initial assignment; upgraded installations begin with the next port change. Each transition tracks whether OPNsense and qBittorrent are pending, synchronized, or skipped. Existing logs are not backfilled, and the oldest record is removed when a 501st transition is added.
+The history records only Proton port assignments. Fresh installations include the initial assignment; upgraded installations begin with the next port change. Each transition reports `pending`, `synced`, `error`, or `skipped` for OPNsense and qBittorrent. Pending means synchronization has not completed; error means the most recent synchronization write failed, with the detailed reason remaining in the logs. Existing logs are not backfilled, and the oldest record is removed when a 501st transition is added.
 
 Notes:
 - `refresh` only applies to the web UI.

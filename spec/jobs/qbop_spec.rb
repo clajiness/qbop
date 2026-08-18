@@ -32,6 +32,20 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     SpecDatabase.reset!
   end
 
+  def record_transition(port = 23_456)
+    PortTransition.record_transition(
+      previous_port: 12_345,
+      new_port: port,
+      opnsense_skipped: false,
+      qbit_skipped: false
+    )
+  end
+
+  def expect_opnsense_state(transition, source, status:, current_port:)
+    actual = [transition.refresh.sync_status('opnsense'), source.get_current_port]
+    expect(actual).to eq([status, current_port])
+  end
+
   it 'rejects invalid forwarded ports' do
     source_data = QbopSourceData.new(current_port: 1111, attempt_count: 0, changed: false)
 
@@ -180,5 +194,166 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     expect(source.get_current_port).to eq(23_456)
     expect(transition.refresh.opnsense_synced_at).to be_a(Time)
     expect(transition.sync_status('opnsense')).to eq('synced')
+  end
+
+  it 'records a qBit write failure without affecting a successful OPNsense result' do
+    transition = record_transition
+    qbit_source = Source.create(name: 'qbit')
+    qbit_source.seed_tables
+    opnsense_source = Source.create(name: 'opnsense')
+    opnsense_source.seed_tables
+    job.instance_variable_set(:@qbit, double(qbt_app_set_preferences: double(status: 500)))
+    job.instance_variable_set(:@qbit_data, qbit_source)
+    job.instance_variable_set(
+      :@opnsense,
+      double(set_alias_value: double(status: 200), apply_changes: double(status: 200))
+    )
+    job.instance_variable_set(:@opnsense_data, opnsense_source)
+
+    job.send(:update_qbit_port, 23_456)
+    job.send(:update_opnsense_alias, 23_456, 'alias-uuid')
+
+    expect(transition.refresh.sync_status('qbit')).to eq('error')
+    expect(transition.sync_status('opnsense')).to eq('synced')
+    expect(transition.qbit_synced_at).to be_nil
+    expect(transition.opnsense_error_at).to be_nil
+  end
+
+  { 'alias update' => [500, 200], 'apply' => [200, 500] }.each do |stage, statuses|
+    it "records an OPNsense error when the #{stage} response is unsuccessful" do
+      transition = record_transition
+      opnsense_source = Source.create(name: 'opnsense')
+      opnsense_source.seed_tables
+      opnsense = double(
+        set_alias_value: double(status: statuses.first),
+        apply_changes: double(status: statuses.last)
+      )
+      job.instance_variable_set(:@opnsense, opnsense)
+      job.instance_variable_set(:@opnsense_data, opnsense_source)
+
+      job.send(:update_opnsense_alias, 23_456, 'alias-uuid')
+
+      expect(transition.refresh.sync_status('opnsense')).to eq('error')
+      expect(transition.opnsense_synced_at).to be_nil
+      expect(transition.qbit_error_at).to be_nil
+    end
+  end
+
+  it 'retries OPNsense apply after a saved alias is followed by an apply failure' do
+    transition = record_transition
+    opnsense_source = Source.create(name: 'opnsense').tap(&:seed_tables)
+    opnsense_source.set_current_port(12_345)
+    opnsense = double
+    allow(opnsense).to receive(:get_alias_uuid).and_return('alias-uuid')
+    allow(opnsense).to receive(:get_alias_value).and_return(12_345, 23_456, 23_456)
+    allow(opnsense).to receive(:set_alias_value).and_return(double(status: 200))
+    allow(opnsense).to receive(:apply_changes).and_return(
+      double(status: 500),
+      double(status: 500),
+      double(status: 200)
+    )
+    job.instance_variable_set(:@helpers, instance_double(Service::Helpers, true?: false))
+    job.instance_variable_set(:@config, { opnsense_skip: false, required_attempts: 1 })
+    job.instance_variable_set(:@opnsense, opnsense)
+    job.instance_variable_set(:@opnsense_data, opnsense_source)
+
+    job.send(:handle_opnsense, 23_456)
+    expect_opnsense_state(transition, opnsense_source, status: 'error', current_port: 12_345)
+
+    job.send(:handle_opnsense, 23_456)
+    expect_opnsense_state(transition, opnsense_source, status: 'error', current_port: 12_345)
+
+    job.send(:handle_opnsense, 23_456)
+    expect_opnsense_state(transition, opnsense_source, status: 'synced', current_port: 23_456)
+    expect(transition.opnsense_error_at).to be_nil
+    expect(opnsense).to have_received(:set_alias_value).once
+    expect(opnsense).to have_received(:apply_changes).exactly(3).times
+  end
+
+  it 'updates OPNsense current port from a healthy matching alias read' do
+    transition = record_transition
+    opnsense_source = Source.create(name: 'opnsense').tap(&:seed_tables)
+    opnsense_source.set_current_port(12_345)
+    opnsense = double(get_alias_uuid: 'alias-uuid', get_alias_value: 23_456)
+    job.instance_variable_set(:@helpers, instance_double(Service::Helpers, true?: false))
+    job.instance_variable_set(:@config, { opnsense_skip: false, required_attempts: 1 })
+    job.instance_variable_set(:@opnsense, opnsense)
+    job.instance_variable_set(:@opnsense_data, opnsense_source)
+
+    job.send(:handle_opnsense, 23_456)
+
+    expect_opnsense_state(transition, opnsense_source, status: 'synced', current_port: 23_456)
+  end
+
+  it 'allows a matching qBit read to recover after a failed single-step write' do
+    transition = record_transition
+    helpers = instance_double(Service::Helpers, true?: false)
+    qbit_source = Source.create(name: 'qbit').tap(&:seed_tables)
+    qbit = double
+    allow(qbit).to receive(:qbt_app_preferences).and_return(12_345, 23_456)
+    allow(qbit).to receive(:qbt_app_set_preferences).and_return(double(status: 500))
+    job.instance_variable_set(:@helpers, helpers)
+    job.instance_variable_set(:@config, { qbit_skip: false, required_attempts: 1 })
+    job.instance_variable_set(:@qbit, qbit)
+    job.instance_variable_set(:@qbit_data, qbit_source)
+
+    job.send(:handle_qbit, 23_456)
+    expect(transition.refresh.sync_status('qbit')).to eq('error')
+
+    job.send(:handle_qbit, 23_456)
+    expect(transition.refresh.sync_status('qbit')).to eq('synced')
+    expect(transition.qbit_error_at).to be_nil
+    expect(qbit).to have_received(:qbt_app_set_preferences).once
+  end
+
+  it 'records exceptions raised by synchronization writes and reraises them for existing logging' do
+    transition = record_transition
+    qbit = double
+    allow(qbit).to receive(:qbt_app_set_preferences).and_raise(Faraday::Error)
+    job.instance_variable_set(:@qbit, qbit)
+
+    expect { job.send(:update_qbit_port, 23_456) }.to raise_error(Faraday::Error)
+
+    opnsense = double
+    allow(opnsense).to receive(:set_alias_value).and_raise(Faraday::Error)
+    job.instance_variable_set(:@opnsense, opnsense)
+
+    expect { job.send(:update_opnsense_alias, 23_456, 'alias-uuid') }.to raise_error(Faraday::Error)
+    expect(transition.refresh.sync_status('qbit')).to eq('error')
+    expect(transition.sync_status('opnsense')).to eq('error')
+  end
+
+  it 'does not record qBit read failures as synchronization errors' do
+    transition = record_transition
+    helpers = instance_double(Service::Helpers, true?: false)
+    qbit_source = Source.create(name: 'qbit')
+    qbit_source.seed_tables
+    qbit = double
+    allow(qbit).to receive(:qbt_app_preferences).and_raise(Faraday::Error)
+    job.instance_variable_set(:@helpers, helpers)
+    job.instance_variable_set(:@config, { qbit_skip: false, required_attempts: 2 })
+    job.instance_variable_set(:@qbit, qbit)
+    job.instance_variable_set(:@qbit_data, qbit_source)
+
+    job.send(:handle_qbit, 23_456)
+
+    expect(transition.refresh.sync_status('qbit')).to eq('pending')
+  end
+
+  it 'does not record OPNsense read failures as synchronization errors' do
+    transition = record_transition
+    helpers = instance_double(Service::Helpers, true?: false)
+    opnsense_source = Source.create(name: 'opnsense')
+    opnsense_source.seed_tables
+    opnsense = double
+    allow(opnsense).to receive(:get_alias_uuid).and_raise(Faraday::Error)
+    job.instance_variable_set(:@helpers, helpers)
+    job.instance_variable_set(:@config, { opnsense_skip: false, required_attempts: 2 })
+    job.instance_variable_set(:@opnsense, opnsense)
+    job.instance_variable_set(:@opnsense_data, opnsense_source)
+
+    job.send(:handle_opnsense, 23_456)
+
+    expect(transition.refresh.sync_status('opnsense')).to eq('pending')
   end
 end

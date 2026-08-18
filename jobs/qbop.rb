@@ -81,9 +81,11 @@ class Qbop # rubocop:disable Metrics/ClassLength
     uuid = @opnsense.get_alias_uuid
     alias_port = @opnsense.get_alias_value(uuid)
 
-    @opnsense_data.set_current_port(alias_port)
     @opnsense_data.set_last_checked if alias_port
 
+    return apply_opnsense_changes(forwarded_port) if opnsense_apply_retry?(alias_port, forwarded_port)
+
+    @opnsense_data.set_current_port(alias_port)
     return unless sync_target_port(@opnsense_data, alias_port, forwarded_port, 'OPNsense', 'opnsense')
 
     update_opnsense_alias(forwarded_port, uuid)
@@ -135,19 +137,27 @@ class Qbop # rubocop:disable Metrics/ClassLength
     false
   end
 
-  def update_opnsense_alias(forwarded_port, uuid) # rubocop:disable Metrics/MethodLength
-    response = @opnsense.set_alias_value(forwarded_port, uuid)
+  def update_opnsense_alias(forwarded_port, uuid)
+    response_status = perform_sync_write('opnsense', forwarded_port) do
+      @opnsense.set_alias_value(forwarded_port, uuid).status
+    end
 
-    if response.status != 200
-      @logger.error("OPNsense's alias was not updated - response code: #{response.status}")
+    if response_status != 200
+      PortTransition.mark_error('opnsense', forwarded_port)
+      @logger.error("OPNsense's alias was not updated - response code: #{response_status}")
       return
     end
 
     @logger.info("OPNsense alias has been updated to #{forwarded_port}")
-    changes = @opnsense.apply_changes
+    apply_opnsense_changes(forwarded_port)
+  end
 
-    if changes.status != 200
-      @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
+  def apply_opnsense_changes(forwarded_port)
+    changes_status = perform_sync_write('opnsense', forwarded_port) { @opnsense.apply_changes.status }
+
+    if changes_status != 200
+      PortTransition.mark_error('opnsense', forwarded_port)
+      @logger.error("OPNsense's change was not applied - response code: #{changes_status}")
       return
     end
 
@@ -155,11 +165,18 @@ class Qbop # rubocop:disable Metrics/ClassLength
     mark_source_updated(@opnsense_data, forwarded_port, 'opnsense')
   end
 
-  def update_qbit_port(forwarded_port)
-    response = @qbit.qbt_app_set_preferences(forwarded_port)
+  def opnsense_apply_retry?(alias_port, forwarded_port)
+    alias_port.to_i == forwarded_port.to_i && PortTransition.sync_error?('opnsense', forwarded_port)
+  end
 
-    if response.status != 200
-      @logger.error("qBit port was not updated - response code: #{response.status}")
+  def update_qbit_port(forwarded_port)
+    response_status = perform_sync_write('qbit', forwarded_port) do
+      @qbit.qbt_app_set_preferences(forwarded_port).status
+    end
+
+    if response_status != 200
+      PortTransition.mark_error('qbit', forwarded_port)
+      @logger.error("qBit port was not updated - response code: #{response_status}")
       return
     end
 
@@ -173,6 +190,13 @@ class Qbop # rubocop:disable Metrics/ClassLength
     source_data.set_current_port(forwarded_port)
     source_data.set_updated_at
     PortTransition.mark_synced(history_source, forwarded_port)
+  end
+
+  def perform_sync_write(history_source, forwarded_port)
+    yield
+  rescue StandardError
+    PortTransition.mark_error(history_source, forwarded_port)
+    raise
   end
 
   def record_port_transition(previous_port, new_port)

@@ -2,8 +2,16 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
   RETENTION_LIMIT = 500
   Page = Data.define(:records, :total_records, :current_page, :per_page, :total_pages, :from, :to)
   SYNC_COLUMNS = {
-    'opnsense' => :opnsense_synced_at,
-    'qbit' => :qbit_synced_at
+    'opnsense' => {
+      synced_at: :opnsense_synced_at,
+      error_at: :opnsense_error_at,
+      skipped: :opnsense_skipped
+    }.freeze,
+    'qbit' => {
+      synced_at: :qbit_synced_at,
+      error_at: :qbit_error_at,
+      skipped: :qbit_skipped
+    }.freeze
   }.freeze
 
   def self.record_transition(previous_port:, new_port:, opnsense_skipped:, qbit_skipped:, detected_at: Time.now)
@@ -19,13 +27,26 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
   end
 
   def self.mark_synced(source, port, at: Time.now)
-    column = SYNC_COLUMNS.fetch(source.to_s)
-    transition = where(new_port: port.to_i).order(Sequel.desc(:id)).first
+    columns = SYNC_COLUMNS.fetch(source.to_s)
+    transition = latest_for_port(port)
     return unless transition
-    return transition if transition.public_send(column)
+    return transition if transition.public_send(columns[:synced_at]) && !transition.public_send(columns[:error_at])
 
-    transition.update(column => at)
+    transition.update(columns[:synced_at] => at, columns[:error_at] => nil)
     transition
+  end
+
+  def self.mark_error(source, port, at: Time.now)
+    columns = SYNC_COLUMNS.fetch(source.to_s)
+    transition = latest_for_port(port)
+    return unless transition
+
+    transition.update(columns[:synced_at] => nil, columns[:error_at] => at)
+    transition
+  end
+
+  def self.sync_error?(source, port)
+    latest_for_port(port)&.sync_status(source) == 'error'
   end
 
   def self.paginate(page:, per_page:) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
@@ -47,12 +68,18 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
   end
 
   def sync_status(source)
-    source = source.to_s
-    return 'skipped' if public_send("#{source}_skipped")
-    return 'synced' if public_send("#{source}_synced_at")
+    columns = SYNC_COLUMNS.fetch(source.to_s)
+    return 'skipped' if public_send(columns[:skipped])
+    return 'synced' if public_send(columns[:synced_at])
+    return 'error' if public_send(columns[:error_at])
 
     'pending'
   end
+
+  def self.latest_for_port(port)
+    where(new_port: port.to_i).order(Sequel.desc(:id)).first
+  end
+  private_class_method :latest_for_port
 
   def self.normalize_previous_port(port)
     port = port.to_i

@@ -84,6 +84,8 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
       DateTime :detected_at, null: false
       DateTime :opnsense_synced_at
       DateTime :qbit_synced_at
+      DateTime :opnsense_error_at
+      DateTime :qbit_error_at
       Boolean :opnsense_skipped, default: false, null: false
       Boolean :qbit_skipped, default: false, null: false
 

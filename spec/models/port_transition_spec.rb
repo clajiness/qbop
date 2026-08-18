@@ -46,6 +46,66 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
     expect(newer.sync_status('opnsense')).to eq('synced')
   end
 
+  { 'opnsense' => 20_000, 'qbit' => 20_001 }.each do |source, port|
+    it "records the latest #{source} error and clears an earlier success" do
+      transition = described_class.record_transition(
+        previous_port: 12_345,
+        new_port: port,
+        opnsense_skipped: false,
+        qbit_skipped: false
+      )
+      synced_column = "#{source}_synced_at"
+      error_column = "#{source}_error_at"
+      expect(transition.sync_status(source)).to eq('pending')
+
+      described_class.mark_synced(source, port, at: Time.at(10))
+      described_class.mark_error(source, port, at: Time.at(20))
+      described_class.mark_error(source, port, at: Time.at(30))
+      transition.refresh
+
+      expect(transition.sync_status(source)).to eq('error')
+      expect(described_class.sync_error?(source, port)).to eq(true)
+      expect(transition.public_send(synced_column)).to be_nil
+      expect(transition.public_send(error_column)).to eq(Time.at(30))
+    end
+  end
+
+  it 'preserves skipped status for both integrations' do
+    transition = described_class.record_transition(
+      previous_port: 12_345,
+      new_port: 23_456,
+      opnsense_skipped: true,
+      qbit_skipped: true
+    )
+
+    expect(transition.sync_status('opnsense')).to eq('skipped')
+    expect(transition.sync_status('qbit')).to eq('skipped')
+  end
+
+  { 'opnsense' => 20_000, 'qbit' => 20_001 }.each do |source, port|
+    it "replaces an #{source} error with one stable successful retry timestamp" do
+      transition = described_class.record_transition(
+        previous_port: 12_345,
+        new_port: port,
+        opnsense_skipped: false,
+        qbit_skipped: false
+      )
+      synced_column = "#{source}_synced_at"
+      error_column = "#{source}_error_at"
+      described_class.mark_error(source, port, at: Time.at(10))
+
+      described_class.mark_synced(source, port, at: Time.at(20))
+      transition.refresh
+      expect(transition.sync_status(source)).to eq('synced')
+      expect(described_class.sync_error?(source, port)).to eq(false)
+      expect(transition.public_send(synced_column)).to eq(Time.at(20))
+      expect(transition.public_send(error_column)).to be_nil
+
+      described_class.mark_synced(source, port, at: Time.at(30))
+      expect(transition.refresh.public_send(synced_column)).to eq(Time.at(20))
+    end
+  end
+
   it 'retains only the newest 500 transitions' do
     501.times do |index|
       described_class.record_transition(
