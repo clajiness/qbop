@@ -172,6 +172,33 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('/history?page=2&per_page=25&refresh=0')
   end
 
+  it 'renders successful timestamps without redundant status text and labels other states' do
+    synced = PortTransition.record_transition(
+      previous_port: 12_345, new_port: 23_456, opnsense_skipped: false, qbit_skipped: false
+    )
+    errored = PortTransition.record_transition(
+      previous_port: 23_456, new_port: 34_567, opnsense_skipped: false, qbit_skipped: false
+    )
+    mixed = PortTransition.record_transition(
+      previous_port: 34_567, new_port: 45_678, opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.record_transition(
+      previous_port: 45_678, new_port: 56_789, opnsense_skipped: true, qbit_skipped: true
+    )
+    PortTransition.mark_synced('opnsense', synced.new_port, at: Time.at(10))
+    PortTransition.mark_synced('qbit', synced.new_port, at: Time.at(11))
+    PortTransition.mark_error('opnsense', errored.new_port, at: Time.at(12))
+    PortTransition.mark_synced('opnsense', mixed.new_port, at: Time.at(13))
+    PortTransition.mark_error('qbit', mixed.new_port, at: Time.at(14))
+
+    response = Rack::MockRequest.new(described_class).get('/history')
+
+    expect(response.body).to include("<td>#{synced.refresh.opnsense_synced_at}</td>")
+    expect(response.body).to include("<td>#{synced.qbit_synced_at}</td>")
+    expect(response.body).to include('<td>pending</td>', '<td>error</td>', '<td>skipped</td>')
+    expect(response.body).not_to match(%r{<td>\s*synced\s*</td>})
+  end
+
   it 'constrains invalid history pagination parameters' do
     PortTransition.record_transition(
       previous_port: 12_345,

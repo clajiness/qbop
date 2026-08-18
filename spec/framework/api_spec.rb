@@ -182,6 +182,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
       )
     end
     PortTransition.mark_synced('opnsense', 10_001, at: Time.at(30))
+    PortTransition.mark_error('qbit', 10_002, at: Time.at(31))
 
     response = api_get('/api/history?page=2&per_page=25')
     body = response_json(response)
@@ -195,6 +196,9 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
       'opnsense' => include('status' => 'synced'),
       'qbit' => include('status' => 'skipped')
     )
+    errored_transition = body['history'].find { |transition| transition['new_port'] == 10_002 }
+    expect(errored_transition['qbit']).to eq('status' => 'error', 'synced_at' => nil)
+    expect(errored_transition['qbit']).not_to have_key('error_at')
     expect(body['pagination']).to eq(
       'total_records' => 30,
       'current_page' => 2,

@@ -70,14 +70,8 @@
       <tr>
         <td><%= transition.detected_at %></td>
         <td><%= transition.previous_port || 'initial' %> &rarr; <%= transition.new_port %></td>
-        <td>
-          <%= transition.sync_status('opnsense') %>
-          <% if transition.opnsense_synced_at %><br><%= transition.opnsense_synced_at %><% end %>
-        </td>
-        <td>
-          <%= transition.sync_status('qbit') %>
-          <% if transition.qbit_synced_at %><br><%= transition.qbit_synced_at %><% end %>
-        </td>
+        <td><%= transition.opnsense_synced_at || transition.sync_status('opnsense') %></td>
+        <td><%= transition.qbit_synced_at || transition.sync_status('qbit') %></td>
       </tr>
       <% end %>
     </tbody>

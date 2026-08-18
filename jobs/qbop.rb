@@ -136,18 +136,22 @@ class Qbop # rubocop:disable Metrics/ClassLength
   end
 
   def update_opnsense_alias(forwarded_port, uuid) # rubocop:disable Metrics/MethodLength
-    response = @opnsense.set_alias_value(forwarded_port, uuid)
+    response_status = perform_sync_write('opnsense', forwarded_port) do
+      @opnsense.set_alias_value(forwarded_port, uuid).status
+    end
 
-    if response.status != 200
-      @logger.error("OPNsense's alias was not updated - response code: #{response.status}")
+    if response_status != 200
+      PortTransition.mark_error('opnsense', forwarded_port)
+      @logger.error("OPNsense's alias was not updated - response code: #{response_status}")
       return
     end
 
     @logger.info("OPNsense alias has been updated to #{forwarded_port}")
-    changes = @opnsense.apply_changes
+    changes_status = perform_sync_write('opnsense', forwarded_port) { @opnsense.apply_changes.status }
 
-    if changes.status != 200
-      @logger.error("OPNsense's change was not applied - response code: #{changes.status}")
+    if changes_status != 200
+      PortTransition.mark_error('opnsense', forwarded_port)
+      @logger.error("OPNsense's change was not applied - response code: #{changes_status}")
       return
     end
 
@@ -156,10 +160,13 @@ class Qbop # rubocop:disable Metrics/ClassLength
   end
 
   def update_qbit_port(forwarded_port)
-    response = @qbit.qbt_app_set_preferences(forwarded_port)
+    response_status = perform_sync_write('qbit', forwarded_port) do
+      @qbit.qbt_app_set_preferences(forwarded_port).status
+    end
 
-    if response.status != 200
-      @logger.error("qBit port was not updated - response code: #{response.status}")
+    if response_status != 200
+      PortTransition.mark_error('qbit', forwarded_port)
+      @logger.error("qBit port was not updated - response code: #{response_status}")
       return
     end
 
@@ -173,6 +180,13 @@ class Qbop # rubocop:disable Metrics/ClassLength
     source_data.set_current_port(forwarded_port)
     source_data.set_updated_at
     PortTransition.mark_synced(history_source, forwarded_port)
+  end
+
+  def perform_sync_write(history_source, forwarded_port)
+    yield
+  rescue StandardError
+    PortTransition.mark_error(history_source, forwarded_port)
+    raise
   end
 
   def record_port_transition(previous_port, new_port)
