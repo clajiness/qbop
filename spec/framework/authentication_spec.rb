@@ -69,6 +69,22 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     described_class.rodauth.create_account(login: 'admin@example.com', password: 'correct horse battery staple')
   end
 
+  def login(client = @client, email: 'admin@example.com', password: 'correct horse battery staple')
+    login_page = client.get('/login')
+    client.post('/login', login: email, password: password, _csrf: csrf_token(login_page))
+  end
+
+  def change_password(current:, new_password:, confirmation: new_password)
+    change_page = @client.get('/account/change-password')
+    @client.post(
+      '/account/change-password',
+      password: current,
+      'new-password': new_password,
+      'password-confirm': confirmation,
+      _csrf: csrf_token(change_page)
+    )
+  end
+
   around do |example|
     web_auth_enabled = ENV['WEB_AUTH_ENABLED']
     ENV.delete('WEB_AUTH_ENABLED')
@@ -208,23 +224,138 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
 
   it 'authenticates valid credentials and recognizes the session later' do
     create_account
-    login_page = @client.get('/login')
-    response = @client.post(
-      '/login',
-      login: 'admin@example.com', password: 'correct horse battery staple', _csrf: csrf_token(login_page)
-    )
+    response = login
 
     expect(response.status).to eq(302)
     expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)
   end
 
+  it 'changes the singleton account email and preserves the current session' do
+    create_account
+    login
+    account_id = DB[:accounts].get(:id)
+    change_page = @client.get('/account/change-email')
+    response = @client.post(
+      '/account/change-email',
+      login: 'new-admin@example.com',
+      password: 'correct horse battery staple',
+      _csrf: csrf_token(change_page)
+    )
+
+    expect(response.status).to eq(302)
+    expect(response['location']).to end_with('/account')
+    expect(DB[:accounts].all).to contain_exactly(include(id: account_id, email: 'new-admin@example.com'))
+    expect(@client.get('/auth-state').body).to eq("authenticated:#{account_id}")
+
+    fresh_client = AuthenticationSessionClient.new(build_app)
+    expect(login(fresh_client).status).to eq(401)
+    expect(login(fresh_client, email: 'new-admin@example.com').status).to eq(302)
+  end
+
+  it 'protects email changes with CSRF, validation, and the current password' do
+    create_account
+    login
+
+    expect(
+      @client.post(
+        '/account/change-email', login: 'new-admin@example.com', password: 'correct horse battery staple'
+      ).status
+    ).to eq(403)
+
+    change_page = @client.get('/account/change-email')
+    invalid_password = @client.post(
+      '/account/change-email',
+      login: 'new-admin@example.com',
+      password: 'incorrect password',
+      _csrf: csrf_token(change_page)
+    )
+    change_page = @client.get('/account/change-email')
+    invalid_email = @client.post(
+      '/account/change-email',
+      login: '',
+      password: 'correct horse battery staple',
+      _csrf: csrf_token(change_page)
+    )
+
+    expect(invalid_password.status).to eq(401)
+    expect(invalid_password.body).to include('invalid password')
+    expect(invalid_email.status).to eq(422)
+    expect(DB[:accounts].all).to contain_exactly(include(email: 'admin@example.com'))
+  end
+
+  it 'changes the password with Rodauth hashing and preserves the current session' do
+    create_account
+    login
+    account_id = DB[:accounts].get(:id)
+    old_hash = DB[:account_password_hashes].where(id: account_id).get(:password_hash)
+    response = change_password(
+      current: 'correct horse battery staple', new_password: 'even better horse battery staple'
+    )
+    new_hash = DB[:account_password_hashes].where(id: account_id).get(:password_hash)
+
+    expect(response.status).to eq(302)
+    expect(response['location']).to end_with('/account')
+    expect(new_hash).to start_with('$2')
+    expect(new_hash).not_to eq(old_hash)
+    expect(new_hash).not_to include('even better horse battery staple')
+    expect(@client.get('/auth-state').body).to eq("authenticated:#{account_id}")
+
+    fresh_client = AuthenticationSessionClient.new(build_app)
+    expect(login(fresh_client).status).to eq(401)
+    expect(login(fresh_client, password: 'even better horse battery staple').status).to eq(302)
+  end
+
+  it 'rejects password changes without a route-specific CSRF token' do
+    create_account
+    login
+
+    response = @client.post(
+      '/account/change-password',
+      password: 'correct horse battery staple',
+      'new-password': 'even better horse battery staple',
+      'password-confirm': 'even better horse battery staple'
+    )
+
+    expect(response.status).to eq(403)
+  end
+
+  it 'rejects password changes with an incorrect current password or mismatched confirmation' do
+    create_account
+    login
+
+    invalid_password = change_password(
+      current: 'incorrect password', new_password: 'even better horse battery staple'
+    )
+    mismatch = change_password(
+      current: 'correct horse battery staple',
+      new_password: 'even better horse battery staple',
+      confirmation: 'something else entirely'
+    )
+
+    expect(invalid_password.status).to eq(401)
+    expect(invalid_password.body).to include('invalid password')
+    expect(mismatch.status).to eq(422)
+    expect(mismatch.body).to include('passwords do not match')
+    password_valid = described_class.rodauth.valid_login_and_password?(
+      login: 'admin@example.com', password: 'correct horse battery staple'
+    )
+    expect(password_valid).to be(true)
+  end
+
+  it 'returns 404 for account-management routes when web authentication is disabled' do
+    create_account
+    ENV['WEB_AUTH_ENABLED'] = 'false'
+
+    expect(@client.get('/account').status).to eq(404)
+    expect(@client.get('/account/change-email').status).to eq(404)
+    expect(@client.post('/account/change-email').status).to eq(404)
+    expect(@client.get('/account/change-password').status).to eq(404)
+    expect(@client.post('/account/change-password').status).to eq(404)
+  end
+
   it 'rejects logout without CSRF and invalidates the session after a valid logout' do
     create_account
-    login_page = @client.get('/login')
-    @client.post(
-      '/login',
-      login: 'admin@example.com', password: 'correct horse battery staple', _csrf: csrf_token(login_page)
-    )
+    login
 
     expect(@client.post('/logout').status).to eq(403)
     expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)

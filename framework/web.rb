@@ -55,6 +55,14 @@ module Framework
       erb :api_docs
     end
 
+    get '/account' do
+      halt 404 unless web_auth_enabled?
+
+      @account_email = request.env.fetch('rodauth').account!.fetch(:email)
+
+      erb :account
+    end
+
     post '/api-docs/keys' do
       issued_key = ApiKey.issue(params['name'])
       request.session[:new_api_key] = issued_key.token

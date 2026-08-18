@@ -1,0 +1,50 @@
+<%= erb :_nav, locals: { active: nil }, layout: false %>
+<hr>
+
+<h4><em>account</em></h4>
+
+<% authentication = request.env.fetch('rodauth') %>
+<form action="/account/change-email" method="post">
+  <fieldset>
+    <legend>change email</legend>
+    <p>current email: <%= Rack::Utils.escape_html(@account_email) %></p>
+    <%= authentication.change_login_additional_form_tags %>
+    <%= authentication.csrf_tag('/account/change-email') %>
+    <div class="form-group">
+      <label for="login">new email</label>
+      <input id="login" name="login" type="email" autocomplete="email" required>
+    </div>
+    <div class="form-group">
+      <label for="change-email-password">current password</label>
+      <input id="change-email-password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="form-group">
+      <button class="btn btn-default btn-ghost" type="submit">change email</button>
+    </div>
+  </fieldset>
+</form>
+
+<br>
+
+<form action="/account/change-password" method="post">
+  <fieldset>
+    <legend>change password</legend>
+    <%= authentication.change_password_additional_form_tags %>
+    <%= authentication.csrf_tag('/account/change-password') %>
+    <div class="form-group">
+      <label for="change-password-current">current password</label>
+      <input id="change-password-current" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="form-group">
+      <label for="new-password">new password</label>
+      <input id="new-password" name="new-password" type="password" autocomplete="new-password" required>
+    </div>
+    <div class="form-group">
+      <label for="password-confirm">confirm password</label>
+      <input id="password-confirm" name="password-confirm" type="password" autocomplete="new-password" required>
+    </div>
+    <div class="form-group">
+      <button class="btn btn-default btn-ghost" type="submit">change password</button>
+    </div>
+  </fieldset>
+</form><br>

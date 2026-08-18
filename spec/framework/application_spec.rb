@@ -89,11 +89,30 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     )
   end
 
-  def login(client)
+  def login(client, email: 'admin@example.com', password: 'correct horse battery staple')
     login_page = client.get('/login')
     client.post(
       '/login',
-      login: 'admin@example.com', password: 'correct horse battery staple', _csrf: csrf_token(login_page)
+      login: email, password: password, _csrf: csrf_token(login_page)
+    )
+  end
+
+  def change_email(client, page, email: 'new-admin@example.com')
+    client.post(
+      '/account/change-email',
+      login: email,
+      password: 'correct horse battery staple',
+      _csrf: csrf_token_for(page, '/account/change-email')
+    )
+  end
+
+  def change_password(client, page, password: 'even better horse battery staple')
+    client.post(
+      '/account/change-password',
+      password: 'correct horse battery staple',
+      'new-password': password,
+      'password-confirm': password,
+      _csrf: csrf_token_for(page, '/account/change-password')
     )
   end
 
@@ -143,7 +162,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(redirect_path(setup_response)).to eq('/')
     expect(home.status).to eq(200)
     expect(home.body).to include('protonvpn', 'action="/logout"', 'sign out')
-    expect(home.body).to match(%r{href="/about">about</a></li>\s*<li>\s*<form action="/logout"})
+    expect(home.body).not_to include('href="/account"')
     expect(DB[:accounts].count).to eq(1)
     expect(client.get('/setup').status).to eq(404)
   end
@@ -155,6 +174,82 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(302)
     expect(redirect_path(response)).to eq('/login')
+  end
+
+  it 'provides a minimal account page only to authenticated users' do
+    create_account
+    anonymous = Rack::MockRequest.new(app)
+    anonymous_response = anonymous.get('/account')
+
+    expect(anonymous_response.status).to eq(302)
+    expect(redirect_path(anonymous_response)).to eq('/login')
+
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    account_page = client.get('/account')
+
+    expect(account_page.status).to eq(200)
+    expect(account_page.body).to include(
+      '<h4><em>account</em></h4>',
+      'current email: admin@example.com',
+      '<legend>change email</legend>',
+      '<legend>change password</legend>',
+      'action="/account/change-email"',
+      'action="/account/change-password"'
+    )
+    expect(account_page.body).not_to include('href="/account"')
+    expect(account_page.body).not_to include('style=')
+
+    about_page = client.get('/about')
+    expect(about_page.body).to include('<h4><em>account</em></h4>', 'href="/account"')
+    account_position = about_page.body.index('<h4><em>account</em></h4>')
+    environment_position = about_page.body.index('<h4><em>env variables</em></h4>')
+    expect(account_position).to be < environment_position
+  end
+
+  it 'renders the shared navigation with the current section active' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+
+    {
+      '/' => ['stats', '/'],
+      '/history' => ['history', '/history'],
+      '/api-docs' => ['api', '/api-docs'],
+      '/tools' => ['tools', '/tools'],
+      '/logs' => ['logs', '/logs'],
+      '/about' => ['about', '/about']
+    }.each do |path, (label, href)|
+      response = client.get(path)
+
+      expect(response.status).to eq(200)
+      expect(response.body.scan('<div class="terminal-nav">').length).to eq(1)
+      expect(response.body).to include("class=\"menu-item active\" href=\"#{href}\">#{label}</a>")
+    end
+  end
+
+  it 'changes both credentials while preserving the current browser session' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    account_page = client.get('/account')
+
+    email_response = change_email(client, account_page)
+    expect(email_response.status).to eq(302)
+    expect(redirect_path(email_response)).to eq('/account')
+
+    account_page = client.get('/account')
+    password_response = change_password(client, account_page)
+
+    expect(password_response.status).to eq(302)
+    expect(redirect_path(password_response)).to eq('/account')
+    expect(client.get('/account').body).to include('current email: new-admin@example.com')
+
+    account_page = client.get('/account')
+    logout_response = client.post('/logout', _csrf: csrf_token_for(account_page, '/logout'))
+    expect(logout_response.status).to eq(302)
+    relogin = login(client, email: 'new-admin@example.com', password: 'even better horse battery staple')
+    expect(relogin.status).to eq(302)
   end
 
   it 'allows login, logout, and then requires login again' do
@@ -195,12 +290,19 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     ENV['WEB_AUTH_ENABLED'] = 'false'
     request = Rack::MockRequest.new(app)
     home = request.get('/')
+    about = request.get('/about')
 
     expect(home.status).to eq(200)
     expect(home.body).not_to include('action="/logout"', 'sign out')
+    expect(about.body).not_to include('href="/account"', '<h4><em>account</em></h4>')
     expect(request.get('/history').status).to eq(200)
     expect(request.get('/setup').status).to eq(404)
     expect(request.post('/setup').status).to eq(404)
+    expect(request.get('/account').status).to eq(404)
+    expect(request.get('/account/change-email').status).to eq(404)
+    expect(request.post('/account/change-email').status).to eq(404)
+    expect(request.get('/account/change-password').status).to eq(404)
+    expect(request.post('/account/change-password').status).to eq(404)
     expect(DB[:accounts].count).to eq(0)
   end
 
@@ -215,9 +317,11 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
 
     ENV['WEB_AUTH_ENABLED'] = 'false'
     home = client.get('/')
+    about = client.get('/about')
 
     expect(home.status).to eq(200)
     expect(home.body).not_to include('action="/logout"', 'sign out')
+    expect(about.body).not_to include('href="/account"', '<h4><em>account</em></h4>')
   end
 
   it 'always requires an API key independently of browser authentication' do

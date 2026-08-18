@@ -76,11 +76,19 @@ Pull requests are built without publishing an image. Main-branch builds identify
 
 ## Authentication development status
 
-Browser authentication is enabled by default. On the first browser visit, qbop prompts you to create the single administrator account at `/setup`. Successful setup signs you in automatically. Subsequent visits require the administrator email and password at `/login`, and the web UI provides a sign-out control.
+Browser authentication is enabled by default. On the first browser visit, qbop prompts you to create the single administrator account at `/setup`. Successful setup signs you in automatically. Subsequent visits require the administrator email and password at `/login`, and the web UI provides a sign-out control. The About page links the authenticated administrator to `/account`, where they can change the login email or password; both changes require the current password and keep the current browser session active.
 
-The authentication schema deliberately supports one administrator account. A database check plus a unique fixed account key enforce that invariant even if setup attempts race. After the account is created, `/setup` is unavailable. Set `WEB_AUTH_ENABLED=false` to disable browser authentication; this also makes `/setup` unavailable and does not change API authentication.
+The authentication schema deliberately supports one administrator account. A database check plus a unique fixed account key enforce that invariant even if setup attempts race. After the account is created, `/setup` is unavailable. Set `WEB_AUTH_ENABLED=false` to disable browser authentication; this makes `/setup` and account management unavailable, hides the account and sign-out controls, and does not require a Rodauth account or change API authentication.
 
 Browser sessions use an encrypted `qbop.session` cookie with `HttpOnly` and `SameSite=Lax`. The persisted secret in `data/session_secret.txt` is generated automatically with restrictive permissions, so there is no new required configuration. Cookies are also marked `Secure` when Rack identifies the request as HTTPS, including through `X-Forwarded-Proto: https`; HTTPS reverse proxies must forward the original scheme.
+
+If the administrator password is lost, reset it from an interactive shell in the running Compose container:
+
+```bash
+docker exec -it qbop bundle exec rake user:reset-password
+```
+
+The command prompts twice without echoing the password, applies the same Rodauth password requirements and hashing used by the web UI, and changes the existing account only. It fails if no administrator account exists. If the container has a different name, replace `qbop` in the command.
 
 The Grape API always requires a valid qbop API key, independently of browser authentication. This includes `/api/health`, even when `WEB_AUTH_ENABLED=false`. Browser sessions and cookies are not accepted by API routes.
 
