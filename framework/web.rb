@@ -7,12 +7,12 @@ module Framework
         DB[:accounts].count.zero? ? redirect('/setup') : authentication.require_authentication
       end
 
-      if request.post? && api_key_management_request?
+      if request.post? && api_key_mutation_request?
         authentication = request.env.fetch('rodauth')
         halt 403 unless authentication.scope.valid_csrf?
       end
 
-      headers 'Cache-Control' => 'no-store' if api_key_management_request?
+      headers 'Cache-Control' => 'no-store' if api_docs_request?
 
       update = Notification.select(:info, :active).where(name: 'update_available').first
       @recent_tag = update&.info
@@ -48,34 +48,30 @@ module Framework
     end
 
     get '/api-docs' do
-      erb :api_docs
-    end
-
-    get '/api-keys' do
       @new_api_key = request.session.delete(:new_api_key)
       @api_key_error = request.session.delete(:api_key_error)
       @api_keys = ApiKey.reverse_order(:created_at, :id).all
 
-      erb :api_keys
+      erb :api_docs
     end
 
-    post '/api-keys' do
+    post '/api-docs/keys' do
       issued_key = ApiKey.issue(params['name'])
       request.session[:new_api_key] = issued_key.token
-      redirect '/api-keys', 303
+      redirect '/api-docs', 303
     rescue ApiKey::InvalidName => e
       request.session[:api_key_error] = e.message
-      redirect '/api-keys', 303
+      redirect '/api-docs', 303
     end
 
-    post '/api-keys/:id/delete' do
+    post '/api-docs/keys/:id/delete' do
       halt 404 unless params['id'].match?(/\A[1-9][0-9]*\z/)
 
       api_key = ApiKey[params['id'].to_i]
       halt 404 unless api_key
 
       api_key.delete
-      redirect '/api-keys', 303
+      redirect '/api-docs', 303
     end
 
     get '/tools' do
@@ -173,8 +169,12 @@ module Framework
       request.path_info.start_with?('/css/', '/images/')
     end
 
-    def api_key_management_request?
-      request.path_info == '/api-keys' || request.path_info.start_with?('/api-keys/')
+    def api_docs_request?
+      request.path_info == '/api-docs' || request.path_info.start_with?('/api-docs/')
+    end
+
+    def api_key_mutation_request?
+      request.path_info == '/api-docs/keys' || request.path_info.start_with?('/api-docs/keys/')
     end
 
     def web_auth_enabled?

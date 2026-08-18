@@ -278,36 +278,49 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(request.get('/api').status).to eq(404)
     expect(request.get('/api/missing').status).to eq(404)
     expect(request.get('/api/stats').status).to eq(401)
-    expect(request.get('/api-keys').status).to eq(200)
+    expect(request.get('/api-docs').status).to eq(200)
+    expect(request.get('/api-keys').status).to eq(404)
     expect(request.get('/apiculture').status).to eq(404)
   end
 
-  it 'requires login to manage API keys when web authentication is enabled' do
+  it 'consolidates API documentation and key management behind web authentication' do
     create_account
     client = ApplicationSessionClient.new(app)
 
-    response = client.get('/api-keys')
+    response = client.get('/api-docs')
     expect(response.status).to eq(302)
     expect(redirect_path(response)).to eq('/login')
 
     login(client)
-    response = client.get('/api-keys')
+    issued_key = ApiKey.issue('existing client')
+    response = client.get('/api-docs')
 
     expect(response.status).to eq(200)
-    expect(response.body).to include('api keys', 'create key')
+    expect(response.body).to include(
+      'endpoints', '/api/health', 'api keys', 'action="/api-docs/keys"', issued_key.api_key.token_prefix
+    )
+    endpoints_position = response.body.index('<h4><em>api endpoints</em></h4>')
+    keys_position = response.body.index('<h4><em>api keys</em></h4>')
+    expect(endpoints_position).to be < keys_position
+    expect(response.body.scan('href="/api-docs">api</a>').length).to eq(1)
+    expect(response.body).not_to include('href="/api-keys"', '>keys</a>')
+    expect(response.body).to include('<code>Authorization: Bearer qbop_...</code>')
+    expect(response.body).not_to match(%r{<code[^>]*>`|`</code>})
   end
 
   it 'creates an API key with CSRF and displays its secret exactly once' do
     create_account
     client = ApplicationSessionClient.new(app)
     login(client)
-    page = client.get('/api-keys')
+    page = client.get('/api-docs')
 
-    expect(client.post('/api-keys', name: 'home assistant').status).to eq(403)
+    expect(client.post('/api-docs/keys', name: 'home assistant').status).to eq(403)
     expect(ApiKey.count).to eq(0)
 
-    creation = client.post('/api-keys', name: 'home assistant', _csrf: csrf_token_for(page, '/api-keys'))
+    creation_path = '/api-docs/keys'
+    creation = client.post(creation_path, name: 'home assistant', _csrf: csrf_token_for(page, creation_path))
     expect(creation.status).to eq(303)
+    expect(redirect_path(creation)).to eq('/api-docs')
 
     secret_page = client.get(redirect_path(creation))
     token = secret_page.body[/qbop_[0-9a-f]{64}/]
@@ -322,7 +335,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(api_key.values.values).not_to include(token)
     expect(creation['set-cookie']).not_to include(token)
 
-    later_page = client.get('/api-keys')
+    later_page = client.get('/api-docs')
     expect(later_page.body).to include("#{api_key.token_prefix}...")
     expect(later_page.body).not_to include(token)
   end
@@ -330,15 +343,16 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
   it 'rejects empty names and escapes key names in the list' do
     ENV['WEB_AUTH_ENABLED'] = 'false'
     client = ApplicationSessionClient.new(app)
-    page = client.get('/api-keys')
-    response = client.post('/api-keys', name: '   ', _csrf: csrf_token_for(page, '/api-keys'))
+    page = client.get('/api-docs')
+    creation_path = '/api-docs/keys'
+    response = client.post(creation_path, name: '   ', _csrf: csrf_token_for(page, creation_path))
     error_page = client.get(redirect_path(response))
 
     expect(error_page.body).to include('name is required')
     expect(ApiKey.count).to eq(0)
 
     name = '<script>alert(1)</script>'
-    response = client.post('/api-keys', name: name, _csrf: csrf_token_for(error_page, '/api-keys'))
+    response = client.post(creation_path, name: name, _csrf: csrf_token_for(error_page, creation_path))
     key_page = client.get(redirect_path(response))
 
     expect(key_page.body).to include('&lt;script&gt;alert(1)&lt;/script&gt;')
@@ -350,9 +364,10 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     client = ApplicationSessionClient.new(app)
     first = ApiKey.issue('first client')
     second = ApiKey.issue('second client')
-    page = client.get('/api-keys')
-    delete_path = "/api-keys/#{first.api_key.id}/delete"
+    page = client.get('/api-docs')
+    delete_path = "/api-docs/keys/#{first.api_key.id}/delete"
 
+    expect(client.get(delete_path).status).to eq(404)
     expect(client.post(delete_path).status).to eq(403)
     expect(ApiKey[first.api_key.id]).not_to be_nil
 
@@ -360,10 +375,21 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     request = Rack::MockRequest.new(app)
 
     expect(response.status).to eq(303)
+    expect(redirect_path(response)).to eq('/api-docs')
     expect(ApiKey[first.api_key.id]).to be_nil
     expect(ApiKey[second.api_key.id]).not_to be_nil
+    expect(client.get('/api-docs').body).not_to include('first client')
     expect(request.get('/api/stats', bearer_auth(first.token)).status).to eq(401)
     expect(request.get('/api/stats', bearer_auth(second.token)).status).to eq(200)
+  end
+
+  it 'does not expose the former API-key page or mutation routes' do
+    ENV['WEB_AUTH_ENABLED'] = 'false'
+    request = Rack::MockRequest.new(app)
+
+    expect(request.get('/api-keys').status).to eq(404)
+    expect(request.post('/api-keys').status).to eq(404)
+    expect(request.post('/api-keys/1/delete').status).to eq(404)
   end
 
   it 'does not expose the former authentication routes' do

@@ -7,7 +7,6 @@
       <li><a class="menu-item" href="/">stats</a></li>
       <li><a class="menu-item" href="/history">history</a></li>
       <li><a class="menu-item active" href="/api-docs">api</a></li>
-      <li><a class="menu-item" href="/api-keys">keys</a></li>
       <li><a class="menu-item" href="/tools">tools</a></li>
       <li><a class="menu-item" href="/logs">logs</a></li>
       <li><a class="menu-item" href="/about">about</a></li>
@@ -22,7 +21,7 @@
 
 <section>
   <h4><em>api endpoints</em></h4>
-  <p>all api requests require an api key using <code>Authorization: Bearer qbop_...</code>.</p>
+
   <ul>
     <li>GET <a class="menu-item" href="/api/stats" target="_blank">/api/stats</a></li>
     <li>
@@ -46,4 +45,80 @@
     <li>GET <a class="menu-item" href="/api/health" target="_blank">/api/health</a></li>
     <li>GET <a class="menu-item" href="/api/notifications" target="_blank">/api/notifications</a></li>
   </ul>
+
+  <br>
+
+  <fieldset>
+    <legend>authentication</legend>
+    <p>all api requests require an api key.</p>
+    <p>send the key in the authorization header:</p>
+    <p><code>Authorization: Bearer qbop_...</code></p>
+    <p>create and revoke api keys below. new keys are shown only once.</p>
+  </fieldset>
+</section>
+
+<hr>
+
+<section>
+  <h4><em>api keys</em></h4>
+  <p>create and revoke credentials used to access the api.</p>
+
+  <% if @new_api_key %>
+  <div class="terminal-alert terminal-alert-primary">
+    copy this api key now. it will not be shown again.<br>
+    <code><%= @new_api_key %></code>
+  </div>
+  <br>
+  <% end %>
+
+  <% if @api_key_error %>
+  <div class="terminal-alert terminal-alert-error"><%= Rack::Utils.escape_html(@api_key_error) %></div>
+  <br>
+  <% end %>
+
+  <form action="/api-docs/keys" method="post">
+    <fieldset>
+      <legend>create api key</legend>
+      <%= request.env.fetch('rodauth').csrf_tag('/api-docs/keys') %>
+      <div class="form-group">
+        <label for="name">name</label>
+        <input id="name" name="name" type="text" maxlength="<%= ApiKey::MAX_NAME_LENGTH %>" autocomplete="off" required>
+      </div>
+      <div class="form-group">
+        <button class="btn btn-default btn-ghost" type="submit">create api key</button>
+      </div>
+    </fieldset>
+  </form>
+
+  <% if @api_keys.empty? %>
+  <blockquote>no api keys have been created yet</blockquote>
+  <% else %>
+  <table>
+    <thead>
+      <tr>
+        <th>name</th>
+        <th>key</th>
+        <th>created</th>
+        <th>last used</th>
+        <th>action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @api_keys.each do |api_key| %>
+      <tr>
+        <td><%= Rack::Utils.escape_html(api_key.name) %></td>
+        <td><code><%= api_key.token_prefix %>...</code></td>
+        <td><%= api_key.created_at %></td>
+        <td><%= api_key.last_used_at || 'never' %></td>
+        <td>
+          <form action="/api-docs/keys/<%= api_key.id %>/delete" method="post">
+            <%= request.env.fetch('rodauth').csrf_tag("/api-docs/keys/#{api_key.id}/delete") %>
+            <button class="btn btn-default btn-ghost" type="submit">revoke</button>
+          </form>
+        </td>
+      </tr>
+      <% end %>
+    </tbody>
+  </table>
+  <% end %>
 </section>

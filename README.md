@@ -86,18 +86,19 @@ The Grape API always requires a valid qbop API key, independently of browser aut
 
 To configure an API client:
 
-1. Sign in to qbop and open **keys** in the navigation.
-2. Create a named API key.
-3. Copy the complete `qbop_...` value immediately.
-4. Send it in the `Authorization` header:
+1. Sign in to qbop and open **api** in the navigation.
+2. Review the endpoint documentation and scroll to **api keys**.
+3. Create a named API key.
+4. Copy the complete `qbop_...` value immediately.
+5. Send it in the `Authorization` header:
 
    ```text
    Authorization: Bearer qbop_xxxxxxxxx
    ```
 
-5. Revoke the old key from the same page when it is no longer needed.
+6. Revoke the old key from the same page when it is no longer needed.
 
-API keys are shown only once and cannot be recovered later. Create a replacement before revoking a key when rotating client credentials. When web authentication is disabled, the key-management page is accessible with the rest of the web UI; protect that UI with a trusted external access layer.
+API keys are shown only once and cannot be recovered later. Create a replacement before revoking a key when rotating client credentials. When web authentication is disabled, the API page and its key-management section are accessible with the rest of the web UI; protect that UI with a trusted external access layer.
 
 Upgrading to qbop 3.0 removes inbound HTTP Basic Authentication. Existing API clients must create and adopt an API key before they can access any `/api` endpoint.
 

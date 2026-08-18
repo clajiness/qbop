@@ -93,12 +93,8 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).not_to include('an update is available')
   end
 
-  it 'renders tools and API docs pages' do
+  it 'renders the tools page' do
     expect(Rack::MockRequest.new(described_class).get('/tools').status).to eq(200)
-    api_docs_response = Rack::MockRequest.new(described_class).get('/api-docs')
-
-    expect(api_docs_response.status).to eq(200)
-    expect(api_docs_response.body).to include('/api/history?page=1&amp;per_page=25')
   end
 
   it 'renders public key tool results' do
@@ -164,6 +160,11 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('showing 26&ndash;30 of 30 transitions, newest first')
     expect(response.body).to include('page 2 of 2')
     expect(response.body).to include('previous')
+    expect(response.body).to include(
+      '<span class="pagination-current" aria-current="page"><span aria-hidden="true">[</span>2' \
+      '<span aria-hidden="true">]</span></span>'
+    )
+    expect(response.body).to include('<a class="pagination-link" href="/history?page=1')
     expect(response.body).to include('skipped')
     expect(response.body).to include('value="25" selected')
     expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
@@ -185,5 +186,29 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('showing 1&ndash;1 of 1 transitions')
     expect(response.body).to include('page 1 of 1')
     expect(response.body).to include('value="25" selected')
+  end
+
+  it 'windows long pagination while keeping nearby, first, and last pages' do
+    500.times do |index|
+      PortTransition.create(
+        previous_port: index + 10_000,
+        new_port: index + 10_001,
+        detected_at: Time.at(index),
+        opnsense_skipped: false,
+        qbit_skipped: false
+      )
+    end
+
+    response = Rack::MockRequest.new(described_class).get('/history?page=10&per_page=25')
+
+    expect(response.status).to eq(200)
+    expect(response.body.scan('class="pagination-gap"').length).to eq(2)
+    expect(response.body).to include('href="/history?page=1&', 'href="/history?page=8&', 'href="/history?page=9&')
+    expect(response.body).to include('href="/history?page=11&', 'href="/history?page=12&', 'href="/history?page=20&')
+    expect(response.body).to include(
+      '<span class="pagination-current" aria-current="page"><span aria-hidden="true">[</span>10' \
+      '<span aria-hidden="true">]</span></span>'
+    )
+    expect(response.body).not_to include('href="/history?page=7&', 'href="/history?page=13&')
   end
 end

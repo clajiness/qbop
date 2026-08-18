@@ -7,7 +7,6 @@
       <li><a class="menu-item active" href="/">stats</a></li>
       <li><a class="menu-item" href="/history">history</a></li>
       <li><a class="menu-item" href="/api-docs">api</a></li>
-      <li><a class="menu-item" href="/api-keys">keys</a></li>
       <li><a class="menu-item" href="/tools">tools</a></li>
       <li><a class="menu-item" href="/logs">logs</a></li>
       <li><a class="menu-item" href="/about">about</a></li>
@@ -22,14 +21,18 @@
 
 <button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
 
-<form action="/" method="get" class="control-panel">
-  <label for="refresh">auto-refresh</label>
-  <span class="control-row">
-    <input id="refresh" name="refresh" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="3600" value="<%= @refresh_seconds %>">
-    <span>sec</span>
-    <button class="btn btn-default btn-ghost" type="submit">apply</button>
-    <a class="btn btn-default btn-ghost" href="/?refresh=0">off</a>
-  </span>
+<form action="/" method="get">
+  <fieldset>
+    <legend>stats controls</legend>
+    <div class="form-group">
+      <label for="refresh">auto-refresh (seconds)</label>
+      <input id="refresh" name="refresh" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="3600" value="<%= @refresh_seconds %>">
+    </div>
+    <div class="form-group">
+      <button class="btn btn-default btn-ghost" type="submit">apply</button>
+      <a class="btn btn-default btn-ghost" href="/?refresh=0">off</a>
+    </div>
+  </fieldset>
 </form>
 <hr>
 
