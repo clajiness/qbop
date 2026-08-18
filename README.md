@@ -73,9 +73,6 @@ Pull requests are built without publishing an image. Main-branch builds identify
 | `QBIT_PASS` | | qBittorrent password. Used when `QBIT_API_KEY` is not set. |
 | `QBIT_SSL_VERIFY` | `false` | [`true`/`false`] Verify qBittorrent TLS certificates. Defaults to `false` for self-signed/private deployments. |
 | `WEB_AUTH_ENABLED` | `true` | Require browser authentication for the web UI. Disable only if the UI is protected by another trusted access layer. |
-| `BASIC_AUTH_ENABLED` | `false` | Enable HTTP Basic Auth for the API. If `true`, the subsequent `BASIC_AUTH` variables are used. |
-| `BASIC_AUTH_USER` | `admin` | Set the API Basic Auth username. |
-| `BASIC_AUTH_PASS` | `admin` | Set the API Basic Auth password. |
 
 ## Authentication development status
 
@@ -85,7 +82,25 @@ The authentication schema deliberately supports one administrator account. A dat
 
 Browser sessions use an encrypted `qbop.session` cookie with `HttpOnly` and `SameSite=Lax`. The persisted secret in `data/session_secret.txt` is generated automatically with restrictive permissions, so there is no new required configuration. Cookies are also marked `Secure` when Rack identifies the request as HTTPS, including through `X-Forwarded-Proto: https`; HTTPS reverse proxies must forward the original scheme.
 
-During qbop 3.0 development, the Grape API continues to use the existing optional HTTP Basic Auth controlled by `BASIC_AUTH_ENABLED`, `BASIC_AUTH_USER`, and `BASIC_AUTH_PASS`. Its behavior and default-disabled setting are unchanged. API authentication will move to revocable API keys before the final qbop 3.0 release; WebAuthn/passkeys remain a separate future enhancement.
+The Grape API always requires a valid qbop API key, independently of browser authentication. This includes `/api/health`, even when `WEB_AUTH_ENABLED=false`. Browser sessions and cookies are not accepted by API routes.
+
+To configure an API client:
+
+1. Sign in to qbop and open **api** in the navigation.
+2. Review the endpoint documentation and scroll to **api keys**.
+3. Create a named API key.
+4. Copy the complete `qbop_...` value immediately.
+5. Send it in the `Authorization` header:
+
+   ```text
+   Authorization: Bearer qbop_xxxxxxxxx
+   ```
+
+6. Revoke the old key from the same page when it is no longer needed.
+
+API keys are shown only once and cannot be recovered later. Create a replacement before revoking a key when rotating client credentials. When web authentication is disabled, the API page and its key-management section are accessible with the rest of the web UI; protect that UI with a trusted external access layer.
+
+Upgrading to qbop 3.0 removes inbound HTTP Basic Authentication. Existing API clients must create and adopt an API key before they can access any `/api` endpoint.
 
 ## Usage
 ### Query Parameters

@@ -1,14 +1,11 @@
 :root {
+  --page-width: 70em;
   --background-color: #222225;
   --font-color: #e8e9ed;
   --invert-font-color: #222225;
   --primary-color: #62c4ff;
   --secondary-color: #a3abba;
   --code-bg-color: #3f3f44;
-}
-
-.primary-color {
-color: var(--primary-color);
 }
 
 .red-dot {
@@ -25,46 +22,6 @@ color: var(--primary-color);
   background-color: #00ff00;
   border-radius: 50%;
   display: inline-block;
-}
-
-.control-panel {
-  align-items: flex-start;
-  border: 1px solid var(--font-color);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  padding: 1rem;
-}
-
-.control-panel input[type="number"] {
-  width: 7ch;
-}
-
-.control-panel select {
-  width: 14ch;
-}
-
-.control-row {
-  align-items: center;
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.auth-page {
-  margin: 4rem auto;
-  max-width: 32rem;
-}
-
-.auth-form {
-  border: 1px solid var(--font-color);
-  margin-top: 2rem;
-  padding: 1.5rem;
-}
-
-.auth-form .form-group {
-  margin-bottom: 1rem;
 }
 
 .nav-logout-form {
@@ -99,7 +56,25 @@ color: var(--primary-color);
   min-width: 50rem;
 }
 
-pre {
-  white-space: pre-wrap;
-  word-break: break-word;
+.pagination-row {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pagination-current {
+  color: var(--primary-color);
+  font-weight: bold;
+}
+
+.pagination-link {
+  color: var(--font-color);
+}
+
+.pagination-link:hover,
+.pagination-link:focus {
+  background-color: transparent;
+  color: var(--primary-color);
+  text-decoration: underline;
 }

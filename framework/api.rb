@@ -5,6 +5,18 @@ module Framework
     format :json
     prefix :api
 
+    helpers do
+      def authenticate_api_key!
+        authorization = headers['Authorization']
+        token = authorization&.match(/\ABearer[ \t]+(\S+)\z/i)&.captures&.first
+        return if ApiKey.authenticate(token)
+
+        error!({ 'error' => 'unauthorized' }, 401, 'WWW-Authenticate' => 'Bearer realm="qbop"')
+      end
+    end
+
+    before { authenticate_api_key! }
+
     get '/stats' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
@@ -151,10 +163,7 @@ module Framework
           'qbit_api_key': '***',
           'qbit_user': ENV['QBIT_USER'],
           'qbit_pass': '***',
-          'qbit_ssl_verify': helpers.true?(ENV['QBIT_SSL_VERIFY']),
-          'basic_auth_enabled': helpers.true?(ENV['BASIC_AUTH_ENABLED']),
-          'basic_auth_user': ENV['BASIC_AUTH_USER'],
-          'basic_auth_pass': '***'
+          'qbit_ssl_verify': helpers.true?(ENV['QBIT_SSL_VERIFY'])
         } }
     end
 
