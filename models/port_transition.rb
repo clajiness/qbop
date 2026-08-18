@@ -45,6 +45,10 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
     transition
   end
 
+  def self.sync_error?(source, port)
+    latest_for_port(port)&.sync_status(source) == 'error'
+  end
+
   def self.paginate(page:, per_page:) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
     total_records = count
     total_pages = [((total_records + per_page - 1) / per_page), 1].max

@@ -84,6 +84,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     @opnsense_data.set_current_port(alias_port)
     @opnsense_data.set_last_checked if alias_port
 
+    return apply_opnsense_changes(forwarded_port) if opnsense_apply_retry?(alias_port, forwarded_port)
     return unless sync_target_port(@opnsense_data, alias_port, forwarded_port, 'OPNsense', 'opnsense')
 
     update_opnsense_alias(forwarded_port, uuid)
@@ -135,7 +136,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     false
   end
 
-  def update_opnsense_alias(forwarded_port, uuid) # rubocop:disable Metrics/MethodLength
+  def update_opnsense_alias(forwarded_port, uuid)
     response_status = perform_sync_write('opnsense', forwarded_port) do
       @opnsense.set_alias_value(forwarded_port, uuid).status
     end
@@ -147,6 +148,10 @@ class Qbop # rubocop:disable Metrics/ClassLength
     end
 
     @logger.info("OPNsense alias has been updated to #{forwarded_port}")
+    apply_opnsense_changes(forwarded_port)
+  end
+
+  def apply_opnsense_changes(forwarded_port)
     changes_status = perform_sync_write('opnsense', forwarded_port) { @opnsense.apply_changes.status }
 
     if changes_status != 200
@@ -157,6 +162,10 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
     @logger.info('OPNsense alias applied successfully')
     mark_source_updated(@opnsense_data, forwarded_port, 'opnsense')
+  end
+
+  def opnsense_apply_retry?(alias_port, forwarded_port)
+    alias_port.to_i == forwarded_port.to_i && PortTransition.sync_error?('opnsense', forwarded_port)
   end
 
   def update_qbit_port(forwarded_port)

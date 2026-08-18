@@ -64,6 +64,7 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
       transition.refresh
 
       expect(transition.sync_status(source)).to eq('error')
+      expect(described_class.sync_error?(source, port)).to eq(true)
       expect(transition.public_send(synced_column)).to be_nil
       expect(transition.public_send(error_column)).to eq(Time.at(30))
     end
@@ -96,6 +97,7 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
       described_class.mark_synced(source, port, at: Time.at(20))
       transition.refresh
       expect(transition.sync_status(source)).to eq('synced')
+      expect(described_class.sync_error?(source, port)).to eq(false)
       expect(transition.public_send(synced_column)).to eq(Time.at(20))
       expect(transition.public_send(error_column)).to be_nil
 

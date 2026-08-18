@@ -234,6 +234,58 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  it 'retries OPNsense apply after a saved alias is followed by an apply failure' do
+    transition = record_transition
+    helpers = instance_double(Service::Helpers, true?: false)
+    opnsense_source = Source.create(name: 'opnsense').tap(&:seed_tables)
+    opnsense = double
+    allow(opnsense).to receive(:get_alias_uuid).and_return('alias-uuid')
+    allow(opnsense).to receive(:get_alias_value).and_return(12_345, 23_456, 23_456)
+    allow(opnsense).to receive(:set_alias_value).and_return(double(status: 200))
+    allow(opnsense).to receive(:apply_changes).and_return(
+      double(status: 500),
+      double(status: 500),
+      double(status: 200)
+    )
+    job.instance_variable_set(:@helpers, helpers)
+    job.instance_variable_set(:@config, { opnsense_skip: false, required_attempts: 1 })
+    job.instance_variable_set(:@opnsense, opnsense)
+    job.instance_variable_set(:@opnsense_data, opnsense_source)
+
+    job.send(:handle_opnsense, 23_456)
+    expect(transition.refresh.sync_status('opnsense')).to eq('error')
+
+    job.send(:handle_opnsense, 23_456)
+    expect(transition.refresh.sync_status('opnsense')).to eq('error')
+
+    job.send(:handle_opnsense, 23_456)
+    expect(transition.refresh.sync_status('opnsense')).to eq('synced')
+    expect(transition.opnsense_error_at).to be_nil
+    expect(opnsense).to have_received(:set_alias_value).once
+    expect(opnsense).to have_received(:apply_changes).exactly(3).times
+  end
+
+  it 'allows a matching qBit read to recover after a failed single-step write' do
+    transition = record_transition
+    helpers = instance_double(Service::Helpers, true?: false)
+    qbit_source = Source.create(name: 'qbit').tap(&:seed_tables)
+    qbit = double
+    allow(qbit).to receive(:qbt_app_preferences).and_return(12_345, 23_456)
+    allow(qbit).to receive(:qbt_app_set_preferences).and_return(double(status: 500))
+    job.instance_variable_set(:@helpers, helpers)
+    job.instance_variable_set(:@config, { qbit_skip: false, required_attempts: 1 })
+    job.instance_variable_set(:@qbit, qbit)
+    job.instance_variable_set(:@qbit_data, qbit_source)
+
+    job.send(:handle_qbit, 23_456)
+    expect(transition.refresh.sync_status('qbit')).to eq('error')
+
+    job.send(:handle_qbit, 23_456)
+    expect(transition.refresh.sync_status('qbit')).to eq('synced')
+    expect(transition.qbit_error_at).to be_nil
+    expect(qbit).to have_received(:qbt_app_set_preferences).once
+  end
+
   it 'records exceptions raised by synchronization writes and reraises them for existing logging' do
     transition = record_transition
     qbit = double
