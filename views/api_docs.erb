@@ -35,7 +35,8 @@
 
   <fieldset>
     <legend>authentication</legend>
-    <p>all api requests require an api key.</p>
+    <p>all api requests require an api key, including <code>/api/health</code>.</p>
+    <p>inbound http basic auth is not supported.</p>
     <p>send the key in the authorization header:</p>
     <p><code>Authorization: Bearer qbop_...</code></p>
     <p>create and revoke api keys below. new keys are shown only once.</p>
