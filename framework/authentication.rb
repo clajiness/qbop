@@ -16,6 +16,9 @@ module Framework
       require_login_confirmation? false
 
       login_label 'email'
+      login_does_not_meet_requirements_message do
+        "invalid email#{": #{login_requirement_message}" if login_requirement_message}"
+      end
       password_label 'password'
       password_confirm_label 'confirm password'
       login_page_title 'sign in to qbop'
@@ -40,6 +43,22 @@ module Framework
       logout_page_title 'sign out'
       logout_button 'sign out'
       logout_notice_flash 'you have been logged out'
+
+      change_login_view do
+        if request.post?
+          error = field_error(password_param) || field_error(login_param) || change_login_error_flash
+          set_redirect_error_flash(error)
+        end
+        redirect change_login_redirect
+      end
+
+      change_password_view do
+        if request.post?
+          error = field_error(password_param) || field_error(new_password_param) || change_password_error_flash
+          set_redirect_error_flash(error)
+        end
+        redirect change_password_redirect
+      end
 
       before_login_route do
         helpers = Service::Helpers.new

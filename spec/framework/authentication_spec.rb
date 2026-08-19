@@ -51,18 +51,35 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     CGI.unescapeHTML(response.body.match(/name="_csrf" value="([^"]+)"/)[1])
   end
 
-  def build_app
-    downstream = lambda do |env|
-      auth = env.fetch('rodauth')
-      body = auth.logged_in? ? "authenticated:#{auth.account![:id]}" : 'anonymous'
-      [200, { 'content-type' => 'text/plain' }, [body]]
-    end
+  def csrf_token_for(response, action)
+    form = response.body.match(%r{<form action="#{Regexp.escape(action)}".*?</form>}m)[0]
+    CGI.unescapeHTML(form.match(/name="_csrf" value="([^"]+)"/)[1])
+  end
 
+  def build_app
+    downstream = method(:authentication_response)
     Rack::Builder.new do
       use Framework::SessionMiddleware, secret: 's' * 64
       use Framework::Authentication
       run downstream
     end.to_app
+  end
+
+  def authentication_response(env)
+    auth = env.fetch('rodauth')
+    body = env.fetch('PATH_INFO') == '/account' ? account_csrf_forms(auth) : authentication_state(auth)
+    [200, { 'content-type' => 'text/plain' }, [body]]
+  end
+
+  def account_csrf_forms(auth)
+    <<~HTML
+      <form action="/account/change-email">#{auth.csrf_tag('/account/change-email')}</form>
+      <form action="/account/change-password">#{auth.csrf_tag('/account/change-password')}</form>
+    HTML
+  end
+
+  def authentication_state(auth)
+    auth.logged_in? ? "authenticated:#{auth.account![:id]}" : 'anonymous'
   end
 
   def create_account
@@ -75,13 +92,13 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
   end
 
   def change_password(current:, new_password:, confirmation: new_password)
-    change_page = @client.get('/account/change-password')
+    account_page = @client.get('/account')
     @client.post(
       '/account/change-password',
       password: current,
       'new-password': new_password,
       'password-confirm': confirmation,
-      _csrf: csrf_token(change_page)
+      _csrf: csrf_token_for(account_page, '/account/change-password')
     )
   end
 
@@ -234,12 +251,12 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     create_account
     login
     account_id = DB[:accounts].get(:id)
-    change_page = @client.get('/account/change-email')
+    account_page = @client.get('/account')
     response = @client.post(
       '/account/change-email',
       login: 'new-admin@example.com',
       password: 'correct horse battery staple',
-      _csrf: csrf_token(change_page)
+      _csrf: csrf_token_for(account_page, '/account/change-email')
     )
 
     expect(response.status).to eq(302)
@@ -252,7 +269,7 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     expect(login(fresh_client, email: 'new-admin@example.com').status).to eq(302)
   end
 
-  it 'protects email changes with CSRF, validation, and the current password' do
+  it 'rejects email changes without a route-specific CSRF token' do
     create_account
     login
 
@@ -261,25 +278,31 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
         '/account/change-email', login: 'new-admin@example.com', password: 'correct horse battery staple'
       ).status
     ).to eq(403)
+  end
 
-    change_page = @client.get('/account/change-email')
+  it 'rejects invalid email changes without changing the account' do
+    create_account
+    login
+
+    account_page = @client.get('/account')
     invalid_password = @client.post(
       '/account/change-email',
       login: 'new-admin@example.com',
       password: 'incorrect password',
-      _csrf: csrf_token(change_page)
+      _csrf: csrf_token_for(account_page, '/account/change-email')
     )
-    change_page = @client.get('/account/change-email')
+    account_page = @client.get('/account')
     invalid_email = @client.post(
       '/account/change-email',
       login: '',
       password: 'correct horse battery staple',
-      _csrf: csrf_token(change_page)
+      _csrf: csrf_token_for(account_page, '/account/change-email')
     )
 
-    expect(invalid_password.status).to eq(401)
-    expect(invalid_password.body).to include('invalid password')
-    expect(invalid_email.status).to eq(422)
+    expect(invalid_password.status).to eq(302)
+    expect(invalid_password['location']).to end_with('/account')
+    expect(invalid_email.status).to eq(302)
+    expect(invalid_email['location']).to end_with('/account')
     expect(DB[:accounts].all).to contain_exactly(include(email: 'admin@example.com'))
   end
 
@@ -332,14 +355,27 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
       confirmation: 'something else entirely'
     )
 
-    expect(invalid_password.status).to eq(401)
-    expect(invalid_password.body).to include('invalid password')
-    expect(mismatch.status).to eq(422)
-    expect(mismatch.body).to include('passwords do not match')
+    expect(invalid_password.status).to eq(302)
+    expect(invalid_password['location']).to end_with('/account')
+    expect(mismatch.status).to eq(302)
+    expect(mismatch['location']).to end_with('/account')
     password_valid = described_class.rodauth.valid_login_and_password?(
       login: 'admin@example.com', password: 'correct horse battery staple'
     )
     expect(password_valid).to be(true)
+  end
+
+  it 'redirects standalone account form requests to the combined account page' do
+    create_account
+    login
+
+    ['/account/change-email', '/account/change-password'].each do |path|
+      response = @client.get(path)
+
+      expect(response.status).to eq(302)
+      expect(response['location']).to end_with('/account')
+      expect(response.body).not_to include('<form')
+    end
   end
 
   it 'returns 404 for account-management routes when web authentication is disabled' do

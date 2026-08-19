@@ -63,6 +63,7 @@ module Framework
       notice = authentication.flash.delete(authentication.flash_notice_key)
       account_notices = [authentication.change_login_notice_flash, authentication.change_password_notice_flash]
       @account_notice = notice if account_notices.include?(notice)
+      @account_error = authentication.flash.delete(authentication.flash_error_key)
 
       erb :account
     end

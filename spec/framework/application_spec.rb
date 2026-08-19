@@ -252,7 +252,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(relogin.status).to eq(302)
   end
 
-  it 'shows the email-change notice once and not after a failed change' do
+  it 'returns an incorrect email-change password to the account page once' do
     create_account
     client = ApplicationSessionClient.new(app)
     login(client)
@@ -265,19 +265,46 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
       _csrf: csrf_token_for(account_page, '/account/change-email')
     )
 
-    expect(failed_change.status).to eq(401)
-    expect(failed_change.body).not_to include('email changed successfully')
-    account_page = client.get('/account')
-    expect(account_page.body).not_to include('email changed successfully')
+    expect(failed_change.status).to eq(302)
+    expect(redirect_path(failed_change)).to eq('/account')
+    error_page = client.get('/account')
+    expect(error_page.body).to include('invalid password', '<legend>change email</legend>')
+    expect(error_page.body).not_to include('email changed successfully', 'back to account')
+    expect(client.get('/account').body).not_to include('invalid password')
+  end
 
+  it 'returns an invalid email to the account page once' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    account_page = client.get('/account')
+    invalid_email = client.post(
+      '/account/change-email',
+      login: '',
+      password: 'correct horse battery staple',
+      _csrf: csrf_token_for(account_page, '/account/change-email')
+    )
+    expect(invalid_email.status).to eq(302)
+    expect(redirect_path(invalid_email)).to eq('/account')
+    error_page = client.get('/account')
+    expect(error_page.body).to include('invalid email: minimum 3 characters')
+    expect(client.get('/account').body).not_to include('invalid email: minimum 3 characters')
+  end
+
+  it 'shows the email-change success message once' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    account_page = client.get('/account')
     response = change_email(client, account_page)
+
     expect(response.status).to eq(302)
     expect(redirect_path(response)).to eq('/account')
     expect(client.get('/account').body).to include('email changed successfully')
     expect(client.get('/account').body).not_to include('email changed successfully')
   end
 
-  it 'shows the password-change notice once and not after a failed change' do
+  it 'returns an incorrect password-change password to the account page once' do
     create_account
     client = ApplicationSessionClient.new(app)
     login(client)
@@ -290,16 +317,58 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
       _csrf: csrf_token_for(account_page, '/account/change-password')
     )
 
-    expect(failed_change.status).to eq(401)
-    expect(failed_change.body).not_to include('password changed successfully')
-    account_page = client.get('/account')
-    expect(account_page.body).not_to include('password changed successfully')
+    expect(failed_change.status).to eq(302)
+    expect(redirect_path(failed_change)).to eq('/account')
+    error_page = client.get('/account')
+    expect(error_page.body).to include('invalid password', '<legend>change password</legend>')
+    expect(error_page.body).not_to include('password changed successfully', 'back to account')
+    expect(client.get('/account').body).not_to include('invalid password')
+  end
 
+  it 'returns a password-confirmation mismatch to the account page once' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    account_page = client.get('/account')
+    mismatch = client.post(
+      '/account/change-password',
+      password: 'correct horse battery staple',
+      'new-password': 'even better horse battery staple',
+      'password-confirm': 'something else entirely',
+      _csrf: csrf_token_for(account_page, '/account/change-password')
+    )
+    expect(mismatch.status).to eq(302)
+    expect(redirect_path(mismatch)).to eq('/account')
+    error_page = client.get('/account')
+    expect(error_page.body).to include('passwords do not match')
+    expect(client.get('/account').body).not_to include('passwords do not match')
+  end
+
+  it 'shows the password-change success message once' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    account_page = client.get('/account')
     response = change_password(client, account_page)
+
     expect(response.status).to eq(302)
     expect(redirect_path(response)).to eq('/account')
     expect(client.get('/account').body).to include('password changed successfully')
     expect(client.get('/account').body).not_to include('password changed successfully')
+  end
+
+  it 'redirects direct account mutation GETs without rendering standalone forms' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+
+    ['/account/change-email', '/account/change-password'].each do |path|
+      response = client.get(path)
+
+      expect(response.status).to eq(302)
+      expect(redirect_path(response)).to eq('/account')
+      expect(response.body).not_to include('<form', 'back to account')
+    end
   end
 
   it 'allows login, logout, and then requires login again' do
