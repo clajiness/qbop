@@ -1,19 +1,4 @@
-<div class="terminal-nav">
-  <div class="terminal-logo">
-    <div class="logo terminal-prompt"><a href="/" class="no-style">qbop</a></div>
-  </div>
-  <nav class="terminal-menu">
-    <ul>
-      <li><a class="menu-item" href="/">stats</a></li>
-      <li><a class="menu-item active" href="/history">history</a></li>
-      <li><a class="menu-item" href="/api-docs">api</a></li>
-      <li><a class="menu-item" href="/tools">tools</a></li>
-      <li><a class="menu-item" href="/logs">logs</a></li>
-      <li><a class="menu-item" href="/about">about</a></li>
-      <%= erb :_logout, layout: false %>
-    </ul>
-  </nav>
-</div>
+<%= erb :_nav, locals: { active: 'history' }, layout: false %>
 <% if @update_available %>
 <div class="terminal-alert terminal-alert-primary"><a href="https://github.com/clajiness/qbop/releases" target="_blank">an update is available:</a> <a href="https://github.com/clajiness/qbop/releases/tag/<%= @recent_tag %>" target="_blank"><%= @recent_tag %></a></div>
 <% end %>

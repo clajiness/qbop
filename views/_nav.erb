@@ -1,0 +1,14 @@
+<% nav_items = [['stats', '/'], ['history', '/history'], ['api', '/api-docs'], ['tools', '/tools'], ['logs', '/logs'], ['about', '/about']] %>
+<div class="terminal-nav">
+  <div class="terminal-logo">
+    <div class="logo terminal-prompt"><a href="/" class="no-style">qbop</a></div>
+  </div>
+  <nav class="terminal-menu">
+    <ul>
+      <% nav_items.each do |label, path| %>
+      <li><a class="menu-item<%= ' active' if active == label %>" href="<%= path %>"><%= label %></a></li>
+      <% end %>
+      <%= erb :_logout, layout: false %>
+    </ul>
+  </nav>
+</div>
