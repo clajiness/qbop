@@ -23,6 +23,26 @@ docker compose up -d
 ```
 Then open: `http://<host_ip>:4567/`
 
+The first browser request redirects to `/setup`, where you create the qbop administrator account.
+
+## Upgrading from qbop 2.x to 3.0
+
+qbop 3.0 changes both browser and API authentication. Review these breaking changes before upgrading:
+
+- Browser authentication is new and enabled by default. When 3.0 starts with an existing 2.x database, the first normal browser request redirects to `/setup` because the database has no administrator account. Create the single qbop administrator there. To keep browser authentication behind an existing trusted access layer instead, set `WEB_AUTH_ENABLED=false` before starting 3.0.
+- Inbound API HTTP Basic Auth has been removed. Every API endpoint now requires a qbop API key sent with Bearer authentication, including `/api/health`. Browser sessions are not accepted by the API, and API authentication remains mandatory when `WEB_AUTH_ENABLED=false`.
+
+Recommended upgrade sequence:
+
+1. Back up the qbop database, persistent configuration, and Compose configuration.
+2. Update the image and configuration for 3.0.
+3. Remove obsolete `BASIC_AUTH_*` environment variables.
+4. Start the 3.0 image normally. qbop runs its database migrations automatically during startup; no manual database editing is required.
+5. Create the administrator at `/setup`, unless browser authentication is disabled.
+6. Open `/api-docs` and create an API key.
+7. Update every API client and monitoring check to send `Authorization: Bearer qbop_...`, including checks of `/api/health`.
+8. Restart qbop and verify the web UI, history, integrations, and authenticated API requests.
+
 ## Installation
 I recommend using the provided sample Docker Compose files to simplify setting up qbop.
 
@@ -35,9 +55,11 @@ Image tags are published as follows:
 - `main` → most recent build from the main branch
 - `<branch>` → most recent build from any pushed branch; invalid Docker tag characters such as `/` are replaced with `-`
 - `sha-<12-character commit SHA>` → exact commit used for any published image build
-- `v2` → latest `v2.x.x` release
-- `v2.minor` → latest patch release for that minor version, e.g. `v2.7`
-- `v2.minor.patch` → exact version, e.g. `v2.7.0`
+- `v<major>` → latest release for that major version, e.g. `v3`
+- `v<major>.<minor>` → latest patch release for that minor version, e.g. `v3.0`
+- `v<major>.<minor>.<patch>` → exact release, e.g. `v3.0.0`
+
+The legacy `v2` tag remains available for installations that have not yet upgraded.
 
 Pull requests are built without publishing an image. Main-branch builds identify themselves as `main` in the app, while images built from stable Git tags display their exact release version.
 
@@ -74,41 +96,51 @@ Pull requests are built without publishing an image. Main-branch builds identify
 | `QBIT_SSL_VERIFY` | `false` | [`true`/`false`] Verify qBittorrent TLS certificates. Defaults to `false` for self-signed/private deployments. |
 | `WEB_AUTH_ENABLED` | `true` | Require browser authentication for the web UI. Disable only if the UI is protected by another trusted access layer. |
 
-## Authentication development status
+## Authentication
 
-Browser authentication is enabled by default. On the first browser visit, qbop prompts you to create the single administrator account at `/setup`. Successful setup signs you in automatically. Subsequent visits require the administrator email and password at `/login`, and the web UI provides a sign-out control. The About page links the authenticated administrator to `/account`, where they can change the login email or password; both changes require the current password and keep the current browser session active.
+### Browser authentication
 
-The authentication schema deliberately supports one administrator account. A database check plus a unique fixed account key enforce that invariant even if setup attempts race. After the account is created, `/setup` is unavailable. Set `WEB_AUTH_ENABLED=false` to disable browser authentication; this makes `/setup` and account management unavailable, hides the account and sign-out controls, and does not require a Rodauth account or change API authentication.
+`WEB_AUTH_ENABLED=true` is the default. A fresh or upgraded instance with no account redirects normal browser traffic to `/setup`, which creates and signs in the single qbop administrator. After that account exists, `/setup` is unavailable. Subsequent authentication uses `/login`; email and password management is available at `/account`; and sign-out is available from the normal UI. qbop intentionally supports one administrator account.
 
-Browser sessions use an encrypted `qbop.session` cookie with `HttpOnly` and `SameSite=Lax`. The persisted secret in `data/session_secret.txt` is generated automatically with restrictive permissions, so there is no new required configuration. Cookies are also marked `Secure` when Rack identifies the request as HTTPS, including through `X-Forwarded-Proto: https`; HTTPS reverse proxies must forward the original scheme.
+Set `WEB_AUTH_ENABLED=false` to bypass browser authentication when another trusted access layer protects the UI. In this mode `/setup` and `/account` are unavailable. Disabling browser authentication does not disable API authentication.
 
-If the administrator password is lost, reset it from an interactive shell in the running Compose container:
+Browser sessions use a secret generated automatically in the persistent `data/session_secret.txt` file, so no additional session configuration is required.
+
+### Account recovery
+
+If the administrator password is lost, reset it from the host with the running container:
 
 ```bash
 docker exec -it qbop bundle exec rake user:reset-password
 ```
 
-The command prompts twice without echoing the password, applies the same Rodauth password requirements and hashing used by the web UI, and changes the existing account only. It fails if no administrator account exists. If the container has a different name, replace `qbop` in the command.
+From a shell already inside the container, run:
 
-The Grape API always requires a valid qbop API key, independently of browser authentication. This includes `/api/health`, even when `WEB_AUTH_ENABLED=false`. Browser sessions and cookies are not accepted by API routes.
+```bash
+bundle exec rake user:reset-password
+```
+
+The command resets the existing administrator password; it does not create another user. SMTP or email recovery is not required. If the container has a different name, replace `qbop` in the host command.
+
+### API authentication
+
+Every API endpoint requires a valid qbop API key, including `/api/health`. Inbound HTTP Basic Auth is not supported. API authentication is independent of `WEB_AUTH_ENABLED`, and browser sessions or cookies are not accepted by API routes.
 
 To configure an API client:
 
-1. Sign in to qbop and open **api** in the navigation.
+1. Sign in to qbop and open `/api-docs` through **api** in the navigation.
 2. Review the endpoint documentation and scroll to **api keys**.
 3. Create a named API key.
 4. Copy the complete `qbop_...` value immediately.
 5. Send it in the `Authorization` header:
 
-   ```text
+   ```http
    Authorization: Bearer qbop_xxxxxxxxx
    ```
 
 6. Revoke the old key from the same page when it is no longer needed.
 
-API keys are shown only once and cannot be recovered later. Create a replacement before revoking a key when rotating client credentials. When web authentication is disabled, the API page and its key-management section are accessible with the rest of the web UI; protect that UI with a trusted external access layer.
-
-Upgrading to qbop 3.0 removes inbound HTTP Basic Authentication. Existing API clients must create and adopt an API key before they can access any `/api` endpoint.
+`/api-docs` combines the current endpoint documentation with API-key creation and revocation. API-key secrets are shown only once and cannot be recovered later. Create a replacement before revoking a key when rotating credentials. When browser authentication is disabled, `/api-docs` and its key-management section are accessible with the rest of the web UI, so protect that UI with a trusted external access layer.
 
 ## Usage
 ### Query Parameters

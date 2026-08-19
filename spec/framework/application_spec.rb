@@ -528,6 +528,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(response.body.scan('href="/api-docs">api</a>').length).to eq(1)
     expect(response.body).not_to include('href="/api-keys"', '>keys</a>')
     expect(response.body).to include('<code>Authorization: Bearer qbop_...</code>')
+    expect(response.body).to include('including <code>/api/health</code>', 'http basic auth is not supported')
     expect(response.body).not_to match(%r{<code[^>]*>`|`</code>})
   end
 
