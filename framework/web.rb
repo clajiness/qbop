@@ -1,8 +1,10 @@
+require_relative 'authentication_config'
+
 module Framework
   # The Web class is a Sinatra application that provides qbop's web UI routes.
   class Web < Sinatra::Application # rubocop:disable Metrics/ClassLength
     before do
-      unless public_asset_request? || !web_auth_enabled?
+      unless public_asset_request? || public_authentication_request? || !web_auth_enabled?
         authentication = request.env.fetch('rodauth')
         DB[:accounts].count.zero? ? redirect('/setup') : authentication.require_authentication
       end
@@ -66,6 +68,24 @@ module Framework
       @account_error = authentication.flash.delete(authentication.flash_error_key)
 
       erb :account
+    end
+
+    get '/oidc/error' do
+      halt 404 unless authentication_config.oidc_active?
+
+      authentication = request.env.fetch('rodauth')
+      @oidc_error = authentication.flash.delete(authentication.flash_error_key)
+      @oidc_error ||= Framework::Authentication::OIDC_FAILURE_MESSAGE
+      @auth_config = authentication_config
+
+      erb :oidc_error
+    end
+
+    get '/logged-out' do
+      halt 404 unless authentication_config.oidc_active?
+
+      @auth_config = authentication_config
+      erb :logged_out
     end
 
     post '/api-docs/keys' do
@@ -169,7 +189,15 @@ module Framework
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
       @qbit_ssl_verify = helpers.true?(ENV['QBIT_SSL_VERIFY'])
-      @web_auth_enabled = helpers.true?(helpers.env_variables[:web_auth_enabled])
+      auth_config = authentication_config
+      @web_auth_enabled = auth_config.web_auth_enabled?
+      @oidc_enabled = auth_config.oidc_enabled?
+      @oidc_issuer = auth_config.oidc_issuer
+      @oidc_client_id = auth_config.oidc_client_id
+      @oidc_client_secret = '***'
+      @oidc_public_url = auth_config.oidc_public_url
+      @oidc_auto_redirect = auth_config.oidc_auto_redirect?
+      @local_login_enabled = auth_config.local_login_enabled?
 
       @gemfile = helpers.gemfile_to_a
 
@@ -182,6 +210,10 @@ module Framework
       request.path_info.start_with?('/css/', '/images/')
     end
 
+    def public_authentication_request?
+      [AuthenticationConfig::OIDC_FAILURE_PATH, AuthenticationConfig::LOGGED_OUT_PATH].include?(request.path_info)
+    end
+
     def api_docs_request?
       request.path_info == '/api-docs' || request.path_info.start_with?('/api-docs/')
     end
@@ -191,8 +223,11 @@ module Framework
     end
 
     def web_auth_enabled?
-      helpers = Service::Helpers.new
-      helpers.true?(helpers.env_variables[:web_auth_enabled])
+      authentication_config.web_auth_enabled?
+    end
+
+    def authentication_config
+      request.env['qbop.auth_config'] || AuthenticationConfig.new
     end
   end
 end

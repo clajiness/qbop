@@ -82,7 +82,14 @@
   QBIT_USER: <%= @qbit_user %><br>
   QBIT_PASS: <%= @qbit_pass %><br>
   QBIT_SSL_VERIFY: <%= @qbit_ssl_verify %><br>
-  WEB_AUTH_ENABLED: <%= @web_auth_enabled %>
+  WEB_AUTH_ENABLED: <%= @web_auth_enabled %><% if @oidc_enabled %><br>
+  OIDC_ENABLED: <%= @oidc_enabled %><br>
+  OIDC_ISSUER: <%= Rack::Utils.escape_html(@oidc_issuer) %><br>
+  OIDC_CLIENT_ID: <%= Rack::Utils.escape_html(@oidc_client_id) %><br>
+  OIDC_CLIENT_SECRET: <%= @oidc_client_secret %><br>
+  OIDC_PUBLIC_URL: <%= Rack::Utils.escape_html(@oidc_public_url) %><br>
+  OIDC_AUTO_REDIRECT: <%= @oidc_auto_redirect %><br>
+  LOCAL_LOGIN_ENABLED: <%= @local_login_enabled %><% end %>
 </blockquote>
 <hr>
 

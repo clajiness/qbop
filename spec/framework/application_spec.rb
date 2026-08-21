@@ -121,7 +121,11 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
   end
 
   around do |example|
-    keys = %w[WEB_AUTH_ENABLED BASIC_AUTH_ENABLED BASIC_AUTH_USER BASIC_AUTH_PASS]
+    keys = %w[
+      WEB_AUTH_ENABLED BASIC_AUTH_ENABLED BASIC_AUTH_USER BASIC_AUTH_PASS
+      OIDC_ENABLED OIDC_AUTO_REDIRECT LOCAL_LOGIN_ENABLED OIDC_ISSUER
+      OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_PUBLIC_URL
+    ]
     original_env = keys.to_h { |key| [key, ENV[key]] }
     keys.each { |key| ENV.delete(key) }
     example.run
@@ -202,6 +206,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
 
     about_page = client.get('/about')
     expect(about_page.body).to include('<h4><em>account</em></h4>', 'href="/account"')
+    expect(about_page.body).not_to include('OIDC_ENABLED', 'OIDC_ISSUER', 'LOCAL_LOGIN_ENABLED')
     account_position = about_page.body.index('<h4><em>account</em></h4>')
     environment_position = about_page.body.index('<h4><em>env variables</em></h4>')
     expect(account_position).to be < environment_position
@@ -405,6 +410,13 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(request.get('/images/dark/favicon-dark.svg').status).to eq(200)
   end
 
+  it 'does not expose OIDC completion pages when OIDC is disabled' do
+    request = Rack::MockRequest.new(app)
+
+    expect(request.get('/oidc/error').status).to eq(404)
+    expect(request.get('/logged-out').status).to eq(404)
+  end
+
   it 'allows direct web access and makes setup unavailable when web authentication is disabled' do
     ENV['WEB_AUTH_ENABLED'] = 'false'
     request = Rack::MockRequest.new(app)
@@ -425,9 +437,11 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(DB[:accounts].count).to eq(0)
   end
 
-  it 'hides the logout control when web authentication is disabled for an existing session' do
+  it 'hides authenticated controls after restarting with web authentication disabled' do
     create_account
-    client = ApplicationSessionClient.new(app)
+    secret_path = File.join(Dir.mktmpdir, 'session_secret.txt')
+    enabled_app = described_class.build(session_secret_path: secret_path)
+    client = ApplicationSessionClient.new(enabled_app)
     login_page = client.get('/login')
     client.post(
       '/login',
@@ -435,6 +449,8 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     )
 
     ENV['WEB_AUTH_ENABLED'] = 'false'
+    disabled_app = described_class.build(session_secret_path: secret_path)
+    client.instance_variable_set(:@request, Rack::MockRequest.new(disabled_app))
     home = client.get('/')
     about = client.get('/about')
 

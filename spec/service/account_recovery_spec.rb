@@ -82,6 +82,24 @@ RSpec.describe Service::AccountRecovery do # rubocop:disable Metrics/BlockLength
     expect(valid_password?('correct horse battery staple')).to be(true)
   end
 
+  it 'remains available when browser password login is disabled' do
+    create_account
+    config = Framework::AuthenticationConfig.new(
+      'OIDC_ENABLED' => 'true',
+      'OIDC_ISSUER' => 'https://id.example.com',
+      'OIDC_CLIENT_ID' => 'qbop-client',
+      'OIDC_CLIENT_SECRET' => 'secret',
+      'OIDC_PUBLIC_URL' => 'https://qbop.example.com',
+      'LOCAL_LOGIN_ENABLED' => 'false'
+    )
+    authentication = Framework::Authentication.rodauth(config: config)
+    input = AccountRecoveryInput.new('emergency replacement password', 'emergency replacement password')
+
+    described_class.new(input: input, output: StringIO.new, authentication: authentication).reset_password
+
+    expect(valid_password?('emergency replacement password')).to be(true)
+  end
+
   it 'fails clearly without prompting or creating an account when none exists' do
     input = AccountRecoveryInput.new('emergency replacement password', 'emergency replacement password')
 

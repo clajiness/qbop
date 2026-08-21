@@ -1,6 +1,7 @@
 module SpecDatabase # rubocop:disable Metrics/ModuleLength
   CLEANUP_TABLES = %i[
     api_keys
+    account_oidc_identities
     account_password_hashes
     accounts
     port_transitions
@@ -105,6 +106,17 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
     DB.create_table(:account_password_hashes) do
       foreign_key :id, :accounts, primary_key: true, type: :Bignum, on_delete: :cascade
       String :password_hash, null: false
+    end
+
+    DB.create_table(:account_oidc_identities) do
+      primary_key :id
+      foreign_key :account_id, :accounts, type: :Bignum, null: false, on_delete: :cascade
+      String :issuer, null: false
+      String :subject, null: false
+
+      index :account_id
+      index %i[issuer subject], unique: true
+      index :issuer, unique: true
     end
 
     DB.create_table(:api_keys) do
