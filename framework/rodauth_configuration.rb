@@ -27,6 +27,9 @@ module Framework
 
     def self.configure_labels(auth) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
       auth.login_label 'email'
+      auth.auth_class_eval do
+        define_method(:login_field_autocomplete_value) { 'username' }
+      end
       auth.login_does_not_meet_requirements_message do
         "invalid email#{": #{login_requirement_message}" if login_requirement_message}"
       end
