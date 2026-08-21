@@ -47,6 +47,10 @@ class AuthenticationSessionClient
 end
 
 RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLength
+  def input_tag(response, name)
+    response.body.match(/<input\b[^>]*\bname="#{Regexp.escape(name)}"[^>]*>/)&.to_s
+  end
+
   def csrf_token(response)
     CGI.unescapeHTML(response.body.match(/name="_csrf" value="([^"]+)"/)[1])
   end
@@ -121,6 +125,9 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
 
   it 'renders a qbop-styled setup form with the intended fields' do
     response = @client.get('/setup')
+    login_field = input_tag(response, 'login')
+    password_field = input_tag(response, 'password')
+    password_confirm_field = input_tag(response, 'password-confirm')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('welcome to qbop', 'create the administrator account')
@@ -128,6 +135,9 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     expect(response.body).to include('value="create account"')
     expect(response.body).to include('name="login"', 'name="password"', 'name="password-confirm"')
     expect(response.body).not_to include('name="login-confirm"')
+    expect(login_field).to include('type="email"', 'autocomplete="username"')
+    expect(password_field).to include('type="password"', 'autocomplete="new-password"')
+    expect(password_confirm_field).to include('type="password"', 'autocomplete="new-password"')
   end
 
   it 'does not enable or expose OmniAuth when OIDC is disabled by default' do
@@ -215,11 +225,15 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     create_account
 
     response = @client.get('/login')
+    login_field = input_tag(response, 'login')
+    password_field = input_tag(response, 'password')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('sign in to qbop', '>email</label>', '>password</label>')
     expect(response.body).to include('name="login"', 'name="password"', 'value="sign in"')
     expect(response.body).not_to include('/setup')
+    expect(login_field).to include('type="email"', 'autocomplete="username"')
+    expect(password_field).to include('type="password"', 'autocomplete="current-password"')
   end
 
   it 'rejects an incorrect password and an unknown login' do
