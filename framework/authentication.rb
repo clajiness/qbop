@@ -16,6 +16,11 @@ module Framework
       require_login_confirmation? false
 
       login_label 'email'
+      auth_class_eval do
+        def login_field_autocomplete_value
+          'username'
+        end
+      end
       login_does_not_meet_requirements_message do
         "invalid email#{": #{login_requirement_message}" if login_requirement_message}"
       end
