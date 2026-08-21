@@ -1,5 +1,5 @@
 <% authentication = request.env['rodauth'] %>
-<% auth_config = request.env['qbop.auth_config'] || Framework::AuthenticationConfig.new %>
+<% auth_config = request.env.fetch('qbop.auth_config') %>
 <% if authentication&.logged_in? && auth_config.web_auth_enabled? %>
 <li>
   <form action="/logout" method="post" class="nav-logout-form">

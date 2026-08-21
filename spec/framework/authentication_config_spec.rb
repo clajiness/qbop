@@ -9,7 +9,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
   end
 
   it 'preserves qbop 3.0 authentication defaults' do
-    value = config.validate!
+    value = config
 
     expect(value.web_auth_enabled?).to be(true)
     expect(value.oidc_enabled?).to be(false)
@@ -20,8 +20,13 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
   end
 
   it 'gives enabled local recovery precedence over automatic OIDC redirect' do
-    recovery = config(OIDC_AUTO_REDIRECT: 'true', LOCAL_LOGIN_ENABLED: 'true')
-    oidc_only = config(OIDC_AUTO_REDIRECT: 'true', LOCAL_LOGIN_ENABLED: 'false')
+    oidc = {
+      OIDC_ENABLED: 'true', OIDC_ISSUER: 'https://id.example.com',
+      OIDC_CLIENT_ID: 'qbop', OIDC_CLIENT_SECRET: 'secret',
+      OIDC_PUBLIC_URL: 'https://qbop.example.com', OIDC_AUTO_REDIRECT: 'true'
+    }
+    recovery = config(oidc.merge(LOCAL_LOGIN_ENABLED: 'true'))
+    oidc_only = config(oidc.merge(LOCAL_LOGIN_ENABLED: 'false'))
 
     expect(recovery.oidc_auto_redirect?).to be(true)
     expect(recovery.oidc_auto_redirect_active?).to be(false)
@@ -42,7 +47,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
   end
 
   it 'ignores incomplete OIDC settings while web authentication is disabled' do
-    value = config(WEB_AUTH_ENABLED: 'false', OIDC_ENABLED: 'true').validate!
+    value = config(WEB_AUTH_ENABLED: 'false', OIDC_ENABLED: 'true')
 
     expect(value.oidc_enabled?).to be(true)
     expect(value.oidc_active?).to be(false)
@@ -53,7 +58,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
       OIDC_ENABLED: 'true', OIDC_ISSUER: 'https://id.example.com/realms/qbop',
       OIDC_CLIENT_ID: 'qbop', OIDC_CLIENT_SECRET: 'secret',
       OIDC_PUBLIC_URL: 'https://qbop.example.com/'
-    ).validate!
+    )
 
     expect(value.oidc_callback_url).to eq('https://qbop.example.com/auth/openid_connect/callback')
     expect(value.oidc_logout_callback_url).to eq('https://qbop.example.com/logged-out')
@@ -65,7 +70,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
       OIDC_ENABLED: 'true', OIDC_ISSUER: 'https://id.example.com',
       OIDC_CLIENT_ID: 'qbop', OIDC_CLIENT_SECRET: 'secret',
       OIDC_PUBLIC_URL: 'http://localhost:4567'
-    ).validate!
+    )
 
     expect(value.force_secure_cookie?).to be(false)
   end
@@ -76,7 +81,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
         OIDC_ENABLED: 'true', OIDC_ISSUER: 'http://127.0.0.1:8080',
         OIDC_CLIENT_ID: 'qbop', OIDC_CLIENT_SECRET: 'secret',
         OIDC_PUBLIC_URL: 'http://localhost:4567'
-      ).validate!
+      )
     end.to raise_error(described_class::Error, /OIDC_ISSUER/)
   end
 
@@ -86,7 +91,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
         OIDC_ENABLED: 'true', OIDC_ISSUER: 'https://id.example.com',
         OIDC_CLIENT_ID: 'qbop', OIDC_CLIENT_SECRET: 'secret',
         OIDC_PUBLIC_URL: 'http://127.attacker.example'
-      ).validate!
+      )
     end.to raise_error(described_class::Error, /OIDC_PUBLIC_URL/)
   end
 
@@ -98,7 +103,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
     }
 
     %i[OIDC_ISSUER OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_PUBLIC_URL].each do |key|
-      expect { config(base.merge(key => nil)).validate! }
+      expect { config(base.merge(key => nil)) }
         .to raise_error(described_class::Error, /#{key} must be set/)
     end
   end
@@ -114,7 +119,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
      'https://qbop.example.com/path', 'https://qbop.example.com?next=evil',
      'https://evil.test/?https://qbop.example.com', '//evil.test',
      'javascript:alert(1)', 'data:text/html,unsafe'].each do |url|
-      expect { config(base.merge(OIDC_PUBLIC_URL: url)).validate! }
+      expect { config(base.merge(OIDC_PUBLIC_URL: url)) }
         .to raise_error(described_class::Error, /OIDC_PUBLIC_URL/)
     end
   end
@@ -124,7 +129,7 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
       OIDC_ENABLED: 'true', OIDC_ISSUER: 'https://id.example.com',
       OIDC_CLIENT_ID: 'qbop', OIDC_CLIENT_SECRET: 'secret',
       OIDC_PUBLIC_URL: 'https://qbop.example.com.evil.test'
-    ).validate!
+    )
 
     expect(value.oidc_callback_url).to eq(
       'https://qbop.example.com.evil.test/auth/openid_connect/callback'
@@ -132,9 +137,9 @@ RSpec.describe Framework::AuthenticationConfig do # rubocop:disable Metrics/Bloc
   end
 
   it 'rejects impossible login-mode combinations' do
-    expect { config(LOCAL_LOGIN_ENABLED: 'false').validate! }
+    expect { config(LOCAL_LOGIN_ENABLED: 'false') }
       .to raise_error(described_class::Error, /LOCAL_LOGIN_ENABLED=false requires OIDC_ENABLED=true/)
-    expect { config(OIDC_AUTO_REDIRECT: 'true').validate! }
+    expect { config(OIDC_AUTO_REDIRECT: 'true') }
       .to raise_error(described_class::Error, /OIDC_AUTO_REDIRECT requires OIDC_ENABLED=true/)
   end
 end

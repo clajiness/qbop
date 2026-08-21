@@ -206,7 +206,6 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
 
     about_page = client.get('/about')
     expect(about_page.body).to include('<h4><em>account</em></h4>', 'href="/account"')
-    expect(about_page.body).to include('OIDC_ENABLED', 'OIDC_ISSUER', 'LOCAL_LOGIN_ENABLED')
     account_position = about_page.body.index('<h4><em>account</em></h4>')
     environment_position = about_page.body.index('<h4><em>env variables</em></h4>')
     expect(account_position).to be < environment_position

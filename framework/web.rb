@@ -84,7 +84,6 @@ module Framework
     get '/logged-out' do
       halt 404 unless authentication_config.oidc_active?
 
-      @auth_config = authentication_config
       erb :logged_out
     end
 
@@ -227,7 +226,7 @@ module Framework
     end
 
     def authentication_config
-      request.env['qbop.auth_config'] || AuthenticationConfig.new
+      request.env.fetch('qbop.auth_config')
     end
   end
 end

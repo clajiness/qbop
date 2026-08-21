@@ -139,15 +139,15 @@ environment:
   LOCAL_LOGIN_ENABLED: "true"
 ```
 
-`OIDC_PUBLIC_URL` is deliberately explicit so callback generation does not trust browser-controlled `Host`, `Forwarded`, or `X-Forwarded-*` headers. Use the external HTTPS origin seen by users, even if a reverse proxy connects to qbop over plain HTTP. HTTP is accepted for `OIDC_PUBLIC_URL` only on loopback during development; the issuer and discovered provider endpoints must use HTTPS. Provider discovery redirects are rejected, so the issuer must serve its discovery document directly.
+Set `OIDC_PUBLIC_URL` to the external origin seen by users; qbop does not infer it from proxy headers. HTTP is accepted only for loopback development URLs. The issuer and discovered provider endpoints must use HTTPS, and the issuer must serve its discovery document without redirects.
 
 qbop rejects discovery documents whose authorization, token, userinfo, JWKS, or logout endpoints contain credentials or fragments or would use plaintext HTTP. Those endpoints may use different HTTPS hosts when required by a standards-compliant provider.
 
-When `OIDC_AUTO_REDIRECT=true` and local login is disabled, `/login` renders a small auto-submitting POST form so OmniAuth's request-phase CSRF protection remains active. Setup, callback processing, error handling, static assets, and `/logged-out` do not auto-submit. The OIDC error page requires a deliberate retry, preventing failed authentication loops. Enabling `LOCAL_LOGIN_ENABLED` takes precedence over automatic redirect so break-glass access remains usable without another configuration change.
+`OIDC_AUTO_REDIRECT=true` automatically starts the CSRF-protected OIDC flow when local login is disabled. Error and logged-out pages require deliberate user action. Enabling `LOCAL_LOGIN_ENABLED` takes precedence so break-glass access remains usable.
 
 Set `LOCAL_LOGIN_ENABLED=false` to remove the local password form and make server-side password-login POSTs unavailable. `/setup`, `/account`, the local password hash, and `bundle exec rake user:reset-password` remain intact. For break-glass access, set `LOCAL_LOGIN_ENABLED=true`, redeploy or restart qbop, and sign in locally. If the OIDC settings themselves are deliberately broken, also correct them or temporarily set `OIDC_ENABLED=false` so startup validation can succeed.
 
-For OIDC-authenticated sessions, qbop clears its Rodauth session and then uses the provider's discovered RP-Initiated Logout endpoint. It sends an `id_token_hint` and the fixed `/logged-out` callback for compatibility with providers that require the ID token hint. The ID token is retained only in qbop's encrypted browser session, is size-limited, and is removed during logout; access and refresh tokens are never persisted. If discovery provides no logout endpoint, qbop still clears its own session and lands on `/logged-out`, but the provider session remains active.
+For OIDC-authenticated sessions, qbop clears its local session and uses the provider's discovered logout endpoint with an `id_token_hint` and the fixed `/logged-out` callback. If discovery provides no logout endpoint, qbop still signs out locally, but the provider session remains active.
 
 #### Pocket ID example
 

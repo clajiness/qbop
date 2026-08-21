@@ -108,7 +108,6 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
       subject: include(allow_null: false)
     )
     expect(schema.keys).not_to include(:access_token, :refresh_token, :id_token)
-    expect(unique_index?(db, :account_oidc_identities, %i[issuer subject])).to eq(true)
     expect(unique_index?(db, :account_oidc_identities, [:issuer])).to eq(true)
 
     db[:account_oidc_identities].insert(

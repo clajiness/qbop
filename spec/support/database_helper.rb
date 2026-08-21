@@ -115,7 +115,6 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
       String :subject, null: false
 
       index :account_id
-      index %i[issuer subject], unique: true
       index :issuer, unique: true
     end
 

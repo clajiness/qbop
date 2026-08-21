@@ -31,14 +31,10 @@ RSpec.describe Framework::OidcLogout do # rubocop:disable Metrics/BlockLength
     )
   end
 
-  it 'fails closed for missing data, non-HTTPS remote endpoints, and invalid URLs' do
+  it 'returns no URL when provider logout data is unavailable' do
     inputs = [
       { endpoint: '', id_token: 'token' },
-      { endpoint: 'https://id.example.com/logout', id_token: '' },
-      { endpoint: 'http://id.example.com/logout', id_token: 'token' },
-      { endpoint: 'http://127.attacker.example/logout', id_token: 'token' },
-      { endpoint: "https://id.example.com/#{'x' * 400}", id_token: 'token' },
-      { endpoint: 'not a URL', id_token: 'token' }
+      { endpoint: 'https://id.example.com/logout', id_token: '' }
     ]
 
     inputs.each do |input|

@@ -17,14 +17,7 @@ module Framework
       @oidc_auto_redirect = boolean_setting(env, 'OIDC_AUTO_REDIRECT', false)
       @local_login_enabled = boolean_setting(env, 'LOCAL_LOGIN_ENABLED', true)
       read_oidc_settings(env)
-    end
-
-    def validate!
-      return self unless web_auth_enabled?
-
-      validate_login_modes!
-      validate_oidc! if oidc_enabled?
-      self
+      validate!
     end
 
     def web_auth_enabled? = @web_auth_enabled
@@ -52,6 +45,13 @@ module Framework
     end
 
     private
+
+    def validate!
+      return unless web_auth_enabled?
+
+      validate_login_modes!
+      validate_oidc! if oidc_enabled?
+    end
 
     def boolean_setting(env, name, default)
       env.fetch(name, default.to_s).to_s.downcase == 'true'

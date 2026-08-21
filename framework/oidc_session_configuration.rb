@@ -9,7 +9,6 @@ module Framework
     END_SESSION_ENDPOINT_KEY = :qbop_oidc_end_session_endpoint
     ISSUER_SESSION_KEY = :qbop_oidc_issuer
     MAX_ID_TOKEN_BYTES = 1800
-    MAX_SUBJECT_BYTES = 255
     UNTRUSTED_CALLBACK_PARAMETERS = %w[code_verifier nonce redirect_uri].freeze
 
     def self.configure(auth, config, failure_message:, unauthorized_message:)
@@ -26,18 +25,15 @@ module Framework
     private_class_method :configure_callback_parameters
 
     def self.configure_callback(auth, config, failure_message, unauthorized_message) # rubocop:disable Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/MethodLength,Metrics/PerceivedComplexity
-      invalid_subject = method(:invalid_subject?)
-      invalid_audience = method(:invalid_audience?)
+      invalid_authorized_party = method(:invalid_authorized_party?)
       auth.before_omniauth_callback_route do
         redirect '/setup' if db[accounts_table].count.zero?
 
         raw_info = omniauth_extra&.fetch('raw_info', nil)
         subject = raw_info&.fetch('sub', nil)
-        raw_issuer = raw_info&.fetch('iss', nil)
         id_token = omniauth_credentials&.fetch('id_token', nil).to_s
-        invalid_protocol_identity = invalid_subject.call(subject) || raw_issuer != config.oidc_issuer || id_token.empty?
-        invalid_protocol_identity ||= id_token.bytesize > MAX_ID_TOKEN_BYTES
-        invalid_protocol_identity ||= invalid_audience.call(raw_info, config.oidc_client_id)
+        invalid_protocol_identity = id_token.empty? || id_token.bytesize > MAX_ID_TOKEN_BYTES
+        invalid_protocol_identity ||= invalid_authorized_party.call(raw_info, config.oidc_client_id)
         qbop_oidc_failure!(failure_message) if invalid_protocol_identity
 
         identity = OidcIdentity.new(db: db, issuer: config.oidc_issuer)
@@ -58,37 +54,19 @@ module Framework
         set_session_value(ID_TOKEN_SESSION_KEY, omniauth_credentials.fetch('id_token'))
         set_session_value(ISSUER_SESSION_KEY, config.oidc_issuer)
         endpoint = omniauth_strategy.options.client_options.end_session_endpoint
-        set_session_value(END_SESSION_ENDPOINT_KEY, endpoint) if OidcLogout.valid_endpoint?(endpoint)
+        set_session_value(END_SESSION_ENDPOINT_KEY, endpoint) if endpoint
       end
     end
     private_class_method :configure_callback
 
-    def self.invalid_subject?(subject)
-      !subject.is_a?(String) || subject.strip.empty? || subject.bytesize > MAX_SUBJECT_BYTES
-    end
-    private_class_method :invalid_subject?
-
-    def self.invalid_audience?(raw_info, client_id)
+    def self.invalid_authorized_party?(raw_info, client_id)
       audience = raw_info&.fetch('aud', nil)
       authorized_party = raw_info&.fetch('azp', nil)
-      !valid_audience?(audience, client_id) || !valid_authorized_party?(audience, authorized_party, client_id)
-    end
-    private_class_method :invalid_audience?
+      return false unless authorized_party || audience.is_a?(Array) && audience.length > 1
 
-    def self.valid_audience?(audience, client_id)
-      audience == client_id || (
-        audience.is_a?(Array) && !audience.empty? && audience.all?(String) && audience.include?(client_id)
-      )
+      authorized_party != client_id
     end
-    private_class_method :valid_audience?
-
-    def self.valid_authorized_party?(audience, authorized_party, client_id)
-      return false unless authorized_party.nil? || authorized_party == client_id
-      return true unless audience.is_a?(Array) && audience.length > 1
-
-      authorized_party == client_id
-    end
-    private_class_method :valid_authorized_party?
+    private_class_method :invalid_authorized_party?
 
     def self.configure_logout(auth, config) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
       auth.uses_instance_variables :@qbop_oidc_logout

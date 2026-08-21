@@ -20,7 +20,6 @@ module Framework
     end
 
     def self.roda_app(config = AuthenticationConfig.new)
-      config.validate!
       require_oidc_features if config.oidc_active?
 
       app = Class.new(Roda)

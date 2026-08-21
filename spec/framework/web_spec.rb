@@ -13,6 +13,13 @@ Framework::Web.set :run, false
 Framework::Web.set :views, File.expand_path('../../views', __dir__)
 
 RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
+  def web_request
+    @web_request ||= Rack::MockRequest.new(lambda do |env|
+      env['qbop.auth_config'] = Framework::AuthenticationConfig.new
+      described_class.call(env)
+    end)
+  end
+
   around do |example|
     version = ENV['VERSION']
     commit_sha = ENV['COMMIT_SHA']
@@ -39,7 +46,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'renders the stats page without an update notification row' do
-    response = Rack::MockRequest.new(described_class).get('/')
+    response = web_request.get('/')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('protonvpn')
@@ -47,7 +54,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'renders the stats page with meta refresh when requested' do
-    response = Rack::MockRequest.new(described_class).get('/?refresh=5')
+    response = web_request.get('/?refresh=5')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
@@ -57,7 +64,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     ENV['VERSION'] = 'v2.6.0'
     Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
 
-    response = Rack::MockRequest.new(described_class).get('/about')
+    response = web_request.get('/about')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('v2.7.0')
@@ -72,13 +79,28 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).not_to include('BASIC_AUTH_ENABLED', 'BASIC_AUTH_USER', 'BASIC_AUTH_PASS')
   end
 
+  it 'always shows authentication defaults while masking secrets' do
+    response = web_request.get('/about')
+
+    expect(response.body).to include(
+      'WEB_AUTH_ENABLED: false',
+      'OIDC_ENABLED: false',
+      'OIDC_ISSUER: <br>',
+      'OIDC_CLIENT_ID: <br>',
+      'OIDC_CLIENT_SECRET: ***',
+      'OIDC_PUBLIC_URL: <br>',
+      'OIDC_AUTO_REDIRECT: false',
+      'LOCAL_LOGIN_ENABLED: true'
+    )
+  end
+
   it 'renders main build identity without a release status' do
     ENV['VERSION'] = 'main'
     ENV['COMMIT_SHA'] = '0123456789abcdef'
     ENV['BUILD_DATE'] = '2026-08-11T12:34:56Z'
     Notification.create(name: 'update_available', info: 'v2.7.0', active: true)
 
-    response = Rack::MockRequest.new(described_class).get('/about')
+    response = web_request.get('/about')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('tracking main')
@@ -94,13 +116,13 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'renders the tools page' do
-    expect(Rack::MockRequest.new(described_class).get('/tools').status).to eq(200)
+    expect(web_request.get('/tools').status).to eq(200)
   end
 
   it 'renders public key tool results' do
     allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
 
-    response = Rack::MockRequest.new(described_class).post('/pubkey', input: 'privatekey=private-key')
+    response = web_request.post('/pubkey', input: 'privatekey=private-key')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('public-key')
@@ -109,7 +131,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   it 'renders public IP tool results' do
     allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
 
-    response = Rack::MockRequest.new(described_class).post('/public-ip', input: 'select=akamai')
+    response = web_request.post('/public-ip', input: 'select=akamai')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('akamai -> 192.0.2.1')
@@ -118,7 +140,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   it 'renders logs' do
     allow_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).and_return(['log line'])
 
-    response = Rack::MockRequest.new(described_class).get('/logs')
+    response = web_request.get('/logs')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('log line')
@@ -127,7 +149,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   it 'renders logs with query string controls' do
     expect_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).with(500, true).and_return(['new log'])
 
-    response = Rack::MockRequest.new(described_class).get('/logs?lines=500&direction=desc&refresh=5')
+    response = web_request.get('/logs?lines=500&direction=desc&refresh=5')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('new log')
@@ -136,7 +158,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'renders an empty port transition history' do
-    response = Rack::MockRequest.new(described_class).get('/history')
+    response = web_request.get('/history')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('port transition history')
@@ -154,7 +176,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       )
     end
 
-    response = Rack::MockRequest.new(described_class).get('/history?page=2&per_page=25&refresh=5')
+    response = web_request.get('/history?page=2&per_page=25&refresh=5')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('showing 26&ndash;30 of 30 transitions, newest first')
@@ -191,7 +213,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     PortTransition.mark_synced('opnsense', mixed.new_port, at: Time.at(13))
     PortTransition.mark_error('qbit', mixed.new_port, at: Time.at(14))
 
-    response = Rack::MockRequest.new(described_class).get('/history')
+    response = web_request.get('/history')
 
     expect(response.body).to include("<td>#{synced.refresh.opnsense_synced_at}</td>")
     expect(response.body).to include("<td>#{synced.qbit_synced_at}</td>")
@@ -207,7 +229,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       qbit_skipped: false
     )
 
-    response = Rack::MockRequest.new(described_class).get('/history?page=999&per_page=500')
+    response = web_request.get('/history?page=999&per_page=500')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('showing 1&ndash;1 of 1 transitions')
@@ -226,7 +248,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       )
     end
 
-    response = Rack::MockRequest.new(described_class).get('/history?page=10&per_page=25')
+    response = web_request.get('/history?page=10&per_page=25')
 
     expect(response.status).to eq(200)
     expect(response.body.scan('class="pagination-gap"').length).to eq(2)

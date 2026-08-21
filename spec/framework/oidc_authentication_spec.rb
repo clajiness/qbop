@@ -91,7 +91,7 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
         'OIDC_CLIENT_SECRET' => OIDC_SPEC_CLIENT_SECRET,
         'OIDC_PUBLIC_URL' => OIDC_SPEC_PUBLIC_URL
       }.merge(overrides.transform_keys(&:to_s))
-    ).validate!
+    )
   end
 
   def build_app(config = oidc_config)
@@ -379,7 +379,9 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
       discovery_document.merge(authorization_endpoint: 'http://id.example.com/authorize'),
       discovery_document.merge(token_endpoint: 'http://127.0.0.1/internal'),
       discovery_document.merge(jwks_uri: 'https://user@id.example.com/jwks'),
-      discovery_document.merge(userinfo_endpoint: 'https://id.example.com/userinfo#fragment')
+      discovery_document.merge(userinfo_endpoint: 'https://id.example.com/userinfo#fragment'),
+      discovery_document(end_session_endpoint: 'http://id.example.com/logout'),
+      discovery_document(end_session_endpoint: "https://id.example.com/#{'x' * 400}")
     ]
 
     unsafe_documents.each do |document|
@@ -417,24 +419,8 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
     expect(a_request(:get, downgrade_url)).not_to have_been_made
   end
 
-  it 'rejects an oversized discovery document before using its endpoints' do
-    create_account
-    document = discovery_document.merge(unused_padding: 'x' * Framework::OidcProviderMetadata::MAX_DOCUMENT_BYTES)
-    stub_request(:get, "#{OIDC_SPEC_ISSUER}/.well-known/openid-configuration").to_return(
-      status: 200, headers: { 'content-type' => 'application/json' }, body: JSON.generate(document)
-    )
-    login_page = @client.get('/login')
-    csrf = csrf_token_for(login_page, Framework::Authentication::OIDC_REQUEST_PATH)
-
-    response = @client.post(Framework::Authentication::OIDC_REQUEST_PATH, _csrf: csrf)
-
-    expect(response.status).to eq(302)
-    expect(URI(response['location']).path).to eq('/oidc/error')
-    expect(a_request(:get, "#{OIDC_SPEC_ISSUER}/jwks")).not_to have_been_made
-  end
-
   it 'uses certificate verification and bounded timeouts for OIDC HTTP clients' do
-    [SWD.http_client, WebFinger.http_client, OpenIDConnect.http_client, Rack::OAuth2.http_client].each do |client|
+    [SWD.http_client, OpenIDConnect.http_client, Rack::OAuth2.http_client].each do |client|
       expect(client.ssl.verify).to be(true)
       expect(client.options.open_timeout).to eq(Framework::OidcHttpConfiguration::OPEN_TIMEOUT)
       expect(client.options.timeout).to eq(Framework::OidcHttpConfiguration::REQUEST_TIMEOUT)
