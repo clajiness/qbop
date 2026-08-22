@@ -463,6 +463,19 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
     expect(response.status).to eq(302)
     expect(URI(response['location']).path).to eq('/oidc/error')
     expect(DB[:account_oidc_identities].count).to eq(0)
+
+    login_page = @client.get('/login')
+    local_login = @client.post(
+      '/login', login: 'admin@example.com', password: 'correct horse battery staple',
+                _csrf: csrf_token(login_page)
+    )
+    expect(local_login.status).to eq(302)
+    expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)
+
+    logout_page = @client.get('/logout')
+    local_logout = @client.post('/logout', _csrf: csrf_token(logout_page))
+    expect(URI(local_logout['location']).path).to eq('/login')
+    expect(@client.get('/auth-state').body).to eq('anonymous')
   end
 
   it 'rejects a response signed by a key outside the discovered JWKS' do
@@ -524,6 +537,20 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
       expect(client.get('/auth-state').body).to eq('anonymous')
       expect(DB[:account_oidc_identities].count).to eq(0)
     end
+  end
+
+  it 'accepts multiple audiences only when this client is the authorized party' do
+    create_account
+    stub_provider(
+      claims: { aud: [OIDC_SPEC_CLIENT_ID, 'other-client'], azp: OIDC_SPEC_CLIENT_ID }
+    )
+    begin_authorization
+
+    response = complete_authorization
+
+    expect(response.status).to eq(302)
+    expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)
+    expect(DB[:account_oidc_identities].count).to eq(1)
   end
 
   it 'rejects an oversized ID token before session storage without exposing it' do
@@ -589,7 +616,9 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
       build_app(oidc_config(OIDC_AUTO_REDIRECT: 'true', LOCAL_LOGIN_ENABLED: 'false'))
     )
     automatic_page = automatic.get('/login')
-    expect(automatic_page.body).to include("document.getElementById('oidc-login-form').submit()")
+    form_position = automatic_page.body.index('id="oidc-login-form"')
+    script_position = automatic_page.body.index("document.getElementById('oidc-login-form').submit()")
+    expect(form_position).to be < script_position
     expect(automatic_page.body).not_to include('name="login"', 'name="password"')
 
     recovery = OidcAuthenticationClient.new(build_app(oidc_config(OIDC_AUTO_REDIRECT: 'true')))
@@ -654,10 +683,19 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
     end
   end
 
-  it 'keeps setup available when local password login is disabled' do
+  it 'keeps one-time setup usable when local password login is disabled' do
     client = OidcAuthenticationClient.new(build_app(oidc_config(LOCAL_LOGIN_ENABLED: 'false')))
+    setup_page = client.get('/setup')
+    response = client.post(
+      '/setup', login: 'admin@example.com', password: 'correct horse battery staple',
+                'password-confirm': 'correct horse battery staple', _csrf: csrf_token(setup_page)
+    )
 
-    expect(client.get('/setup').status).to eq(200)
+    expect(response.status).to eq(302)
+    expect(DB[:accounts].count).to eq(1)
+    expect(client.get('/auth-state')['location']).to eq('/login')
+    expect(client.get('/auth-state').body).to eq('anonymous')
+    expect(client.get('/setup').status).to eq(404)
   end
 
   it 'keeps setup, failure, and logged-out pages out of auto-redirect loops' do

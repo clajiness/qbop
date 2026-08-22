@@ -20,9 +20,7 @@
     <% end %>
 
     <% if auth_config.oidc_active? %>
-    <% if auth_config.oidc_auto_redirect_active? %>
-    <script>document.getElementById('oidc-login-form').submit();</script>
-    <% elsif auth_config.local_login_enabled? %>
+    <% if !auth_config.oidc_auto_redirect_active? && auth_config.local_login_enabled? %>
     <p aria-hidden="true">-------- or --------</p>
     <% end %>
     <form action="<%= Framework::Authentication::OIDC_REQUEST_PATH %>" method="post" role="form" id="oidc-login-form">
@@ -34,6 +32,9 @@
         <button class="btn btn-default" type="submit">sign in with OpenID Connect</button>
       </div>
     </form>
+    <% if auth_config.oidc_auto_redirect_active? %>
+    <script>document.getElementById('oidc-login-form').submit();</script>
+    <% end %>
     <% end %>
   </fieldset>
 </section>

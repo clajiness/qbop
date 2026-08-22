@@ -416,8 +416,10 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(request.get('/logged-out').status).to eq(404)
   end
 
-  it 'allows direct web access and makes setup unavailable when web authentication is disabled' do
+  it 'makes inactive browser providers irrelevant when web authentication is disabled' do
     ENV['WEB_AUTH_ENABLED'] = 'false'
+    ENV['OIDC_ENABLED'] = 'true'
+    ENV['LOCAL_LOGIN_ENABLED'] = 'false'
     request = Rack::MockRequest.new(app)
     home = request.get('/')
     about = request.get('/about')
@@ -433,6 +435,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(request.post('/account/change-email').status).to eq(404)
     expect(request.get('/account/change-password').status).to eq(404)
     expect(request.post('/account/change-password').status).to eq(404)
+    expect(request.get('/api/stats').status).to eq(401)
     expect(DB[:accounts].count).to eq(0)
   end
 
