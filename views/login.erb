@@ -2,32 +2,13 @@
   <div class="logo terminal-prompt"><a href="/" class="no-style">qbop</a></div>
 
   <% auth_config = request.env.fetch('qbop.auth_config') %>
-  <% if auth_config.oidc_active? %>
-  <form action="<%= Framework::Authentication::OIDC_REQUEST_PATH %>" method="post" role="form" id="oidc-login-form">
-    <fieldset>
-      <legend>sign in to qbop</legend>
-      <%= rodauth.csrf_tag(Framework::Authentication::OIDC_REQUEST_PATH) %>
-      <% if auth_config.oidc_auto_redirect_active? %>
-      <p>redirecting to OpenID Connect&hellip;</p>
-      <% end %>
-      <div class="form-group">
-        <button class="btn btn-default" type="submit">sign in with OpenID Connect</button>
-      </div>
-    </fieldset>
-  </form>
-  <% if auth_config.oidc_auto_redirect_active? %>
-  <script>document.getElementById('oidc-login-form').submit();</script>
-  <% elsif auth_config.local_login_enabled? %>
-  <p aria-hidden="true">-------- or --------</p>
-  <% end %>
-  <% end %>
+  
+  <fieldset>
+    <legend>sign in to qbop</legend>
 
-  <% if auth_config.local_login_enabled? %>
-  <form method="post" role="form" id="login-form">
-    <fieldset>
-      <% unless auth_config.oidc_active? %>
-      <legend>sign in to qbop</legend>
-      <% end %>
+    <% if auth_config.local_login_enabled? %>
+
+    <form method="post" role="form" id="login-form">
       <%= rodauth.login_additional_form_tags %>
       <%= rodauth.csrf_tag %>
       <%= rodauth.render('login-field') %>
@@ -35,7 +16,24 @@
       <div class="form-group">
         <%= rodauth.button(rodauth.login_button, class: 'btn btn-default') %>
       </div>
-    </fieldset>
-  </form>
-  <% end %>
+    </form>
+    <% end %>
+
+    <% if auth_config.oidc_active? %>
+    <% if auth_config.oidc_auto_redirect_active? %>
+    <script>document.getElementById('oidc-login-form').submit();</script>
+    <% elsif auth_config.local_login_enabled? %>
+    <p aria-hidden="true">-------- or --------</p>
+    <% end %>
+    <form action="<%= Framework::Authentication::OIDC_REQUEST_PATH %>" method="post" role="form" id="oidc-login-form">
+      <%= rodauth.csrf_tag(Framework::Authentication::OIDC_REQUEST_PATH) %>
+      <% if auth_config.oidc_auto_redirect_active? %>
+      <p>redirecting to OpenID Connect&hellip;</p>
+      <% end %>
+      <div class="form-group">
+        <button class="btn btn-default" type="submit">sign in with OpenID Connect</button>
+      </div>
+    </form>
+    <% end %>
+  </fieldset>
 </section>
