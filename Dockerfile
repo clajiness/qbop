@@ -16,7 +16,7 @@ RUN groupadd -g 1234 qbop && useradd -m -u 1234 -g qbop qbop;
 COPY Gemfile Gemfile.lock /opt/qbop/
 RUN chown -R qbop:qbop /opt/qbop/
 USER qbop
-RUN bundle install;
+RUN bundle config set without 'development test' && bundle install;
 
 # copy application source and create necessary directories
 USER root

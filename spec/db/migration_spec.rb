@@ -35,6 +35,7 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     )
     expect(db.table_exists?(:accounts)).to eq(true)
     expect(db.table_exists?(:account_password_hashes)).to eq(true)
+    expect(db.table_exists?(:account_oidc_identities)).to eq(true)
     expect(db.table_exists?(:api_keys)).to eq(true)
   end
 
@@ -93,6 +94,93 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     expect(db.schema(:account_password_hashes).to_h[:password_hash][:allow_null]).to eq(false)
     expect(unique_index?(db, :accounts, [:email])).to eq(true)
     expect(unique_index?(db, :accounts, [:single_account_key])).to eq(true)
+  end
+
+  it 'creates issuer-scoped OIDC identities without storing provider tokens' do
+    db = Sequel.sqlite
+    run_migrations(db)
+    account_id = db[:accounts].insert(email: 'admin@example.com')
+    schema = db.schema(:account_oidc_identities).to_h
+
+    expect(schema).to include(
+      account_id: include(allow_null: false),
+      issuer: include(allow_null: false),
+      subject: include(allow_null: false)
+    )
+    expect(schema.keys).not_to include(:access_token, :refresh_token, :id_token)
+    expect(unique_index?(db, :account_oidc_identities, [:issuer])).to eq(true)
+
+    db[:account_oidc_identities].insert(
+      account_id: account_id, issuer: 'https://id.example.com', subject: 'administrator'
+    )
+    expect do
+      db[:account_oidc_identities].insert(
+        account_id: account_id, issuer: 'https://id.example.com', subject: 'replacement'
+      )
+    end.to raise_error(Sequel::UniqueConstraintViolation)
+
+    db[:accounts].where(id: account_id).delete
+    expect(db[:account_oidc_identities].count).to eq(0)
+  end
+
+  it 'upgrades, rolls back, and reapplies migration 007 without changing account credentials or API keys' do
+    database_path = File.join(Dir.mktmpdir, 'qbop.sqlite3')
+    db = Sequel.sqlite(database_path)
+    Sequel.extension :migration
+    Sequel::Migrator.run(db, 'db/migrate', target: 6)
+    account_id = db[:accounts].insert(email: 'admin@example.com')
+    db[:account_password_hashes].insert(id: account_id, password_hash: 'existing-password-hash')
+    db[:api_keys].insert(
+      name: 'existing key', token_digest: 'digest', token_prefix: 'qbop_existing', created_at: Time.now
+    )
+
+    Sequel::Migrator.run(db, 'db/migrate', target: 7)
+    expect(db.table_exists?(:account_oidc_identities)).to be(true)
+    expect(db[:accounts].get(:email)).to eq('admin@example.com')
+    expect(db[:account_password_hashes].get(:password_hash)).to eq('existing-password-hash')
+    expect(db[:api_keys].get(:token_digest)).to eq('digest')
+
+    Sequel::Migrator.run(db, 'db/migrate', target: 6)
+    expect(db.table_exists?(:account_oidc_identities)).to be(false)
+    expect(db[:accounts].count).to eq(1)
+    expect(db[:api_keys].count).to eq(1)
+
+    Sequel::Migrator.run(db, 'db/migrate', target: 7)
+    expect(db.table_exists?(:account_oidc_identities)).to be(true)
+    expect(db[:accounts].count).to eq(1)
+    expect(db[:api_keys].count).to eq(1)
+  end
+
+  it 'allows only one of two concurrent first-link inserts for the same issuer' do # rubocop:disable Metrics/BlockLength
+    database_path = File.join(Dir.mktmpdir, 'qbop.sqlite3')
+    db = Sequel.sqlite(database_path, max_connections: 2, timeout: 2_000)
+    run_migrations(db)
+    account_id = db[:accounts].insert(email: 'admin@example.com')
+    ready = Queue.new
+    start = Queue.new
+    results = Queue.new
+
+    threads = %w[subject-one subject-two].map do |subject|
+      Thread.new do
+        ready << true
+        start.pop
+        db[:account_oidc_identities].insert(
+          account_id: account_id, issuer: 'https://id.example.com', subject: subject
+        )
+        results << :created
+      rescue Sequel::UniqueConstraintViolation
+        results << :rejected
+      rescue StandardError => e
+        results << e.class
+      end
+    end
+
+    2.times { ready.pop }
+    2.times { start << true }
+    threads.each(&:join)
+
+    expect(2.times.map { results.pop }.sort).to eq(%i[created rejected])
+    expect(db[:account_oidc_identities].count).to eq(1)
   end
 
   it 'enforces the single-account invariant in the database' do

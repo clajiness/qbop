@@ -95,6 +95,13 @@ Pull requests are built without publishing an image. Main-branch builds identify
 | `QBIT_PASS` | | qBittorrent password. Used when `QBIT_API_KEY` is not set. |
 | `QBIT_SSL_VERIFY` | `false` | [`true`/`false`] Verify qBittorrent TLS certificates. Defaults to `false` for self-signed/private deployments. |
 | `WEB_AUTH_ENABLED` | `true` | Require browser authentication for the web UI. Disable only if the UI is protected by another trusted access layer. |
+| `OIDC_ENABLED` | `false` | Enable optional OpenID Connect browser authentication. OIDC is not initialized when disabled. |
+| `OIDC_ISSUER` | | HTTPS issuer URL used for standard OIDC discovery, such as `https://id.example.com`. Required when OIDC and browser authentication are enabled. HTTP issuers are rejected, including on loopback. |
+| `OIDC_CLIENT_ID` | | Confidential OIDC client identifier. Required when OIDC and browser authentication are enabled. |
+| `OIDC_CLIENT_SECRET` | | Confidential OIDC client secret. Required when OIDC and browser authentication are enabled. |
+| `OIDC_PUBLIC_URL` | | Externally reachable qbop origin, such as `https://qbop.example.com`, without a path. Used for fixed callback URLs and required when OIDC and browser authentication are enabled. |
+| `OIDC_AUTO_REDIRECT` | `false` | Automatically submit the CSRF-protected OIDC sign-in form when an unauthenticated browser reaches `/login`. |
+| `LOCAL_LOGIN_ENABLED` | `true` | Offer and accept local password login. This does not remove the local account, setup, account management, or password recovery. |
 
 ## Authentication
 
@@ -105,6 +112,54 @@ Pull requests are built without publishing an image. Main-branch builds identify
 Set `WEB_AUTH_ENABLED=false` to bypass browser authentication when another trusted access layer protects the UI. In this mode `/setup` and `/account` are unavailable. Disabling browser authentication does not disable API authentication.
 
 Browser sessions use a secret generated automatically in the persistent `data/session_secret.txt` file, so no additional session configuration is required.
+
+### OpenID Connect
+
+OIDC is an optional browser sign-in method and is disabled by default. Existing installations do not need to configure it, and local email/password login remains enabled by default. OIDC does not provision qbop users: create the single local administrator through `/setup` before attempting OIDC sign-in.
+
+The first successful OIDC sign-in must provide the same email as the existing administrator and explicitly report that email as verified. qbop then stores only the provider issuer, immutable `sub` subject, and local account ID. Later sign-ins use that issuer-and-subject link, so a later email change at qbop or the provider does not silently replace the identity. A different subject for an already-linked issuer is denied even if its email matches.
+
+qbop uses standard discovery, Authorization Code flow, PKCE S256, state, nonce, and the `openid email` scopes. Configure a confidential client at the provider with exactly these application URLs, replacing the example origin with `OIDC_PUBLIC_URL`:
+
+```text
+Callback URL:        https://qbop.example.com/auth/openid_connect/callback
+Logout callback URL: https://qbop.example.com/logged-out
+```
+
+Generic configuration example:
+
+```yaml
+environment:
+  OIDC_ENABLED: "true"
+  OIDC_ISSUER: "https://id.example.com"
+  OIDC_CLIENT_ID: "qbop-client"
+  OIDC_CLIENT_SECRET: "replace-with-provider-generated-secret"
+  OIDC_PUBLIC_URL: "https://qbop.example.com"
+  OIDC_AUTO_REDIRECT: "false"
+  LOCAL_LOGIN_ENABLED: "true"
+```
+
+Set `OIDC_PUBLIC_URL` to the external origin seen by users; qbop does not infer it from proxy headers. HTTP is accepted only for loopback development URLs. The issuer and discovered provider endpoints must use HTTPS, and the issuer must serve its discovery document without redirects.
+
+qbop rejects discovery documents whose authorization, token, userinfo, JWKS, or logout endpoints contain credentials or fragments or would use plaintext HTTP. Those endpoints may use different HTTPS hosts when required by a standards-compliant provider.
+
+`OIDC_AUTO_REDIRECT=true` automatically starts the CSRF-protected OIDC flow when local login is disabled. Error and logged-out pages require deliberate user action. Enabling `LOCAL_LOGIN_ENABLED` takes precedence so break-glass access remains usable.
+
+Set `LOCAL_LOGIN_ENABLED=false` to remove the local password form and make server-side password-login POSTs unavailable. `/setup`, `/account`, the local password hash, and `bundle exec rake user:reset-password` remain intact. For break-glass access, set `LOCAL_LOGIN_ENABLED=true`, redeploy or restart qbop, and sign in locally. If the OIDC settings themselves are deliberately broken, also correct them or temporarily set `OIDC_ENABLED=false` so startup validation can succeed.
+
+For OIDC-authenticated sessions, qbop clears its local session and uses the provider's discovered logout endpoint with an `id_token_hint` and the fixed `/logged-out` callback. If discovery provides no logout endpoint, qbop still signs out locally, but the provider session remains active.
+
+#### Pocket ID example
+
+Pocket ID is not required; qbop remains provider-neutral. In Pocket ID, create a confidential OIDC client, generate a client secret, enable Authorization Code flow with PKCE, and register:
+
+```text
+Callback URL:        https://qbop.example.com/auth/openid_connect/callback
+Logout callback URL: https://qbop.example.com/logged-out
+Scopes:              openid email
+```
+
+Then set `OIDC_ISSUER` to the issuer shown by Pocket ID discovery (for example, `https://id.example.com`), set the generated client ID and secret, and set `OIDC_PUBLIC_URL=https://qbop.example.com`. Leave local login enabled until the first verified-email link and provider logout have both been tested.
 
 ### Account recovery
 

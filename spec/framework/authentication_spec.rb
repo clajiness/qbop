@@ -107,11 +107,15 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
   end
 
   around do |example|
-    web_auth_enabled = ENV['WEB_AUTH_ENABLED']
-    ENV.delete('WEB_AUTH_ENABLED')
+    keys = %w[
+      WEB_AUTH_ENABLED OIDC_ENABLED OIDC_AUTO_REDIRECT LOCAL_LOGIN_ENABLED
+      OIDC_ISSUER OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_PUBLIC_URL
+    ]
+    original_env = keys.to_h { |key| [key, ENV[key]] }
+    keys.each { |key| ENV.delete(key) }
     example.run
   ensure
-    web_auth_enabled.nil? ? ENV.delete('WEB_AUTH_ENABLED') : ENV['WEB_AUTH_ENABLED'] = web_auth_enabled
+    keys.each { |key| original_env[key].nil? ? ENV.delete(key) : ENV[key] = original_env[key] }
   end
 
   before do
@@ -134,6 +138,13 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     expect(login_field).to include('type="email"', 'autocomplete="username"')
     expect(password_field).to include('type="password"', 'autocomplete="new-password"')
     expect(password_confirm_field).to include('type="password"', 'autocomplete="new-password"')
+  end
+
+  it 'does not enable or expose OmniAuth when OIDC is disabled by default' do
+    auth = described_class.rodauth
+
+    expect(auth.features).not_to include(:omniauth, :omniauth_base)
+    expect(@client.get(described_class::OIDC_REQUEST_PATH).status).to eq(404)
   end
 
   it 'creates the single account, hashes its password, and authenticates the session' do
@@ -185,6 +196,7 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
 
   it 'returns 404 for setup GET and POST when web authentication is disabled' do
     ENV['WEB_AUTH_ENABLED'] = 'false'
+    @client = AuthenticationSessionClient.new(build_app)
 
     expect(@client.get('/setup').status).to eq(404)
     expect(@client.post('/setup').status).to eq(404)
@@ -395,6 +407,7 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
   it 'returns 404 for account-management routes when web authentication is disabled' do
     create_account
     ENV['WEB_AUTH_ENABLED'] = 'false'
+    @client = AuthenticationSessionClient.new(build_app)
 
     expect(@client.get('/account').status).to eq(404)
     expect(@client.get('/account/change-email').status).to eq(404)

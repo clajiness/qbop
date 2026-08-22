@@ -1,92 +1,61 @@
+require_relative 'authentication_config'
+require_relative 'authentication_routes'
+require_relative 'oidc_http_configuration'
+require_relative 'oidc_logger'
+require_relative 'rodauth_configuration'
+
 module Framework
-  # Rodauth middleware for qbop's browser authentication.
-  class Authentication < Roda
-    plugin :middleware
+  # Builds Rodauth middleware for qbop's optional browser authentication methods.
+  class Authentication
+    OIDC_REQUEST_PATH = OidcAuthentication::REQUEST_PATH
+    OIDC_UNAUTHORIZED_MESSAGE = OidcAuthentication::UNAUTHORIZED_MESSAGE
+    OIDC_FAILURE_MESSAGE = OidcAuthentication::FAILURE_MESSAGE
 
-    plugin :rodauth do # rubocop:disable Metrics/BlockLength
-      db { DB }
-      enable :login, :logout, :create_account, :change_login, :change_password, :internal_request
+    def self.new(app, config: AuthenticationConfig.new)
+      roda_app(config).new(app)
+    end
 
-      prefix ''
-      create_account_route 'setup'
-      change_login_route 'account/change-email'
-      change_password_route 'account/change-password'
-      change_login_redirect '/account'
-      change_password_redirect '/account'
-      require_login_confirmation? false
+    def self.rodauth(config: AuthenticationConfig.new)
+      roda_app(config).rodauth
+    end
 
-      login_label 'email'
-      auth_class_eval do
-        def login_field_autocomplete_value
-          'username'
-        end
-      end
-      login_does_not_meet_requirements_message do
-        "invalid email#{": #{login_requirement_message}" if login_requirement_message}"
-      end
-      password_label 'password'
-      password_confirm_label 'confirm password'
-      login_page_title 'sign in to qbop'
-      login_button 'sign in'
-      login_notice_flash 'you have been logged in'
-      login_error_flash 'there was an error logging in'
-      require_login_error_flash 'please login to continue'
-      create_account_page_title 'welcome to qbop'
-      create_account_button 'create account'
-      create_account_notice_flash 'your account has been created'
-      create_account_error_flash 'there was an error creating your account'
-      change_login_page_title 'change email'
-      change_login_button 'change email'
-      change_login_notice_flash 'email changed successfully'
-      change_login_error_flash 'there was an error changing your email'
-      same_as_current_login_message 'same as current email'
-      change_password_page_title 'change password'
-      change_password_button 'change password'
-      change_password_notice_flash 'password changed successfully'
-      change_password_error_flash 'there was an error changing your password'
-      new_password_label 'new password'
-      logout_page_title 'sign out'
-      logout_button 'sign out'
-      logout_notice_flash 'you have been logged out'
+    def self.roda_app(config = AuthenticationConfig.new)
+      require_oidc_features if config.oidc_active?
 
-      change_login_view do
-        if request.post?
-          error = field_error(password_param) || field_error(login_param) || change_login_error_flash
-          set_redirect_error_flash(error)
-        end
-        redirect change_login_redirect
-      end
+      app = Class.new(Roda)
+      app.plugin :middleware
+      configure_rodauth(app, config)
+      app.plugin :route_csrf, csrf_failure: :empty_403 # rubocop:disable Naming/VariableNumber
+      configure_routes(app, config)
+      app
+    end
 
-      change_password_view do
-        if request.post?
-          error = field_error(password_param) || field_error(new_password_param) || change_password_error_flash
-          set_redirect_error_flash(error)
-        end
-        redirect change_password_redirect
-      end
+    def self.require_oidc_features
+      require 'omniauth_openid_connect'
+      require 'rodauth/features/omniauth'
+      OidcHttpConfiguration.configure!
+      OmniAuth.config.logger = OidcLogger.new(OmniAuth.config.logger) unless OmniAuth.config.logger.is_a?(OidcLogger)
+    end
+    private_class_method :require_oidc_features
 
-      before_login_route do
-        helpers = Service::Helpers.new
-        web_auth_enabled = helpers.true?(helpers.env_variables[:web_auth_enabled])
-        redirect '/setup' if web_auth_enabled && db[accounts_table].count.zero?
+    def self.configure_rodauth(app, config)
+      app.plugin :rodauth do
+        RodauthConfiguration.configure(self, config)
+        OidcAuthentication.configure(self, config) if config.oidc_active?
       end
     end
-    plugin :route_csrf, csrf_failure: :empty_403 # rubocop:disable Naming/VariableNumber
+    private_class_method :configure_rodauth
 
-    route do |r|
-      env['rodauth'] = rodauth
-
-      if r.path == '/setup'
-        helpers = Service::Helpers.new
-        web_auth_enabled = helpers.true?(helpers.env_variables[:web_auth_enabled])
-        r.halt [404, {}, []] unless web_auth_enabled && DB[:accounts].count.zero?
-      elsif r.path == '/account' || r.path.start_with?('/account/')
-        helpers = Service::Helpers.new
-        web_auth_enabled = helpers.true?(helpers.env_variables[:web_auth_enabled])
-        r.halt [404, {}, []] unless web_auth_enabled
+    def self.configure_routes(app, config)
+      routes = AuthenticationRoutes.new(config)
+      app.route do |r|
+        authentication = rodauth
+        env['rodauth'] = authentication
+        env['qbop.auth_config'] = config
+        routes.guard!(r, authentication)
+        r.rodauth
       end
-
-      r.rodauth
     end
+    private_class_method :configure_routes
   end
 end
