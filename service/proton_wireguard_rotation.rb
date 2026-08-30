@@ -1,11 +1,12 @@
 require_relative 'opnsense'
+require_relative 'proton_wireguard'
 
 module Service
   # Safely rotates an existing OPNsense WireGuard instance and peer.
   class ProtonWireguardRotation # rubocop:disable Metrics/ClassLength
     LOCK_PATH = File.expand_path('../data/wireguard-import.lock', __dir__)
     INSTANCE_FIELDS = %w[pubkey privkey dns tunneladdress gateway].freeze
-    PEER_FIELDS = %w[pubkey tunneladdress serveraddress serverport].freeze
+    PEER_FIELDS = %w[name pubkey tunneladdress serveraddress serverport].freeze
 
     class Error < StandardError; end
     class Busy < Error; end
@@ -25,14 +26,15 @@ module Service
       raise Error, e.message
     end
 
-    def rotate(wireguard, instance_uuid:, peer_uuid:)
+    def rotate(wireguard, instance_uuid:, peer_uuid:, rename_peer: false)
+      peer_name = requested_peer_name(wireguard, rename_peer)
       selection = validate_request(instance_uuid: instance_uuid, peer_uuid: peer_uuid)
-      with_lock { perform_rotation(wireguard, **selection) }
+      with_lock { perform_rotation(wireguard, peer_name: peer_name, **selection) }
     end
 
     private
 
-    def perform_rotation(wireguard, instance_uuid:, peer_uuid:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def perform_rotation(wireguard, instance_uuid:, peer_uuid:, peer_name:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       state = { instance_uuid: instance_uuid, peer_uuid: peer_uuid }
       completed = false
       rollback_attempted = false
@@ -42,7 +44,7 @@ module Service
         set_instance_enabled(state, false)
         @opnsense.reconfigure_wireguard
         verify_instance_stopped(state)
-        update_peer(state, wireguard.fetch(:peer))
+        update_peer(state, wireguard.fetch(:peer), peer_name)
         update_instance(state, wireguard.fetch(:instance))
         @opnsense.reconfigure_wireguard
         set_instance_enabled(state, true)
@@ -55,7 +57,7 @@ module Service
         )
         completed = true
 
-        { instance_name: state[:instance_name], peer_name: state[:peer_name] }
+        { instance_name: state[:instance_name], peer_name: peer_name || state[:peer_name] }
       rescue StandardError => e
         rollback_required = rotation_changed?(state)
         rollback_attempted = true
@@ -90,7 +92,7 @@ module Service
     end
 
     # Mark writes before sending them because OPNsense may save a request whose response is lost.
-    def update_peer(state, peer)
+    def update_peer(state, peer, peer_name)
       state[:peer_updated] = true
       payload = {
         'pubkey' => peer.fetch(:public_key),
@@ -99,7 +101,17 @@ module Service
         'serverport' => peer.fetch(:endpoint_port).to_s,
         'servers' => state.fetch(:original_peer).fetch('servers')
       }
+      payload['name'] = peer_name if peer_name
       @opnsense.save_wireguard_peer(state[:peer_uuid], payload)
+    end
+
+    def requested_peer_name(wireguard, rename_peer)
+      return unless rename_peer
+
+      metadata = wireguard.fetch(:metadata, {})
+      Service::ProtonWireguard.peer_name_for(metadata[:proton_server_identifier])
+    rescue Service::ProtonWireguard::ImportError => e
+      raise Error, e.message
     end
 
     def update_instance(state, instance)

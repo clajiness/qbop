@@ -167,30 +167,65 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response_json(response)['wireguard_targets']).to eq(JSON.parse(targets.to_json))
   end
 
-  it 'completes a ProtonVPN WireGuard rotation without returning its private values' do
+  it 'completes a ProtonVPN WireGuard rotation without returning its private values' do # rubocop:disable Metrics/BlockLength
     instance_uuid = '11111111-1111-4111-8111-111111111111'
     peer_uuid = '22222222-2222-4222-8222-222222222222'
-    parsed = { instance: { private_key: 'private-key' }, peer: {} }
+    parsed = {
+      instance: { private_key: 'private-key' },
+      peer: {},
+      metadata: { proton_server_identifier: 'US-IL#661' }
+    }
     allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(parsed)
     rotation = instance_double(Service::ProtonWireguardRotation)
     allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
     expect(rotation).to receive(:rotate).with(
       parsed,
       instance_uuid: instance_uuid,
-      peer_uuid: peer_uuid
-    ).and_return(instance_name: 'proton-instance', peer_name: 'proton-peer')
+      peer_uuid: peer_uuid,
+      rename_peer: true
+    ).and_return(instance_name: 'proton-instance', peer_name: 'Proton_US-IL661')
 
     response = api_post(
       '/api/tools/wireguard-import',
-      { config: '[Interface]', instance_uuid: instance_uuid, peer_uuid: peer_uuid }
+      {
+        config: "[Interface]\nPrivateKey = distinctive-private-config-value",
+        instance_uuid: instance_uuid,
+        peer_uuid: peer_uuid,
+        rename_peer: true
+      }
     )
     body = response_json(response)
 
     expect(response.status).to eq(200)
     expect(body['wireguard_import']).to eq(
-      'instance_name' => 'proton-instance', 'peer_name' => 'proton-peer'
+      'instance_name' => 'proton-instance', 'peer_name' => 'Proton_US-IL661'
     )
-    expect(response.body).not_to include('private-key', '[Interface]')
+    expect(response.body).not_to include('private-key', 'distinctive-private-config-value', '[Interface]')
+  end
+
+  it 'rejects requested peer renaming without server metadata before contacting OPNsense' do
+    instance_uuid = '11111111-1111-4111-8111-111111111111'
+    peer_uuid = '22222222-2222-4222-8222-222222222222'
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(
+      instance: {}, peer: {}, metadata: {}
+    )
+    opnsense = instance_double(Service::Opnsense)
+    allow(Service::Opnsense).to receive(:new).and_return(opnsense)
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      {
+        config: '[Interface]',
+        instance_uuid: instance_uuid,
+        peer_uuid: peer_uuid,
+        rename_peer: true
+      }
+    )
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)['error']).to include(
+      'Unable to rename peer because a Proton server identifier was not found'
+    )
   end
 
   it 'returns conflict when another WireGuard rotation is in progress' do

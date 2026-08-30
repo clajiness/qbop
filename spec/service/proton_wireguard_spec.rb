@@ -33,7 +33,7 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
     result = described_class.new(helpers).import(config)
 
     expect(helpers).to have_received(:generate_wg_public_key).with(private_key)
-    expect(result.keys).to contain_exactly(:instance, :peer)
+    expect(result.keys).to contain_exactly(:instance, :peer, :metadata)
     expect(result[:instance].keys).to contain_exactly(
       :public_key, :private_key, :dns_servers, :tunnel_addresses, :gateway
     )
@@ -53,6 +53,45 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
       endpoint_address: '192.0.2.10',
       endpoint_port: 51_820
     )
+    expect(result[:metadata]).to eq({})
+  end
+
+  it 'derives Proton_SE108 from an SE server comment' do
+    result = described_class.new(helpers).import(config.sub("[Peer]\n", "[Peer]\n# SE#108\n"))
+
+    identifier = result.dig(:metadata, :proton_server_identifier)
+    expect(identifier).to eq('SE#108')
+    expect(described_class.peer_name_for(identifier)).to eq('Proton_SE108')
+  end
+
+  it 'derives Proton_NO56 from a NO server comment' do
+    result = described_class.new(helpers).import(config.sub("[Peer]\n", "[Peer]\n# NO#56\n"))
+
+    identifier = result.dig(:metadata, :proton_server_identifier)
+    expect(identifier).to eq('NO#56')
+    expect(described_class.peer_name_for(identifier)).to eq('Proton_NO56')
+  end
+
+  it 'derives Proton_US-IL661 while preserving the server prefix hyphen' do
+    result = described_class.new(helpers).import(config.sub("[Peer]\n", "[Peer]\n# US-IL#661\n"))
+
+    identifier = result.dig(:metadata, :proton_server_identifier)
+    expect(identifier).to eq('US-IL#661')
+    expect(described_class.peer_name_for(identifier)).to eq('Proton_US-IL661')
+  end
+
+  it 'does not treat the Proton IPv6 explanatory comment as server metadata' do
+    comment = '# Uncomment the following line (delete the # symbol) to connect to Proton VPN using IPv6.'
+    result = described_class.new(helpers).import(config.sub("[Peer]\n", "[Peer]\n#{comment}\n"))
+
+    expect(result[:metadata]).to eq({})
+  end
+
+  it 'validates a generated peer name against the OPNsense length restriction' do
+    identifier = "#{'A' * 57}#1"
+
+    expect { described_class.peer_name_for(identifier) }
+      .to raise_error(described_class::ImportError, /not valid for OPNsense/)
   end
 
   it 'rejects a config that does not declare NAT-PMP status' do

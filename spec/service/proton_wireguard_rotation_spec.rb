@@ -36,6 +36,9 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
       }
     }
   end
+  let(:renamed_wireguard) do
+    wireguard.merge(metadata: { proton_server_identifier: 'US-IL#661' })
+  end
   let(:new_instance) do
     {
       'pubkey' => 'new-instance-public-key',
@@ -65,6 +68,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
   end
   let(:old_peer) do
     {
+      'name' => 'proton-peer',
       'pubkey' => 'old-peer-public-key',
       'tunneladdress' => '0.0.0.0/0',
       'serveraddress' => '198.51.100.10',
@@ -197,12 +201,82 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     expect(runtime).to have_been_requested.times(2)
   end
 
+  it 'adds the generated name only when peer renaming is selected' do
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(opnsense)
+    allow(opnsense).to receive(:wireguard_runtime).and_return(
+      [],
+      runtime_records(
+        instance_public_key: 'new-instance-public-key',
+        peer_public_key: 'new-peer-public-key'
+      )
+    )
+    allow(opnsense).to receive(:save_wireguard_instance)
+    allow(opnsense).to receive(:reconfigure_wireguard)
+    expect(opnsense).to receive(:save_wireguard_peer).with(
+      peer_uuid, new_peer.merge('name' => 'Proton_US-IL661')
+    )
+
+    result = rotation_for(opnsense).rotate(
+      renamed_wireguard,
+      instance_uuid: instance_uuid,
+      peer_uuid: peer_uuid,
+      rename_peer: true
+    )
+
+    expect(result).to eq(instance_name: 'proton-instance', peer_name: 'Proton_US-IL661')
+  end
+
+  it 'restores the original peer name after a renamed peer was written' do
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(opnsense)
+    allow(opnsense).to receive(:wireguard_runtime).and_return([], runtime_records)
+    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, 'enabled' => '0').ordered
+    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:save_wireguard_peer).with(
+      peer_uuid, new_peer.merge('name' => 'Proton_US-IL661')
+    ).ordered
+    expect(opnsense).to receive(:save_wireguard_instance).with(
+      instance_uuid, new_instance
+    ).ordered.and_raise(Faraday::TimeoutError)
+    expect(opnsense).to receive(:save_wireguard_peer).with(peer_uuid, old_peer).ordered
+    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, old_instance).ordered
+    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, 'enabled' => '1').ordered
+    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+
+    expect do
+      rotation_for(opnsense).rotate(
+        renamed_wireguard,
+        instance_uuid: instance_uuid,
+        peer_uuid: peer_uuid,
+        rename_peer: true
+      )
+    end.to raise_error(described_class::Error, /rotation failed.*rollback completed/)
+  end
+
   it 'rejects invalid selections before reading OPNsense' do
     opnsense = instance_double(Service::Opnsense, validate_wireguard_config: nil)
 
     expect do
       rotation_for(opnsense).rotate(wireguard, instance_uuid: 'new', peer_uuid: peer_uuid)
     end.to raise_error(described_class::Error, /Instance selection is invalid/)
+  end
+
+  it 'rejects an invalid generated peer name before contacting OPNsense' do
+    opnsense = instance_double(Service::Opnsense)
+    invalid_name = wireguard.merge(
+      metadata: { proton_server_identifier: "#{'A' * 57}#1" }
+    )
+
+    expect do
+      rotation_for(opnsense).rotate(
+        invalid_name,
+        instance_uuid: instance_uuid,
+        peer_uuid: peer_uuid,
+        rename_peer: true
+      )
+    end.to raise_error(described_class::Error, /generated name is not valid for OPNsense/)
   end
 
   it 'rejects a disabled instance before writing' do

@@ -86,7 +86,8 @@ module Framework
       ).rotate(
         wireguard,
         instance_uuid: params['instance_uuid'].to_s.strip,
-        peer_uuid: params['peer_uuid'].to_s.strip
+        peer_uuid: params['peer_uuid'].to_s.strip,
+        rename_peer: Service::Helpers.new.true?(params['rename_peer'])
       )
 
       status 200

@@ -135,35 +135,48 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       ['import protonvpn wireguard config', 'generate wireguard public key', 'get public ip address']
     )
     expect(response.body).to include('proton-instance - wg0', 'proton-peer', 'update an existing opnsense instance')
+    expect(response.body).to include(
+      'id="wireguardrenamepeer"',
+      'Rename peer to match Proton server',
+      "Uses Proton's server identifier to generate a name such as Proton_US-IL661."
+    )
+    checkbox = response.body[/<input[^>]+id="wireguardrenamepeer"[^>]*>/]
+    expect(checkbox).not_to include('disabled', 'checked')
+    expect(response.body).not_to include('protonPeerName', 'FileReader', 'wireguardrenamepeerlabel')
   end
 
   it 'updates the selected OPNsense WireGuard instance and peer synchronously' do # rubocop:disable Metrics/BlockLength
     instance_uuid = '11111111-1111-4111-8111-111111111111'
     peer_uuid = '22222222-2222-4222-8222-222222222222'
-    parsed = { instance: {}, peer: {} }
+    parsed = {
+      instance: {}, peer: {}, metadata: { proton_server_identifier: 'US-IL#661' }
+    }
     targets = {
       instances: [{ uuid: instance_uuid, name: 'proton-instance', interface: 'wg0' }],
       peers: [{ uuid: peer_uuid, name: 'proton-peer' }]
     }
-    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).with('uploaded config').and_return(parsed)
+    submitted_config = 'uploaded distinctive-rename-private-config-value'
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).with(submitted_config).and_return(parsed)
     allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
     rotation = instance_double(Service::ProtonWireguardRotation)
     allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
     expect(rotation).to receive(:rotate).with(
       parsed,
       instance_uuid: instance_uuid,
-      peer_uuid: peer_uuid
-    ).and_return(instance_name: 'proton-instance', peer_name: 'proton-peer')
+      peer_uuid: peer_uuid,
+      rename_peer: true
+    ).and_return(instance_name: 'proton-instance', peer_name: 'Proton_US-IL661')
 
     uploaded = Rack::Multipart::UploadedFile.new(
-      nil, 'text/plain', false, filename: 'proton.conf', io: StringIO.new('uploaded config')
+      nil, 'text/plain', false, filename: 'proton.conf', io: StringIO.new(submitted_config)
     )
     multipart = Rack::Multipart.build_multipart(
       {
         wireguardconfig: 'stale pasted config',
         wireguardfile: uploaded,
         wireguardinstance: instance_uuid,
-        wireguardpeer: peer_uuid
+        wireguardpeer: peer_uuid,
+        wireguardrenamepeer: 'true'
       }
     )
     response = web_request.post(
@@ -173,9 +186,9 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     )
 
     expect(response.status).to eq(200)
-    expect(response.body).to include('updated instance proton-instance and peer proton-peer')
+    expect(response.body).to include('updated instance proton-instance and peer Proton_US-IL661')
     expect(response.body).to include("value=\"#{instance_uuid}\" selected", "value=\"#{peer_uuid}\" selected")
-    expect(response.body).not_to include('uploaded config', 'stale pasted config')
+    expect(response.body).not_to include('distinctive-rename-private-config-value', 'stale pasted config')
   end
 
   it 'does not render a pasted private configuration after a parsing failure' do
@@ -189,6 +202,39 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.status).to eq(200)
     expect(response.body).to include('missing Address')
     expect(response.body).not_to include('distinctive-private-config-value')
+  end
+
+  it 'does not render a pasted private configuration after a successful rename' do # rubocop:disable Metrics/BlockLength
+    submitted_config = '[Interface] distinctive-success-private-config-value'
+    instance_uuid = '11111111-1111-4111-8111-111111111111'
+    peer_uuid = '22222222-2222-4222-8222-222222222222'
+    parsed = {
+      instance: {}, peer: {}, metadata: { proton_server_identifier: 'SE#108' }
+    }
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).with(submitted_config).and_return(parsed)
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(instances: [], peers: [])
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    expect(rotation).to receive(:rotate).with(
+      parsed,
+      instance_uuid: instance_uuid,
+      peer_uuid: peer_uuid,
+      rename_peer: true
+    ).and_return(instance_name: 'proton-instance', peer_name: 'Proton_SE108')
+
+    response = web_request.post(
+      '/wireguard-import',
+      input: URI.encode_www_form(
+        wireguardconfig: submitted_config,
+        wireguardinstance: instance_uuid,
+        wireguardpeer: peer_uuid,
+        wireguardrenamepeer: 'true'
+      )
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('updated instance proton-instance and peer Proton_SE108')
+    expect(response.body).not_to include('distinctive-success-private-config-value')
   end
 
   it 'does not render a pasted private configuration after a rotation failure' do

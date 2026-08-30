@@ -5,6 +5,8 @@ module Service
   # Parses ProtonVPN WireGuard configurations into OPNsense instance and peer settings.
   class ProtonWireguard # rubocop:disable Metrics/ClassLength
     MAX_CONFIG_BYTES = 16_384
+    PROTON_SERVER_IDENTIFIER = /\A[A-Za-z0-9-]+#[0-9]+\z/
+    OPNSENSE_PEER_NAME = /\A[0-9A-Za-z._-]{1,64}\z/
 
     # Common wg-quick settings are accepted even when their existing OPNsense values are preserved.
     SUPPORTED_SETTINGS = {
@@ -18,6 +20,19 @@ module Service
 
     class ImportError < StandardError; end
 
+    def self.peer_name_for(server_identifier)
+      identifier = server_identifier.to_s
+      error = 'Unable to rename peer because a Proton server identifier was not found in the configuration.'
+      raise ImportError, error unless identifier.match?(PROTON_SERVER_IDENTIFIER)
+
+      prefix, _separator, number = identifier.rpartition('#')
+      peer_name = "Proton_#{prefix}#{number}"
+      error = 'Unable to rename peer because the generated name is not valid for OPNsense.'
+      raise ImportError, error unless peer_name.match?(OPNSENSE_PEER_NAME)
+
+      peer_name
+    end
+
     def initialize(helpers = Service::Helpers.new)
       @helpers = helpers
     end
@@ -28,7 +43,7 @@ module Service
       validate_required_settings(sections)
       validate_port_forwarding(metadata)
 
-      build_import(sections)
+      build_import(sections, metadata)
     end
 
     private
@@ -42,7 +57,7 @@ module Service
       config
     end
 
-    def parse(config) # rubocop:disable Metrics/MethodLength
+    def parse(config) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       sections = SUPPORTED_SETTINGS.keys.to_h { |section| [section, {}] }
       metadata = {}
       current_section = nil
@@ -54,6 +69,7 @@ module Service
 
         if content.start_with?('#')
           parse_metadata(content, metadata)
+          parse_server_identifier(content, metadata, current_section, sections)
         elsif (section = content[/\A\[([^\]]+)\]\z/, 1])
           current_section = select_section(section, seen_sections)
         else
@@ -71,6 +87,13 @@ module Service
       elsif (match = comment.match(/\AModerate NAT\s*=\s*(.+)\z/i))
         metadata[:moderate_nat] = match[1].strip.downcase
       end
+    end
+
+    def parse_server_identifier(content, metadata, current_section, sections)
+      return unless current_section == 'Peer' && sections.fetch('Peer').empty?
+
+      comment = content.delete_prefix('#').strip
+      metadata[:proton_server_identifier] ||= comment if comment.match?(PROTON_SERVER_IDENTIFIER)
     end
 
     def select_section(section, seen_sections)
@@ -116,7 +139,7 @@ module Service
       raise ImportError, 'NAT-PMP (Port Forwarding) must be enabled in the ProtonVPN configuration'
     end
 
-    def build_import(sections) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def build_import(sections, metadata) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       interface = sections.fetch('Interface')
       peer = sections.fetch('Peer')
 
@@ -141,7 +164,8 @@ module Service
           allowed_ips: allowed_ips.join(', '),
           endpoint_address: endpoint_address,
           endpoint_port: endpoint_port
-        }
+        },
+        metadata: metadata.slice(:proton_server_identifier)
       }
     end
 

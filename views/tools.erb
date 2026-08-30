@@ -45,6 +45,11 @@
       <textarea id="wireguardconfig" name="wireguardconfig" rows="12" placeholder="[Interface] ..." autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
     </div>
     <div class="form-group">
+      <input id="wireguardrenamepeer" name="wireguardrenamepeer" type="checkbox" value="true"/>
+      <label for="wireguardrenamepeer">Rename peer to match Proton server</label>
+      <div>Uses Proton's server identifier to generate a name such as Proton_US-IL661.</div>
+    </div>
+    <div class="form-group">
       <input id="wireguardresult" name="wireguardresult" type="text" value="<%= Rack::Utils.escape_html(@wireguard_result) %>" placeholder="import result" readonly/>
     </div>
     <div class="form-group">

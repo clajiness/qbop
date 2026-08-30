@@ -125,7 +125,8 @@ module Framework
         ).rotate(
           wireguard,
           instance_uuid: @wireguard_instance_uuid,
-          peer_uuid: @wireguard_peer_uuid
+          peer_uuid: @wireguard_peer_uuid,
+          rename_peer: Service::Helpers.new.true?(params['wireguardrenamepeer'])
         )
         @wireguard_result = "updated instance #{result[:instance_name]} and peer #{result[:peer_name]}"
       rescue Service::ProtonWireguardRotation::Busy => e
