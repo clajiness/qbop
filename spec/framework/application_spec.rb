@@ -232,6 +232,18 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  it 'protects the OPNsense WireGuard import with browser CSRF validation' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    tools_page = client.get('/tools')
+
+    expect(tools_page.status).to eq(200)
+    expect(tools_page['cache-control']).to include('no-store')
+    expect(csrf_token_for(tools_page, '/wireguard-import')).not_to be_empty
+    expect(client.post('/wireguard-import').status).to eq(403)
+  end
+
   it 'changes both credentials while preserving the current browser session' do
     create_account
     client = ApplicationSessionClient.new(app)

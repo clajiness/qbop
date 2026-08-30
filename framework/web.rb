@@ -1,4 +1,7 @@
 require_relative 'authentication_config'
+require_relative '../service/opnsense'
+require_relative '../service/proton_wireguard'
+require_relative '../service/proton_wireguard_rotation'
 
 module Framework
   # The Web class is a Sinatra application that provides qbop's web UI routes.
@@ -9,12 +12,12 @@ module Framework
         DB[:accounts].count.zero? ? redirect('/setup') : authentication.require_authentication
       end
 
-      if request.post? && api_key_mutation_request?
+      if request.post? && csrf_mutation_request?
         authentication = request.env.fetch('rodauth')
         halt 403 unless authentication.scope.valid_csrf?
       end
 
-      headers 'Cache-Control' => 'no-store' if api_docs_request?
+      headers 'Cache-Control' => 'no-store' if api_docs_request? || tools_request?
 
       update = Notification.select(:info, :active).where(name: 'update_available').first
       @recent_tag = update&.info
@@ -107,6 +110,33 @@ module Framework
     end
 
     get '/tools' do
+      load_wireguard_targets
+      erb :tools
+    end
+
+    post '/wireguard-import' do
+      begin
+        @wireguard_instance_uuid = params['wireguardinstance'].to_s.strip
+        @wireguard_peer_uuid = params['wireguardpeer'].to_s.strip
+        config_text = wireguard_config_input(params['wireguardconfig']&.to_s)
+        wireguard = Service::ProtonWireguard.new.import(config_text)
+        result = Service::ProtonWireguardRotation.new(
+          Service::Helpers.new.env_variables
+        ).rotate(
+          wireguard,
+          instance_uuid: @wireguard_instance_uuid,
+          peer_uuid: @wireguard_peer_uuid
+        )
+        @wireguard_result = "updated instance #{result[:instance_name]} and peer #{result[:peer_name]}"
+      rescue Service::ProtonWireguardRotation::Busy => e
+        status 409
+        @wireguard_error = e.message
+      rescue Service::ProtonWireguard::ImportError, Service::ProtonWireguardRotation::Error => e
+        @wireguard_error = e.message
+      ensure
+        load_wireguard_targets
+      end
+
       erb :tools
     end
 
@@ -115,6 +145,7 @@ module Framework
 
       @public_key = helpers.generate_wg_public_key(params['privatekey']&.strip)
 
+      load_wireguard_targets
       erb :tools
     end
 
@@ -126,6 +157,7 @@ module Framework
 
       @public_ip = "#{service} -> #{public_ip}"
 
+      load_wireguard_targets
       erb :tools
     end
 
@@ -215,6 +247,34 @@ module Framework
 
     def api_docs_request?
       request.path_info == '/api-docs' || request.path_info.start_with?('/api-docs/')
+    end
+
+    def tools_request?
+      ['/tools', '/wireguard-import', '/pubkey', '/public-ip'].include?(request.path_info)
+    end
+
+    def wireguard_config_input(pasted_config)
+      upload = params['wireguardfile']
+      if upload.is_a?(Hash)
+        tempfile = upload[:tempfile] || upload['tempfile']
+        if tempfile.respond_to?(:read)
+          tempfile.rewind if tempfile.respond_to?(:rewind)
+          return tempfile.read(Service::ProtonWireguard::MAX_CONFIG_BYTES + 1)
+        end
+      end
+
+      pasted_config
+    end
+
+    def load_wireguard_targets
+      @wireguard_targets = Service::Opnsense.new(Service::Helpers.new.env_variables).wireguard_targets
+    rescue Service::Opnsense::WireguardImportError => e
+      @wireguard_targets = { instances: [], peers: [] }
+      @wireguard_targets_error = e.message
+    end
+
+    def csrf_mutation_request?
+      request.path_info == '/wireguard-import' || api_key_mutation_request?
     end
 
     def api_key_mutation_request?

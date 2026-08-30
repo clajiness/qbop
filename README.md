@@ -11,6 +11,7 @@ qbop is built with Ruby and available as a Docker image.
 - Maintains an active ProtonVPN forwarded port
 - Automatically updates OPNsense firewall aliases
 - Keeps qBittorrent in sync with the active port
+- Imports new ProtonVPN WireGuard configuration values into an existing OPNsense instance and peer
 - Retains the 500 most recent port transitions and downstream synchronization status
 - Provides a simple web UI and API
 
@@ -198,6 +199,17 @@ To configure an API client:
 `/api-docs` combines the current endpoint documentation with API-key creation and revocation. API-key secrets are shown only once and cannot be recovered later. Create a replacement before revoking a key when rotating credentials. When browser authentication is disabled, `/api-docs` and its key-management section are accessible with the rest of the web UI, so protect that UI with a trusted external access layer.
 
 ## Usage
+
+### ProtonVPN WireGuard importer
+
+The first tool on `/tools` updates an existing OPNsense WireGuard instance and peer from a ProtonVPN `.conf` file. Select the associated instance and peer, then upload or paste a configuration generated with NAT-PMP (Port Forwarding) enabled.
+
+The importer updates only the instance keys, DNS, tunnel addresses and WireGuard gateway value, plus the peer public key, allowed IPs and endpoint. It preserves every other OPNsense value and the peer's existing instance associations. The selected instance must be enabled, and the selected peer must already belong to it. During import, qbop disables the instance and applies that state, verifies that its interface is absent from OPNsense's WireGuard runtime state, updates the peer first and the instance second, applies the new configuration while it remains disabled, then re-enables the instance and applies again. It verifies that the re-enabled runtime instance and peer use the imported public keys without requiring a fresh handshake. If any step fails, qbop restores the peer first and instance second while disabled, applies the restored configuration, then restores the original enabled state, applies again, and verifies that the previous instance and peer keys are active.
+
+Imports run synchronously and exclusively. The request waits for each OPNsense apply before advancing to the next state, so it reports the completed result or any rollback failure immediately. A lock file in the persistent `data` volume prevents overlapping rotations, and a competing request is rejected with a conflict response.
+
+The configured OPNsense API key needs the **VPN: WireGuard: Configuration** privilege in addition to the permissions used by qbop's firewall-alias integration. Uploaded and pasted configurations are not logged or retained.
+
 ### Query Parameters
 The stats, logs, and history pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
 

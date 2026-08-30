@@ -12,6 +12,18 @@
     <li>
       GET /api/tools
       <ul>
+        <li><a class="menu-item" href="/api/tools/wireguard-targets" target="_blank">/wireguard-targets</a></li>
+        <li>
+          POST /api/tools/wireguard-import
+          <ul>
+            <li>config: protonvpn wireguard configuration text</li>
+            <li>instance_uuid: selected opnsense instance uuid</li>
+            <li>peer_uuid: selected opnsense peer uuid</li>
+            <li>the instance must be enabled; qbop disables and applies it, verifies it is absent from wireguard runtime state, saves the peer and instance, applies while disabled, then re-enables, applies, and verifies the imported instance and peer keys</li>
+            <li>returns the completed instance and peer names after a successful rotation</li>
+            <li>returns 409 if another wireguard rotation is already in progress</li>
+          </ul>
+        </li>
         <li>/pubkey?private-key={your_private_key}</li>
         <li>
           /public-ip

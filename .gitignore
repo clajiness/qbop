@@ -1,5 +1,6 @@
 data/qbop.sqlite3
 data/session_secret.txt
+data/wireguard-import.lock
 log/*.log
 log/*.log.*
 .DS_Store

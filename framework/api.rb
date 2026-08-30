@@ -1,3 +1,7 @@
+require_relative '../service/opnsense'
+require_relative '../service/proton_wireguard'
+require_relative '../service/proton_wireguard_rotation'
+
 module Framework
   # This class defines an API using the Grape framework.
   # It sets the response format to JSON and prefixes all routes with '/api'.
@@ -65,6 +69,32 @@ module Framework
       {
         'public_key' => public_key
       }
+    end
+
+    get '/tools/wireguard-targets' do
+      targets = Service::Opnsense.new(Service::Helpers.new.env_variables).wireguard_targets
+
+      { 'wireguard_targets' => targets }
+    rescue Service::Opnsense::WireguardImportError => e
+      error!({ 'error' => e.message }, 422)
+    end
+
+    post '/tools/wireguard-import' do
+      wireguard = Service::ProtonWireguard.new.import(params['config'])
+      result = Service::ProtonWireguardRotation.new(
+        Service::Helpers.new.env_variables
+      ).rotate(
+        wireguard,
+        instance_uuid: params['instance_uuid'].to_s.strip,
+        peer_uuid: params['peer_uuid'].to_s.strip
+      )
+
+      status 200
+      { 'wireguard_import' => result }
+    rescue Service::ProtonWireguardRotation::Busy => e
+      error!({ 'error' => e.message }, 409)
+    rescue Service::ProtonWireguard::ImportError, Service::ProtonWireguardRotation::Error => e
+      error!({ 'error' => e.message }, 422)
     end
 
     get '/tools/public-ip' do

@@ -2,6 +2,7 @@ require 'bundler/setup'
 Bundler.require(:default)
 
 require 'rack/mock'
+require 'stringio'
 require_relative '../support/database_helper'
 require_relative '../../service/helpers'
 require_relative '../../framework/uptime'
@@ -16,6 +17,10 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   def web_request
     @web_request ||= Rack::MockRequest.new(lambda do |env|
       env['qbop.auth_config'] = Framework::AuthenticationConfig.new
+      scope = double('rodauth scope', valid_csrf?: true)
+      rodauth = double('rodauth', scope: scope, logged_in?: false)
+      allow(rodauth).to receive(:csrf_tag).and_return('')
+      env['rodauth'] = rodauth
       described_class.call(env)
     end)
   end
@@ -116,7 +121,114 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'renders the tools page' do
-    expect(web_request.get('/tools').status).to eq(200)
+    targets = {
+      instances: [{ uuid: '11111111-1111-4111-8111-111111111111', name: 'proton-instance', interface: 'wg0' }],
+      peers: [{ uuid: '22222222-2222-4222-8222-222222222222', name: 'proton-peer' }]
+    }
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
+
+    response = web_request.get('/tools')
+    card_headers = response.body.scan(%r{<header>(.*?)</header>}).flatten
+
+    expect(response.status).to eq(200)
+    expect(card_headers.first(3)).to eq(
+      ['import protonvpn wireguard config', 'generate wireguard public key', 'get public ip address']
+    )
+    expect(response.body).to include('proton-instance - wg0', 'proton-peer', 'update an existing opnsense instance')
+  end
+
+  it 'updates the selected OPNsense WireGuard instance and peer synchronously' do # rubocop:disable Metrics/BlockLength
+    instance_uuid = '11111111-1111-4111-8111-111111111111'
+    peer_uuid = '22222222-2222-4222-8222-222222222222'
+    parsed = { instance: {}, peer: {} }
+    targets = {
+      instances: [{ uuid: instance_uuid, name: 'proton-instance', interface: 'wg0' }],
+      peers: [{ uuid: peer_uuid, name: 'proton-peer' }]
+    }
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).with('uploaded config').and_return(parsed)
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    expect(rotation).to receive(:rotate).with(
+      parsed,
+      instance_uuid: instance_uuid,
+      peer_uuid: peer_uuid
+    ).and_return(instance_name: 'proton-instance', peer_name: 'proton-peer')
+
+    uploaded = Rack::Multipart::UploadedFile.new(
+      nil, 'text/plain', false, filename: 'proton.conf', io: StringIO.new('uploaded config')
+    )
+    multipart = Rack::Multipart.build_multipart(
+      {
+        wireguardconfig: 'stale pasted config',
+        wireguardfile: uploaded,
+        wireguardinstance: instance_uuid,
+        wireguardpeer: peer_uuid
+      }
+    )
+    response = web_request.post(
+      '/wireguard-import',
+      'CONTENT_TYPE' => "multipart/form-data; boundary=#{Rack::Multipart::MULTIPART_BOUNDARY}",
+      input: multipart
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('updated instance proton-instance and peer proton-peer')
+    expect(response.body).to include("value=\"#{instance_uuid}\" selected", "value=\"#{peer_uuid}\" selected")
+    expect(response.body).not_to include('uploaded config', 'stale pasted config')
+  end
+
+  it 'does not render a pasted private configuration after a parsing failure' do
+    submitted_config = "[Interface]\nPrivateKey = distinctive-private-config-value"
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(instances: [], peers: [])
+
+    response = web_request.post(
+      '/wireguard-import', input: URI.encode_www_form(wireguardconfig: submitted_config)
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('missing Address')
+    expect(response.body).not_to include('distinctive-private-config-value')
+  end
+
+  it 'does not render a pasted private configuration after a rotation failure' do
+    submitted_config = '[Interface] distinctive-rotation-private-config-value'
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(instance: {}, peer: {})
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(instances: [], peers: [])
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    allow(rotation).to receive(:rotate).and_raise(
+      Service::ProtonWireguardRotation::Error, 'rotation failed; rollback completed'
+    )
+
+    response = web_request.post(
+      '/wireguard-import', input: URI.encode_www_form(wireguardconfig: submitted_config)
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('rotation failed; rollback completed')
+    expect(response.body).not_to include('distinctive-rotation-private-config-value')
+  end
+
+  it 'returns conflict when another WireGuard rotation is in progress' do
+    submitted_config = '[Interface] distinctive-busy-private-config-value'
+    targets = { instances: [], peers: [] }
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(
+      instance: {}, peer: {}
+    )
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    allow(rotation).to receive(:rotate)
+      .and_raise(Service::ProtonWireguardRotation::Busy, 'another rotation is already in progress')
+
+    response = web_request.post(
+      '/wireguard-import', input: URI.encode_www_form(wireguardconfig: submitted_config)
+    )
+
+    expect(response.status).to eq(409)
+    expect(response.body).to include('another rotation is already in progress')
+    expect(response.body).not_to include('distinctive-busy-private-config-value')
   end
 
   it 'renders public key tool results' do

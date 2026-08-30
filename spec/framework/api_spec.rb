@@ -23,6 +23,14 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     Rack::MockRequest.new(app).get(path, headers)
   end
 
+  def api_post(path, body, token: @api_token, scheme: 'Bearer')
+    headers = token ? { 'HTTP_AUTHORIZATION' => "#{scheme} #{token}" } : {}
+    Rack::MockRequest.new(app).post(
+      path,
+      headers.merge('CONTENT_TYPE' => 'application/json', input: body.to_json)
+    )
+  end
+
   around do |example|
     env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE]
     original_env = env_keys.to_h { |key| [key, ENV[key]] }
@@ -144,6 +152,84 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     response = api_get('/api/tools/pubkey?private-key=private-key')
 
     expect(response_json(response)['public_key']).to eq('public-key')
+  end
+
+  it 'returns selectable OPNsense WireGuard targets' do
+    targets = {
+      instances: [{ uuid: '11111111-1111-4111-8111-111111111111', name: 'proton-instance' }],
+      peers: [{ uuid: '22222222-2222-4222-8222-222222222222', name: 'proton-peer' }]
+    }
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
+
+    response = api_get('/api/tools/wireguard-targets')
+
+    expect(response.status).to eq(200)
+    expect(response_json(response)['wireguard_targets']).to eq(JSON.parse(targets.to_json))
+  end
+
+  it 'completes a ProtonVPN WireGuard rotation without returning its private values' do
+    instance_uuid = '11111111-1111-4111-8111-111111111111'
+    peer_uuid = '22222222-2222-4222-8222-222222222222'
+    parsed = { instance: { private_key: 'private-key' }, peer: {} }
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(parsed)
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    expect(rotation).to receive(:rotate).with(
+      parsed,
+      instance_uuid: instance_uuid,
+      peer_uuid: peer_uuid
+    ).and_return(instance_name: 'proton-instance', peer_name: 'proton-peer')
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      { config: '[Interface]', instance_uuid: instance_uuid, peer_uuid: peer_uuid }
+    )
+    body = response_json(response)
+
+    expect(response.status).to eq(200)
+    expect(body['wireguard_import']).to eq(
+      'instance_name' => 'proton-instance', 'peer_name' => 'proton-peer'
+    )
+    expect(response.body).not_to include('private-key', '[Interface]')
+  end
+
+  it 'returns conflict when another WireGuard rotation is in progress' do
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(
+      instance: {}, peer: {}
+    )
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    allow(rotation).to receive(:rotate)
+      .and_raise(Service::ProtonWireguardRotation::Busy, 'another rotation is already in progress')
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      { config: '[Interface]', instance_uuid: 'instance', peer_uuid: 'peer' }
+    )
+
+    expect(response.status).to eq(409)
+    expect(response_json(response)['error']).to include('another rotation is already in progress')
+  end
+
+  it 'returns the rollback outcome when a synchronous WireGuard rotation fails' do
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(
+      instance: { private_key: 'private-key' }, peer: {}
+    )
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    allow(rotation).to receive(:rotate).and_raise(
+      Service::ProtonWireguardRotation::Error,
+      'OPNsense WireGuard rotation failed: apply failed; rollback completed'
+    )
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      { config: '[Interface]', instance_uuid: 'instance', peer_uuid: 'peer' }
+    )
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)['error']).to end_with('apply failed; rollback completed')
+    expect(response.body).not_to include('private-key', '[Interface]')
   end
 
   it 'returns unknown provider details for unsupported public IP providers' do
