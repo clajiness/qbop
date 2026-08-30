@@ -123,7 +123,10 @@ module Service
       return [] unless rotation_changed?(state)
 
       errors = []
-      disable_for_rollback(state, errors) if objects_changed?(state) && state[:current_enabled]
+      return errors if objects_changed?(state) &&
+                       state[:current_enabled] &&
+                       !disable_for_rollback(state, errors)
+
       restore_configuration(state, errors)
       restore_enabled_state(state, errors)
       rollback_action(errors, 'original enabled state apply') { @opnsense.reconfigure_wireguard }
@@ -159,6 +162,7 @@ module Service
     def disable_for_rollback(state, errors)
       rollback_action(errors, 'instance disable') { set_instance_enabled(state, false) }
       rollback_action(errors, 'disabled state apply') { @opnsense.reconfigure_wireguard }
+      rollback_action(errors, 'disabled state verification') { verify_instance_stopped(state) }
     end
 
     def restore_peer(state, errors)
@@ -175,8 +179,10 @@ module Service
 
     def rollback_action(errors, label)
       yield
+      true
     rescue StandardError => e
       errors << "#{label} failed (#{e.message})"
+      false
     end
 
     def verify_instance_stopped(state)

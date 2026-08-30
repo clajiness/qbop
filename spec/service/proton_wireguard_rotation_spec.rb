@@ -344,12 +344,12 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     end.to raise_error(described_class::Error, /rotation failed/)
   end
 
-  it 'disables and applies before restoring records after the final apply fails' do
+  it 'does not restore records when rollback cannot confirm the instance stopped' do
     opnsense = instance_double(Service::Opnsense)
     stub_pair(opnsense)
-    allow(opnsense).to receive(:wireguard_runtime).and_return([], runtime_records)
     expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, 'enabled' => '0').ordered
     expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:wireguard_runtime).ordered.and_return([])
     expect(opnsense).to receive(:save_wireguard_peer).with(peer_uuid, new_peer).ordered
     expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, new_instance).ordered
     expect(opnsense).to receive(:reconfigure_wireguard).ordered
@@ -357,15 +357,15 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     expect(opnsense).to receive(:reconfigure_wireguard).ordered.and_raise(Faraday::TimeoutError)
     expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, 'enabled' => '0').ordered
     expect(opnsense).to receive(:reconfigure_wireguard).ordered
-    expect(opnsense).to receive(:save_wireguard_peer).with(peer_uuid, old_peer).ordered
-    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, old_instance).ordered
-    expect(opnsense).to receive(:reconfigure_wireguard).ordered
-    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, 'enabled' => '1').ordered
-    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:wireguard_runtime).ordered.and_return(
+      runtime_records(instance_public_key: 'new-instance-public-key', peer_public_key: 'new-peer-public-key')
+    )
+    expect(opnsense).not_to receive(:save_wireguard_peer).with(peer_uuid, old_peer)
+    expect(opnsense).not_to receive(:save_wireguard_instance).with(instance_uuid, old_instance)
 
     expect do
       rotation_for(opnsense).rotate(wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid)
-    end.to raise_error(described_class::Error, /rotation failed/)
+    end.to raise_error(described_class::Error, /rollback incomplete: disabled state verification failed.*still active/)
   end
 
   it 'aborts before configuration writes when the disabled instance remains active' do
@@ -394,6 +394,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     allow(opnsense).to receive(:wireguard_runtime).and_return(
       [],
       runtime_records(instance_public_key: 'unexpected-instance-key', peer_public_key: 'unexpected-peer-key'),
+      [],
       runtime_records
     )
 
@@ -403,6 +404,33 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
 
     expect(opnsense).to have_received(:save_wireguard_peer).with(peer_uuid, old_peer)
     expect(opnsense).to have_received(:save_wireguard_instance).with(instance_uuid, old_instance)
+  end
+
+  it 'rolls back safely when the final re-enable write response is ambiguous' do
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(opnsense)
+    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, 'enabled' => '0').ordered
+    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:wireguard_runtime).ordered.and_return([])
+    expect(opnsense).to receive(:save_wireguard_peer).with(peer_uuid, new_peer).ordered
+    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, new_instance).ordered
+    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:save_wireguard_instance).with(
+      instance_uuid, 'enabled' => '1'
+    ).ordered.and_raise(Faraday::TimeoutError)
+    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, 'enabled' => '0').ordered
+    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:wireguard_runtime).ordered.and_return([])
+    expect(opnsense).to receive(:save_wireguard_peer).with(peer_uuid, old_peer).ordered
+    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, old_instance).ordered
+    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:save_wireguard_instance).with(instance_uuid, 'enabled' => '1').ordered
+    expect(opnsense).to receive(:reconfigure_wireguard).ordered
+    expect(opnsense).to receive(:wireguard_runtime).ordered.and_return(runtime_records)
+
+    expect do
+      rotation_for(opnsense).rotate(wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid)
+    end.to raise_error(described_class::Error, /rotation failed.*rollback completed/)
   end
 
   it 'reports rollback incomplete when the restored runtime keys are not active' do
