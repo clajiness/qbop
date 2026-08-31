@@ -12,7 +12,29 @@
     <li>
       GET /api/tools
       <ul>
-        <li>/pubkey?private-key={your_private_key}</li>
+        <li><a class="menu-item" href="/api/tools/wireguard-targets" target="_blank">/wireguard-targets</a> (returns 503 when OPN_SKIP=true)</li>
+        <li>
+          POST /api/tools/wireguard-import
+          <ul>
+            <li>config: protonvpn wireguard configuration text</li>
+            <li>instance_uuid: selected opnsense instance uuid</li>
+            <li>peer_uuid: selected opnsense peer uuid</li>
+            <li>rename_peer: optional boolean; when true, rename the peer from a valid proton server comment in the configuration (the request fails if no valid server name is present)</li>
+            <li>updates proton wireguard credentials, tunnel addresses within the adopted tunnel's existing address-family policy, peer endpoint/allowed ips, and optionally the peer name; preserves opnsense-local dns, gateway, routing, firewall, nat, and interface settings</li>
+            <li>the enabled instance and peer must be dedicated to each other; qbop disables and applies the instance, verifies it is absent from wireguard runtime state, saves the peer and instance, applies while disabled, then re-enables, applies, and verifies the imported instance and peer keys</li>
+            <li>returns the completed instance and peer names after a successful rotation</li>
+            <li>returns 409 if another wireguard rotation is already in progress</li>
+            <li>returns 503 without parsing or rotating the configuration when OPN_SKIP=true</li>
+          </ul>
+        </li>
+        <li>
+          POST /api/tools/pubkey
+          <ul>
+            <li>JSON body: private_key: <code>YOUR_WIREGUARD_PRIVATE_KEY</code></li>
+            <li>returns the derived public_key</li>
+            <li>GET /api/tools/pubkey is deprecated; its private-key query parameter remains available only for compatibility</li>
+          </ul>
+        </li>
         <li>
           /public-ip
           <ul>

@@ -1,6 +1,7 @@
 require 'bundler/setup'
 Bundler.require(:default)
 
+require 'base64'
 require 'rack/mock'
 require_relative '../support/database_helper'
 require_relative '../../service/helpers'
@@ -21,6 +22,14 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   def api_get(path, token: @api_token, scheme: 'Bearer')
     headers = token ? { 'HTTP_AUTHORIZATION' => "#{scheme} #{token}" } : {}
     Rack::MockRequest.new(app).get(path, headers)
+  end
+
+  def api_post(path, body, token: @api_token, scheme: 'Bearer')
+    headers = token ? { 'HTTP_AUTHORIZATION' => "#{scheme} #{token}" } : {}
+    Rack::MockRequest.new(app).post(
+      path,
+      headers.merge('CONTENT_TYPE' => 'application/json', input: body.to_json)
+    )
   end
 
   around do |example|
@@ -138,7 +147,8 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response_json(response)['notifications']).to include('info' => 'v2.7.0', 'active' => true)
   end
 
-  it 'returns public key tool output' do
+  it 'keeps the deprecated GET public key endpoint functional' do
+    ENV['OPN_SKIP'] = 'true'
     allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
 
     response = api_get('/api/tools/pubkey?private-key=private-key')
@@ -146,7 +156,213 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response_json(response)['public_key']).to eq('public-key')
   end
 
+  it 'derives a public key from a private key in the POST JSON body' do
+    ENV['OPN_SKIP'] = 'true'
+    private_key = Base64.strict_encode64("\x01" * 32)
+    public_key = Base64.strict_encode64("\x02" * 32)
+    expect_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key)
+      .with(private_key).and_return(public_key)
+
+    response = api_post('/api/tools/pubkey', { private_key: private_key })
+
+    expect(response.status).to eq(200)
+    expect(response_json(response)).to eq('public_key' => public_key)
+    expect(response.body).not_to include(private_key)
+  end
+
+  it 'rejects a missing POST private key' do
+    expect_any_instance_of(Service::Helpers).not_to receive(:generate_wg_public_key)
+
+    response = api_post('/api/tools/pubkey', {})
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)).to eq('error' => 'private_key is required')
+  end
+
+  it 'rejects a malformed POST private key without returning it' do
+    private_key = 'distinctive-malformed-api-private-key'
+    expect_any_instance_of(Service::Helpers).not_to receive(:generate_wg_public_key)
+
+    response = api_post('/api/tools/pubkey', { private_key: private_key })
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)).to eq('error' => 'private_key is not a valid WireGuard key')
+    expect(response.body).not_to include(private_key)
+  end
+
+  it 'returns a generic error when POST public-key derivation fails' do
+    private_key = Base64.strict_encode64("\x01" * 32)
+    allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key)
+      .with(private_key).and_return('wg derivation failed')
+
+    response = api_post('/api/tools/pubkey', { private_key: private_key })
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)).to eq('error' => 'could not derive WireGuard public key')
+    expect(response.body).not_to include(private_key, 'wg derivation failed')
+  end
+
+  it 'does not consume a POST private key from the query string' do
+    private_key = 'distinctive-query-api-private-key'
+    expect_any_instance_of(Service::Helpers).not_to receive(:generate_wg_public_key)
+
+    response = api_post("/api/tools/pubkey?private_key=#{private_key}", {})
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)).to eq(
+      'error' => 'private_key must be provided in the JSON request body'
+    )
+    expect(response.body).not_to include(private_key)
+  end
+
+  it 'returns selectable OPNsense WireGuard targets' do
+    ENV['OPN_SKIP'] = 'false'
+    targets = {
+      instances: [{ uuid: '11111111-1111-4111-8111-111111111111', name: 'proton-instance' }],
+      peers: [{ uuid: '22222222-2222-4222-8222-222222222222', name: 'proton-peer' }]
+    }
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
+
+    response = api_get('/api/tools/wireguard-targets')
+
+    expect(response.status).to eq(200)
+    expect(response_json(response)['wireguard_targets']).to eq(JSON.parse(targets.to_json))
+  end
+
+  it 'does not load WireGuard targets when OPNsense integration is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    expect(Service::Opnsense).not_to receive(:new)
+
+    response = api_get('/api/tools/wireguard-targets')
+
+    expect(response.status).to eq(503)
+    expect(response_json(response)['error']).to eq(
+      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'
+    )
+  end
+
+  it 'does not parse or rotate WireGuard configuration when OPNsense integration is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    submitted_config = "[Interface]\nPrivateKey = distinctive-skipped-api-private-config-value"
+    expect(Service::Opnsense).not_to receive(:new)
+    expect(Service::ProtonWireguard).not_to receive(:new)
+    expect(Service::ProtonWireguardRotation).not_to receive(:new)
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      { config: submitted_config, instance_uuid: 'instance', peer_uuid: 'peer' }
+    )
+
+    expect(response.status).to eq(503)
+    expect(response_json(response)['error']).to eq(
+      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'
+    )
+    expect(response.body).not_to include('distinctive-skipped-api-private-config-value', 'PrivateKey')
+  end
+
+  it 'completes a ProtonVPN WireGuard rotation without returning its private values' do # rubocop:disable Metrics/BlockLength
+    ENV['OPN_SKIP'] = 'false'
+    instance_uuid = '11111111-1111-4111-8111-111111111111'
+    peer_uuid = '22222222-2222-4222-8222-222222222222'
+    parsed = {
+      instance: { private_key: 'private-key' },
+      peer: {},
+      metadata: { proton_server_identifier: 'US-IL#661' }
+    }
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(parsed)
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    expect(rotation).to receive(:rotate).with(
+      parsed,
+      instance_uuid: instance_uuid,
+      peer_uuid: peer_uuid,
+      rename_peer: true
+    ).and_return(instance_name: 'proton-instance', peer_name: 'Proton_US-IL661')
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      {
+        config: "[Interface]\nPrivateKey = distinctive-private-config-value",
+        instance_uuid: instance_uuid,
+        peer_uuid: peer_uuid,
+        rename_peer: true
+      }
+    )
+    body = response_json(response)
+
+    expect(response.status).to eq(200)
+    expect(body['wireguard_import']).to eq(
+      'instance_name' => 'proton-instance', 'peer_name' => 'Proton_US-IL661'
+    )
+    expect(response.body).not_to include('private-key', 'distinctive-private-config-value', '[Interface]')
+  end
+
+  it 'rejects requested peer renaming without server metadata before contacting OPNsense' do
+    instance_uuid = '11111111-1111-4111-8111-111111111111'
+    peer_uuid = '22222222-2222-4222-8222-222222222222'
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(
+      instance: {}, peer: {}, metadata: {}
+    )
+    opnsense = instance_double(Service::Opnsense)
+    allow(Service::Opnsense).to receive(:new).and_return(opnsense)
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      {
+        config: '[Interface]',
+        instance_uuid: instance_uuid,
+        peer_uuid: peer_uuid,
+        rename_peer: true
+      }
+    )
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)['error']).to include(
+      'Unable to rename peer because a Proton server identifier was not found'
+    )
+  end
+
+  it 'returns conflict when another WireGuard rotation is in progress' do
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(
+      instance: {}, peer: {}
+    )
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    allow(rotation).to receive(:rotate)
+      .and_raise(Service::ProtonWireguardRotation::Busy, 'another rotation is already in progress')
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      { config: '[Interface]', instance_uuid: 'instance', peer_uuid: 'peer' }
+    )
+
+    expect(response.status).to eq(409)
+    expect(response_json(response)['error']).to include('another rotation is already in progress')
+  end
+
+  it 'returns the rollback outcome when a synchronous WireGuard rotation fails' do
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(
+      instance: { private_key: 'private-key' }, peer: {}
+    )
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    allow(rotation).to receive(:rotate).and_raise(
+      Service::ProtonWireguardRotation::Error,
+      'OPNsense WireGuard rotation failed: apply failed; rollback completed'
+    )
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      { config: '[Interface]', instance_uuid: 'instance', peer_uuid: 'peer' }
+    )
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)['error']).to end_with('apply failed; rollback completed')
+    expect(response.body).not_to include('private-key', '[Interface]')
+  end
+
   it 'returns unknown provider details for unsupported public IP providers' do
+    ENV['OPN_SKIP'] = 'true'
     response = api_get('/api/tools/public-ip?service=invalid')
 
     expect(response_json(response)['public_ip']).to start_with('Unknown provider')

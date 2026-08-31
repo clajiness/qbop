@@ -124,7 +124,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     keys = %w[
       WEB_AUTH_ENABLED BASIC_AUTH_ENABLED BASIC_AUTH_USER BASIC_AUTH_PASS
       OIDC_ENABLED OIDC_AUTO_REDIRECT LOCAL_LOGIN_ENABLED OIDC_ISSUER
-      OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_PUBLIC_URL
+      OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_PUBLIC_URL OPN_SKIP
     ]
     original_env = keys.to_h { |key| [key, ENV[key]] }
     keys.each { |key| ENV.delete(key) }
@@ -230,6 +230,21 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
       expect(response.body.scan('<div class="terminal-nav">').length).to eq(1)
       expect(response.body).to include("class=\"menu-item active\" href=\"#{href}\">#{label}</a>")
     end
+  end
+
+  it 'protects the OPNsense WireGuard import with browser CSRF validation' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(
+      instances: [], peers: []
+    )
+    tools_page = client.get('/tools')
+
+    expect(tools_page.status).to eq(200)
+    expect(tools_page['cache-control']).to include('no-store')
+    expect(csrf_token_for(tools_page, '/wireguard-import')).not_to be_empty
+    expect(client.post('/wireguard-import').status).to eq(403)
   end
 
   it 'changes both credentials while preserving the current browser session' do
@@ -547,6 +562,11 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(response.body).not_to include('href="/api-keys"', '>keys</a>')
     expect(response.body).to include('<code>Authorization: Bearer qbop_...</code>')
     expect(response.body).to include('including <code>/api/health</code>', 'http basic auth is not supported')
+    expect(response.body).to include(
+      'POST /api/tools/pubkey', 'YOUR_WIREGUARD_PRIVATE_KEY',
+      'GET /api/tools/pubkey is deprecated'
+    )
+    expect(response.body).not_to include('/pubkey?private-key=')
     expect(response.body).not_to match(%r{<code[^>]*>`|`</code>})
   end
 

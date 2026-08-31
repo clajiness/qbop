@@ -1,17 +1,55 @@
+require 'base64'
+
+require_relative '../service/opnsense'
+require_relative '../service/proton_wireguard'
+require_relative '../service/proton_wireguard_rotation'
+
 module Framework
   # This class defines an API using the Grape framework.
   # It sets the response format to JSON and prefixes all routes with '/api'.
   class API < Grape::API # rubocop:disable Metrics/ClassLength
+    WIREGUARD_IMPORT_UNAVAILABLE =
+      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'.freeze
+
     format :json
     prefix :api
 
-    helpers do
+    helpers do # rubocop:disable Metrics/BlockLength
       def authenticate_api_key!
         authorization = headers['Authorization']
         token = authorization&.match(/\ABearer[ \t]+(\S+)\z/i)&.captures&.first
         return if ApiKey.authenticate(token)
 
         error!({ 'error' => 'unauthorized' }, 401, 'WWW-Authenticate' => 'Bearer realm="qbop"')
+      end
+
+      def require_wireguard_import_available!
+        return unless Service::Helpers.new.true?(ENV['OPN_SKIP'])
+
+        error!({ 'error' => WIREGUARD_IMPORT_UNAVAILABLE }, 503)
+      end
+
+      def derive_wireguard_public_key! # rubocop:disable Metrics/AbcSize
+        query = Rack::Utils.parse_nested_query(request.query_string)
+        if query.key?('private_key') || query.key?('private-key')
+          error!({ 'error' => 'private_key must be provided in the JSON request body' }, 422)
+        end
+
+        private_key = params['private_key'].to_s.strip
+        error!({ 'error' => 'private_key is required' }, 422) if private_key.empty?
+        error!({ 'error' => 'private_key is not a valid WireGuard key' }, 422) unless valid_wireguard_key?(private_key)
+
+        public_key = Service::Helpers.new.generate_wg_public_key(private_key)
+        return public_key if valid_wireguard_key?(public_key)
+
+        error!({ 'error' => 'could not derive WireGuard public key' }, 422)
+      end
+
+      def valid_wireguard_key?(value)
+        decoded = Base64.strict_decode64(value)
+        decoded.bytesize == 32 && Base64.strict_encode64(decoded) == value
+      rescue ArgumentError, TypeError
+        false
       end
     end
 
@@ -57,6 +95,7 @@ module Framework
         } }
     end
 
+    # Deprecated: use POST /api/tools/pubkey so private keys are sent in the request body.
     get '/tools/pubkey' do
       helpers = Service::Helpers.new
 
@@ -65,6 +104,42 @@ module Framework
       {
         'public_key' => public_key
       }
+    end
+
+    post '/tools/pubkey' do
+      status 200
+      {
+        'public_key' => derive_wireguard_public_key!
+      }
+    end
+
+    get '/tools/wireguard-targets' do
+      require_wireguard_import_available!
+      targets = Service::Opnsense.new(Service::Helpers.new.env_variables).wireguard_targets
+
+      { 'wireguard_targets' => targets }
+    rescue Service::Opnsense::WireguardImportError => e
+      error!({ 'error' => e.message }, 422)
+    end
+
+    post '/tools/wireguard-import' do
+      require_wireguard_import_available!
+      wireguard = Service::ProtonWireguard.new.import(params['config'])
+      result = Service::ProtonWireguardRotation.new(
+        Service::Helpers.new.env_variables
+      ).rotate(
+        wireguard,
+        instance_uuid: params['instance_uuid'].to_s.strip,
+        peer_uuid: params['peer_uuid'].to_s.strip,
+        rename_peer: Service::Helpers.new.true?(params['rename_peer'])
+      )
+
+      status 200
+      { 'wireguard_import' => result }
+    rescue Service::ProtonWireguardRotation::Busy => e
+      error!({ 'error' => e.message }, 409)
+    rescue Service::ProtonWireguard::ImportError, Service::ProtonWireguardRotation::Error => e
+      error!({ 'error' => e.message }, 422)
     end
 
     get '/tools/public-ip' do

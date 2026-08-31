@@ -2,6 +2,7 @@ require 'bundler/setup'
 Bundler.require(:default)
 
 require 'rack/mock'
+require 'stringio'
 require_relative '../support/database_helper'
 require_relative '../../service/helpers'
 require_relative '../../framework/uptime'
@@ -16,6 +17,10 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   def web_request
     @web_request ||= Rack::MockRequest.new(lambda do |env|
       env['qbop.auth_config'] = Framework::AuthenticationConfig.new
+      scope = double('rodauth scope', valid_csrf?: true)
+      rodauth = double('rodauth', scope: scope, logged_in?: false)
+      allow(rodauth).to receive(:csrf_tag).and_return('')
+      env['rodauth'] = rodauth
       described_class.call(env)
     end)
   end
@@ -25,9 +30,11 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     commit_sha = ENV['COMMIT_SHA']
     build_date = ENV['BUILD_DATE']
     web_auth_enabled = ENV['WEB_AUTH_ENABLED']
+    opnsense_skip = ENV['OPN_SKIP']
     ENV.delete('VERSION')
     ENV.delete('COMMIT_SHA')
     ENV.delete('BUILD_DATE')
+    ENV.delete('OPN_SKIP')
     ENV['WEB_AUTH_ENABLED'] = 'false'
     example.run
   ensure
@@ -35,6 +42,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     commit_sha.nil? ? ENV.delete('COMMIT_SHA') : ENV['COMMIT_SHA'] = commit_sha
     build_date.nil? ? ENV.delete('BUILD_DATE') : ENV['BUILD_DATE'] = build_date
     web_auth_enabled.nil? ? ENV.delete('WEB_AUTH_ENABLED') : ENV['WEB_AUTH_ENABLED'] = web_auth_enabled
+    opnsense_skip.nil? ? ENV.delete('OPN_SKIP') : ENV['OPN_SKIP'] = opnsense_skip
   end
 
   before do
@@ -116,25 +124,256 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'renders the tools page' do
-    expect(web_request.get('/tools').status).to eq(200)
+    targets = {
+      instances: [{ uuid: '11111111-1111-4111-8111-111111111111', name: 'proton-instance', interface: 'wg0' }],
+      peers: [{ uuid: '22222222-2222-4222-8222-222222222222', name: 'proton-peer' }]
+    }
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
+
+    response = web_request.get('/tools')
+    card_headers = response.body.scan(%r{<header>(.*?)</header>}).flatten
+
+    expect(response.status).to eq(200)
+    expect(card_headers.first(3)).to eq(
+      ['import protonvpn wireguard config', 'generate wireguard public key', 'get public ip address']
+    )
+    expect(response.body).to include('proton-instance - wg0', 'proton-peer', 'update a dedicated opnsense instance')
+    expect(response.body).to include(
+      'id="wireguardrenamepeer"',
+      'rename peer to match new proton server',
+      "Uses proton's server identifier to generate a name such as",
+      '<code>Proton_US-IL661</code>'
+    )
+    checkbox = response.body[/<input[^>]+id="wireguardrenamepeer"[^>]*>/]
+    expect(checkbox).not_to include('disabled', 'checked')
+    expect(response.body).not_to include(
+      'protonPeerName', 'FileReader', 'wireguardrenamepeerlabel',
+      'reload Tools to use the WireGuard importer'
+    )
   end
 
-  it 'renders public key tool results' do
+  it 'keeps the tools page available without loading WireGuard targets when OPNsense is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    expect_any_instance_of(Service::Opnsense).not_to receive(:wireguard_targets)
+
+    response = web_request.get('/tools')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include(
+      'Proton WireGuard import requires OPNsense integration.',
+      'generate wireguard public key',
+      'get public ip address'
+    )
+    expect(response.body).not_to include('id="wgimportform"')
+    expect(response.body).not_to include('reload Tools to use the WireGuard importer')
+  end
+
+  it 'does not process a WireGuard import when OPNsense is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    submitted_config = '[Interface] distinctive-skipped-private-config-value'
+    expect_any_instance_of(Service::Opnsense).not_to receive(:wireguard_targets)
+    expect_any_instance_of(Service::ProtonWireguard).not_to receive(:import)
+    expect(Service::ProtonWireguardRotation).not_to receive(:new)
+
+    response = web_request.post(
+      '/wireguard-import', input: URI.encode_www_form(wireguardconfig: submitted_config)
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('Proton WireGuard import requires OPNsense integration.')
+    expect(response.body).not_to include('distinctive-skipped-private-config-value')
+  end
+
+  it 'keeps the tools page available when WireGuard target loading fails' do
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_raise(
+      Service::Opnsense::WireguardImportError, 'could not load OPNsense WireGuard targets: unavailable'
+    )
+
+    response = web_request.get('/tools')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include(
+      'could not load OPNsense WireGuard targets: unavailable',
+      'generate wireguard public key',
+      'get public ip address'
+    )
+    expect(response.body).not_to include('id="wgimportform"')
+    expect(response.body).not_to include('reload Tools to use the WireGuard importer')
+  end
+
+  it 'updates the selected OPNsense WireGuard instance and peer synchronously' do # rubocop:disable Metrics/BlockLength
+    instance_uuid = '11111111-1111-4111-8111-111111111111'
+    peer_uuid = '22222222-2222-4222-8222-222222222222'
+    parsed = {
+      instance: {}, peer: {}, metadata: { proton_server_identifier: 'US-IL#661' }
+    }
+    targets = {
+      instances: [{ uuid: instance_uuid, name: 'proton-instance', interface: 'wg0' }],
+      peers: [{ uuid: peer_uuid, name: 'proton-peer' }]
+    }
+    submitted_config = 'uploaded distinctive-rename-private-config-value'
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).with(submitted_config).and_return(parsed)
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    expect(rotation).to receive(:rotate).with(
+      parsed,
+      instance_uuid: instance_uuid,
+      peer_uuid: peer_uuid,
+      rename_peer: true
+    ).and_return(instance_name: 'proton-instance', peer_name: 'Proton_US-IL661')
+
+    uploaded = Rack::Multipart::UploadedFile.new(
+      nil, 'text/plain', false, filename: 'proton.conf', io: StringIO.new(submitted_config)
+    )
+    multipart = Rack::Multipart.build_multipart(
+      {
+        wireguardconfig: 'stale pasted config',
+        wireguardfile: uploaded,
+        wireguardinstance: instance_uuid,
+        wireguardpeer: peer_uuid,
+        wireguardrenamepeer: 'true'
+      }
+    )
+    response = web_request.post(
+      '/wireguard-import',
+      'CONTENT_TYPE' => "multipart/form-data; boundary=#{Rack::Multipart::MULTIPART_BOUNDARY}",
+      input: multipart
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('updated instance proton-instance and peer Proton_US-IL661')
+    expect(response.body).to include("value=\"#{instance_uuid}\" selected", "value=\"#{peer_uuid}\" selected")
+    expect(response.body).not_to include('distinctive-rename-private-config-value', 'stale pasted config')
+  end
+
+  it 'does not render a pasted private configuration after a parsing failure' do
+    submitted_config = "[Interface]\nPrivateKey = distinctive-private-config-value"
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(instances: [], peers: [])
+
+    response = web_request.post(
+      '/wireguard-import', input: URI.encode_www_form(wireguardconfig: submitted_config)
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('missing Address')
+    expect(response.body).not_to include('distinctive-private-config-value')
+  end
+
+  it 'does not render a pasted private configuration after a successful rename' do # rubocop:disable Metrics/BlockLength
+    submitted_config = '[Interface] distinctive-success-private-config-value'
+    instance_uuid = '11111111-1111-4111-8111-111111111111'
+    peer_uuid = '22222222-2222-4222-8222-222222222222'
+    parsed = {
+      instance: {}, peer: {}, metadata: { proton_server_identifier: 'SE#108' }
+    }
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).with(submitted_config).and_return(parsed)
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(instances: [], peers: [])
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    expect(rotation).to receive(:rotate).with(
+      parsed,
+      instance_uuid: instance_uuid,
+      peer_uuid: peer_uuid,
+      rename_peer: true
+    ).and_return(instance_name: 'proton-instance', peer_name: 'Proton_SE108')
+
+    response = web_request.post(
+      '/wireguard-import',
+      input: URI.encode_www_form(
+        wireguardconfig: submitted_config,
+        wireguardinstance: instance_uuid,
+        wireguardpeer: peer_uuid,
+        wireguardrenamepeer: 'true'
+      )
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('updated instance proton-instance and peer Proton_SE108')
+    expect(response.body).not_to include('distinctive-success-private-config-value')
+  end
+
+  it 'does not render a pasted private configuration after a rotation failure' do
+    submitted_config = '[Interface] distinctive-rotation-private-config-value'
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(instance: {}, peer: {})
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(instances: [], peers: [])
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    allow(rotation).to receive(:rotate).and_raise(
+      Service::ProtonWireguardRotation::Error, 'rotation failed; rollback completed'
+    )
+
+    response = web_request.post(
+      '/wireguard-import', input: URI.encode_www_form(wireguardconfig: submitted_config)
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('rotation failed; rollback completed')
+    expect(response.body).not_to include('distinctive-rotation-private-config-value')
+  end
+
+  it 'returns conflict when another WireGuard rotation is in progress' do
+    submitted_config = '[Interface] distinctive-busy-private-config-value'
+    targets = { instances: [], peers: [] }
+    allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(
+      instance: {}, peer: {}
+    )
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(targets)
+    rotation = instance_double(Service::ProtonWireguardRotation)
+    allow(Service::ProtonWireguardRotation).to receive(:new).and_return(rotation)
+    allow(rotation).to receive(:rotate)
+      .and_raise(Service::ProtonWireguardRotation::Busy, 'another rotation is already in progress')
+
+    response = web_request.post(
+      '/wireguard-import', input: URI.encode_www_form(wireguardconfig: submitted_config)
+    )
+
+    expect(response.status).to eq(409)
+    expect(response.body).to include('another rotation is already in progress')
+    expect(response.body).not_to include('distinctive-busy-private-config-value')
+  end
+
+  it 'renders public key tool results without loading WireGuard targets' do
+    expect(Service::Opnsense).not_to receive(:new)
     allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
 
     response = web_request.post('/pubkey', input: 'privatekey=private-key')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('public-key')
+    expect(response.body).to include('href="/tools">reload Tools to use the WireGuard importer</a>')
+    expect(response.body).not_to include('could not load OPNsense WireGuard targets')
   end
 
-  it 'renders public IP tool results' do
+  it 'renders public key and public IP results without loading targets when OPNsense is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    expect(Service::Opnsense).not_to receive(:new)
+    allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
+    allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
+
+    public_key_response = web_request.post('/pubkey', input: 'privatekey=private-key')
+    public_ip_response = web_request.post('/public-ip', input: 'select=akamai')
+
+    expect(public_key_response.status).to eq(200)
+    expect(public_key_response.body).to include('public-key')
+    expect(public_key_response.body).to include('Proton WireGuard import requires OPNsense integration.')
+    expect(public_key_response.body).not_to include('reload Tools to use the WireGuard importer')
+    expect(public_ip_response.status).to eq(200)
+    expect(public_ip_response.body).to include('akamai -> 192.0.2.1')
+    expect(public_ip_response.body).to include('Proton WireGuard import requires OPNsense integration.')
+    expect(public_ip_response.body).not_to include('reload Tools to use the WireGuard importer')
+  end
+
+  it 'renders public IP tool results without loading WireGuard targets' do
+    expect(Service::Opnsense).not_to receive(:new)
     allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
 
     response = web_request.post('/public-ip', input: 'select=akamai')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('akamai -> 192.0.2.1')
+    expect(response.body).to include('href="/tools">reload Tools to use the WireGuard importer</a>')
+    expect(response.body).not_to include('could not load OPNsense WireGuard targets')
   end
 
   it 'renders logs' do

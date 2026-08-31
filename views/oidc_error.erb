@@ -8,6 +8,7 @@
       <%= request.env.fetch('rodauth').csrf_tag(Framework::Authentication::OIDC_REQUEST_PATH) %>
       <button class="btn btn-default" type="submit">try OpenID Connect again</button>
     </form>
+    <br>
     <% if @auth_config.local_login_enabled? %>
     <p><a href="/login">sign in with email and password</a></p>
     <% end %>

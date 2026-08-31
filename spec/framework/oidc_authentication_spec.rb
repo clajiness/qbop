@@ -744,7 +744,7 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
     expect(client.get('/account').status).to eq(200)
 
     api_paths = [
-      '/api/stats', '/api/tools/pubkey?private-key=test', '/api/tools/public-ip?service=invalid',
+      '/api/stats', '/api/tools/pubkey', '/api/tools/public-ip?service=invalid',
       '/api/logs', '/api/history', '/api/about', '/api/health', '/api/notifications'
     ]
     api_paths.each do |path|
