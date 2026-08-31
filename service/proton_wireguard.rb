@@ -216,7 +216,7 @@ module Service
     end
 
     def valid_endpoint_address?(address)
-      return true if valid_ip_network?(address)
+      return true if valid_ip_address?(address)
 
       hostname = address.delete_suffix('.')
       return false if hostname.empty? || hostname.length > 253
@@ -224,6 +224,10 @@ module Service
       hostname.split('.').all? do |label|
         label.match?(/\A[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/i)
       end
+    end
+
+    def valid_ip_address?(value)
+      !value.include?('/') && valid_ip_network?(value)
     end
 
     def validate_port(value)

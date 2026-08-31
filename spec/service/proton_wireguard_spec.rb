@@ -53,6 +53,34 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
     expect(result[:metadata]).to eq({})
   end
 
+  it 'parses a bracketed IPv6 endpoint' do
+    ipv6_config = config.sub('192.0.2.10:51820', '[2001:db8::1]:51820')
+
+    result = described_class.new(helpers).import(ipv6_config)
+
+    expect(result[:peer]).to include(endpoint_address: '2001:db8::1', endpoint_port: 51_820)
+  end
+
+  it 'parses a hostname endpoint' do
+    hostname_config = config.sub('192.0.2.10:51820', 'vpn.example.com:51820')
+
+    result = described_class.new(helpers).import(hostname_config)
+
+    expect(result[:peer]).to include(endpoint_address: 'vpn.example.com', endpoint_port: 51_820)
+  end
+
+  it 'rejects IPv4 and IPv6 endpoint addresses containing CIDR prefixes' do
+    ipv4_cidr = config.sub('192.0.2.10:51820', '1.2.3.4/24:51820')
+    ipv6_cidr = config.sub('192.0.2.10:51820', '[2001:db8::1/64]:51820')
+
+    aggregate_failures do
+      expect { described_class.new(helpers).import(ipv4_cidr) }
+        .to raise_error(described_class::ImportError, /Peer endpoint address is invalid/)
+      expect { described_class.new(helpers).import(ipv6_cidr) }
+        .to raise_error(described_class::ImportError, /Peer endpoint address is invalid/)
+    end
+  end
+
   it 'parses a config without DNS' do
     result = described_class.new(helpers).import(
       config.sub("DNS = 10.2.0.1, 2a07:b944::2:1\n", '')
