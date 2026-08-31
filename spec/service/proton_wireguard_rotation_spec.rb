@@ -97,9 +97,12 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     }
   end
 
-  def peer_record(instances: [instance_uuid], allowed_ips: ['0.0.0.0/0'])
+  def peer_record( # rubocop:disable Metrics/MethodLength
+    enabled: '1', instances: [instance_uuid], allowed_ips: ['0.0.0.0/0']
+  )
     {
       'name' => 'proton-peer',
+      'enabled' => enabled,
       'pubkey' => 'old-peer-public-key',
       'tunneladdress' => selected_options(*allowed_ips),
       'serveraddress' => '198.51.100.10',
@@ -120,6 +123,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
   def stub_pair( # rubocop:disable Metrics/ParameterLists
     opnsense,
     enabled: '1',
+    peer_enabled: '1',
     instances: [instance_uuid],
     peers: [peer_uuid],
     instance_addresses: ['10.3.0.2/32'],
@@ -130,7 +134,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
       instance_record(enabled: enabled, tunnel_addresses: instance_addresses, peers: peers)
     )
     allow(opnsense).to receive(:wireguard_peer).with(peer_uuid).and_return(
-      peer_record(instances: instances, allowed_ips: peer_allowed_ips)
+      peer_record(enabled: peer_enabled, instances: instances, allowed_ips: peer_allowed_ips)
     )
   end
 
@@ -354,10 +358,25 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
   it 'rejects a disabled instance before writing' do
     opnsense = instance_double(Service::Opnsense)
     stub_pair(opnsense, enabled: '0')
+    expect(opnsense).not_to receive(:save_wireguard_instance)
+    expect(opnsense).not_to receive(:save_wireguard_peer)
+    expect(opnsense).not_to receive(:reconfigure_wireguard)
 
     expect do
       rotation_for(opnsense).rotate(wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid)
     end.to raise_error(described_class::Error, /must be enabled/)
+  end
+
+  it 'rejects a disabled dedicated peer before mutation' do
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(opnsense, peer_enabled: '0')
+    expect(opnsense).not_to receive(:save_wireguard_instance)
+    expect(opnsense).not_to receive(:save_wireguard_peer)
+    expect(opnsense).not_to receive(:reconfigure_wireguard)
+
+    expect do
+      rotation_for(opnsense).rotate(wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid)
+    end.to raise_error(described_class::Error, /Peer proton-peer must be enabled before import/)
   end
 
   it 'rejects a peer shared with another instance before mutation' do

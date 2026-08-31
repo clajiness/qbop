@@ -80,8 +80,9 @@ module Service
         raise Error, "OPNsense did not return the interface for instance #{state[:instance_name]}"
       end
 
-      state[:original_enabled] = instance_enabled?(instance['enabled'])
+      state[:original_enabled] = enabled?(instance['enabled'])
       raise Error, "Instance #{state[:instance_name]} must be enabled before import" unless state[:original_enabled]
+      raise Error, "Peer #{state[:peer_name]} must be enabled before import" unless enabled?(peer['enabled'])
 
       instance_peers = selected_values(instance['peers'])
       state[:current_enabled] = state[:original_enabled]
@@ -320,7 +321,7 @@ module Service
       end
     end
 
-    def instance_enabled?(value)
+    def enabled?(value)
       %w[1 true checked on enabled].include?(value.to_s.downcase)
     end
 

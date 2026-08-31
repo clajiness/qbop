@@ -64,14 +64,14 @@ The legacy `v2` tag remains available for installations that have not yet upgrad
 
 Pull requests are built without publishing an image. Main-branch builds identify themselves as `main` in the app, while images built from stable Git tags display their exact release version.
 
-### Requirements
+### Requirements and integrations
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
 * [Docker Engine](https://docs.docker.com/engine/install/)
-* [OPNsense](https://docs.opnsense.org/)
+* [ProtonVPN](https://protonvpn.com/support/port-forwarding)
+* Optional: [OPNsense](https://docs.opnsense.org/). Set `OPN_SKIP=true` to run without this integration.
     * [Selective routing](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html)
     * [API](https://docs.opnsense.org/development/how-tos/api.html)
-* [qBittorrent](https://www.qbittorrent.org/)
-* [ProtonVPN](https://protonvpn.com/support/port-forwarding)
+* Optional: [qBittorrent](https://www.qbittorrent.org/). Set `QBIT_SKIP=true` to run without this integration.
 
 ### ENV Variables
 | Variable | Default | Description |
@@ -202,7 +202,7 @@ To configure an API client:
 
 ### ProtonVPN WireGuard importer
 
-The first tool on `/tools` updates an existing OPNsense WireGuard instance and peer from a ProtonVPN `.conf` file. Select the associated instance and peer, then upload or paste a configuration generated with NAT-PMP (Port Forwarding) enabled.
+The first tool on `/tools` updates an existing OPNsense WireGuard instance and peer from a ProtonVPN `.conf` file. Generate the ProtonVPN WireGuard configuration with NAT-PMP (Port Forwarding) enabled and Moderate NAT disabled. Select the associated instance and peer, then upload or paste the configuration.
 
 qbop updates Proton WireGuard credentials, tunnel addresses within the adopted tunnel's existing address-family policy, peer endpoint/AllowedIPs, and optionally the peer name. OPNsense-local settings such as DNS, gateway, routing behavior, firewall rules, NAT, and interface assignments are preserved. The peer's existing instance association is also preserved. A peer rename uses a validated name derived from Proton's server identifier comment (for example, `# US-IL#661` becomes `Proton_US-IL661`); without that option, the existing peer name is preserved exactly. The selected instance must be enabled, and the selected instance and peer must be dedicated to each other with no other peer or instance associations. During import, qbop disables the instance and applies that state, verifies that its interface is absent from OPNsense's WireGuard runtime state, updates the peer first and the instance second, applies the new configuration while it remains disabled, then re-enables the instance and applies again. It verifies that the re-enabled runtime instance and peer use the imported public keys without requiring a fresh handshake. If any step fails, qbop restores the peer first and instance second while disabled, applies the restored configuration, then restores the original enabled state, applies again, and verifies that the previous instance and peer keys are active.
 
