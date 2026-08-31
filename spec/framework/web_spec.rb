@@ -137,15 +137,19 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(card_headers.first(3)).to eq(
       ['import protonvpn wireguard config', 'generate wireguard public key', 'get public ip address']
     )
-    expect(response.body).to include('proton-instance - wg0', 'proton-peer', 'update an existing opnsense instance')
+    expect(response.body).to include('proton-instance - wg0', 'proton-peer', 'update a dedicated opnsense instance')
     expect(response.body).to include(
       'id="wireguardrenamepeer"',
-      'Rename peer to match Proton server',
-      "Uses Proton's server identifier to generate a name such as Proton_US-IL661."
+      'rename peer to match new proton server',
+      "Uses proton's server identifier to generate a name such as",
+      '<code>Proton_US-IL661</code>'
     )
     checkbox = response.body[/<input[^>]+id="wireguardrenamepeer"[^>]*>/]
     expect(checkbox).not_to include('disabled', 'checked')
-    expect(response.body).not_to include('protonPeerName', 'FileReader', 'wireguardrenamepeerlabel')
+    expect(response.body).not_to include(
+      'protonPeerName', 'FileReader', 'wireguardrenamepeerlabel',
+      'reload Tools to use the WireGuard importer'
+    )
   end
 
   it 'keeps the tools page available without loading WireGuard targets when OPNsense is skipped' do
@@ -161,6 +165,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       'get public ip address'
     )
     expect(response.body).not_to include('id="wgimportform"')
+    expect(response.body).not_to include('reload Tools to use the WireGuard importer')
   end
 
   it 'does not process a WireGuard import when OPNsense is skipped' do
@@ -193,6 +198,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       'get public ip address'
     )
     expect(response.body).not_to include('id="wgimportform"')
+    expect(response.body).not_to include('reload Tools to use the WireGuard importer')
   end
 
   it 'updates the selected OPNsense WireGuard instance and peer synchronously' do # rubocop:disable Metrics/BlockLength
@@ -335,7 +341,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(200)
     expect(response.body).to include('public-key')
-    expect(response.body).to include('Proton WireGuard targets were not loaded for this response.')
+    expect(response.body).to include('href="/tools">reload Tools to use the WireGuard importer</a>')
     expect(response.body).not_to include('could not load OPNsense WireGuard targets')
   end
 
@@ -350,8 +356,12 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(public_key_response.status).to eq(200)
     expect(public_key_response.body).to include('public-key')
+    expect(public_key_response.body).to include('Proton WireGuard import requires OPNsense integration.')
+    expect(public_key_response.body).not_to include('reload Tools to use the WireGuard importer')
     expect(public_ip_response.status).to eq(200)
     expect(public_ip_response.body).to include('akamai -> 192.0.2.1')
+    expect(public_ip_response.body).to include('Proton WireGuard import requires OPNsense integration.')
+    expect(public_ip_response.body).not_to include('reload Tools to use the WireGuard importer')
   end
 
   it 'renders public IP tool results without loading WireGuard targets' do
@@ -362,7 +372,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(200)
     expect(response.body).to include('akamai -> 192.0.2.1')
-    expect(response.body).to include('Proton WireGuard targets were not loaded for this response.')
+    expect(response.body).to include('href="/tools">reload Tools to use the WireGuard importer</a>')
     expect(response.body).not_to include('could not load OPNsense WireGuard targets')
   end
 

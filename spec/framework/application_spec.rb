@@ -562,6 +562,11 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(response.body).not_to include('href="/api-keys"', '>keys</a>')
     expect(response.body).to include('<code>Authorization: Bearer qbop_...</code>')
     expect(response.body).to include('including <code>/api/health</code>', 'http basic auth is not supported')
+    expect(response.body).to include(
+      'POST /api/tools/pubkey', 'YOUR_WIREGUARD_PRIVATE_KEY',
+      'GET /api/tools/pubkey is deprecated'
+    )
+    expect(response.body).not_to include('/pubkey?private-key=')
     expect(response.body).not_to match(%r{<code[^>]*>`|`</code>})
   end
 

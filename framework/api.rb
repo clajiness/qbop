@@ -1,3 +1,5 @@
+require 'base64'
+
 require_relative '../service/opnsense'
 require_relative '../service/proton_wireguard'
 require_relative '../service/proton_wireguard_rotation'
@@ -12,7 +14,7 @@ module Framework
     format :json
     prefix :api
 
-    helpers do
+    helpers do # rubocop:disable Metrics/BlockLength
       def authenticate_api_key!
         authorization = headers['Authorization']
         token = authorization&.match(/\ABearer[ \t]+(\S+)\z/i)&.captures&.first
@@ -25,6 +27,29 @@ module Framework
         return unless Service::Helpers.new.true?(ENV['OPN_SKIP'])
 
         error!({ 'error' => WIREGUARD_IMPORT_UNAVAILABLE }, 503)
+      end
+
+      def derive_wireguard_public_key! # rubocop:disable Metrics/AbcSize
+        query = Rack::Utils.parse_nested_query(request.query_string)
+        if query.key?('private_key') || query.key?('private-key')
+          error!({ 'error' => 'private_key must be provided in the JSON request body' }, 422)
+        end
+
+        private_key = params['private_key'].to_s.strip
+        error!({ 'error' => 'private_key is required' }, 422) if private_key.empty?
+        error!({ 'error' => 'private_key is not a valid WireGuard key' }, 422) unless valid_wireguard_key?(private_key)
+
+        public_key = Service::Helpers.new.generate_wg_public_key(private_key)
+        return public_key if valid_wireguard_key?(public_key)
+
+        error!({ 'error' => 'could not derive WireGuard public key' }, 422)
+      end
+
+      def valid_wireguard_key?(value)
+        decoded = Base64.strict_decode64(value)
+        decoded.bytesize == 32 && Base64.strict_encode64(decoded) == value
+      rescue ArgumentError, TypeError
+        false
       end
     end
 
@@ -70,6 +95,7 @@ module Framework
         } }
     end
 
+    # Deprecated: use POST /api/tools/pubkey so private keys are sent in the request body.
     get '/tools/pubkey' do
       helpers = Service::Helpers.new
 
@@ -77,6 +103,13 @@ module Framework
 
       {
         'public_key' => public_key
+      }
+    end
+
+    post '/tools/pubkey' do
+      status 200
+      {
+        'public_key' => derive_wireguard_public_key!
       }
     end
 

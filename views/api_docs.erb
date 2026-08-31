@@ -27,7 +27,14 @@
             <li>returns 503 without parsing or rotating the configuration when OPN_SKIP=true</li>
           </ul>
         </li>
-        <li>/pubkey?private-key={your_private_key}</li>
+        <li>
+          POST /api/tools/pubkey
+          <ul>
+            <li>JSON body: private_key: <code>YOUR_WIREGUARD_PRIVATE_KEY</code></li>
+            <li>returns the derived public_key</li>
+            <li>GET /api/tools/pubkey is deprecated; its private-key query parameter remains available only for compatibility</li>
+          </ul>
+        </li>
         <li>
           /public-ip
           <ul>

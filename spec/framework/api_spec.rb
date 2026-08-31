@@ -1,6 +1,7 @@
 require 'bundler/setup'
 Bundler.require(:default)
 
+require 'base64'
 require 'rack/mock'
 require_relative '../support/database_helper'
 require_relative '../../service/helpers'
@@ -146,13 +147,72 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response_json(response)['notifications']).to include('info' => 'v2.7.0', 'active' => true)
   end
 
-  it 'returns public key tool output' do
+  it 'keeps the deprecated GET public key endpoint functional' do
     ENV['OPN_SKIP'] = 'true'
     allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
 
     response = api_get('/api/tools/pubkey?private-key=private-key')
 
     expect(response_json(response)['public_key']).to eq('public-key')
+  end
+
+  it 'derives a public key from a private key in the POST JSON body' do
+    ENV['OPN_SKIP'] = 'true'
+    private_key = Base64.strict_encode64("\x01" * 32)
+    public_key = Base64.strict_encode64("\x02" * 32)
+    expect_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key)
+      .with(private_key).and_return(public_key)
+
+    response = api_post('/api/tools/pubkey', { private_key: private_key })
+
+    expect(response.status).to eq(200)
+    expect(response_json(response)).to eq('public_key' => public_key)
+    expect(response.body).not_to include(private_key)
+  end
+
+  it 'rejects a missing POST private key' do
+    expect_any_instance_of(Service::Helpers).not_to receive(:generate_wg_public_key)
+
+    response = api_post('/api/tools/pubkey', {})
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)).to eq('error' => 'private_key is required')
+  end
+
+  it 'rejects a malformed POST private key without returning it' do
+    private_key = 'distinctive-malformed-api-private-key'
+    expect_any_instance_of(Service::Helpers).not_to receive(:generate_wg_public_key)
+
+    response = api_post('/api/tools/pubkey', { private_key: private_key })
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)).to eq('error' => 'private_key is not a valid WireGuard key')
+    expect(response.body).not_to include(private_key)
+  end
+
+  it 'returns a generic error when POST public-key derivation fails' do
+    private_key = Base64.strict_encode64("\x01" * 32)
+    allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key)
+      .with(private_key).and_return('wg derivation failed')
+
+    response = api_post('/api/tools/pubkey', { private_key: private_key })
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)).to eq('error' => 'could not derive WireGuard public key')
+    expect(response.body).not_to include(private_key, 'wg derivation failed')
+  end
+
+  it 'does not consume a POST private key from the query string' do
+    private_key = 'distinctive-query-api-private-key'
+    expect_any_instance_of(Service::Helpers).not_to receive(:generate_wg_public_key)
+
+    response = api_post("/api/tools/pubkey?private_key=#{private_key}", {})
+
+    expect(response.status).to eq(422)
+    expect(response_json(response)).to eq(
+      'error' => 'private_key must be provided in the JSON request body'
+    )
+    expect(response.body).not_to include(private_key)
   end
 
   it 'returns selectable OPNsense WireGuard targets' do

@@ -7,8 +7,6 @@ module Framework
   # The Web class is a Sinatra application that provides qbop's web UI routes.
   class Web < Sinatra::Application # rubocop:disable Metrics/ClassLength
     WIREGUARD_IMPORT_UNAVAILABLE = 'Proton WireGuard import requires OPNsense integration.'.freeze
-    WIREGUARD_IMPORT_NOT_LOADED =
-      'Proton WireGuard targets were not loaded for this response. Return to Tools to use the importer.'.freeze
 
     before do
       unless public_asset_request? || public_authentication_request? || !web_auth_enabled?
@@ -289,11 +287,11 @@ module Framework
 
     def initialize_unloaded_wireguard_targets
       @wireguard_targets = { instances: [], peers: [] }
-      @wireguard_import_unavailable = if opnsense_skipped?
-                                        WIREGUARD_IMPORT_UNAVAILABLE
-                                      else
-                                        WIREGUARD_IMPORT_NOT_LOADED
-                                      end
+      if opnsense_skipped?
+        @wireguard_import_unavailable = WIREGUARD_IMPORT_UNAVAILABLE
+      else
+        @wireguard_targets_not_loaded = true
+      end
     end
 
     def opnsense_skipped?
