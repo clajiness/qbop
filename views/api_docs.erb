@@ -1,132 +1,221 @@
-<%= erb :_nav, locals: { active: 'api' }, layout: false %>
+<%= erb :_nav, locals: { active: 'api docs' }, layout: false %>
 <% if @update_available %>
 <div class="terminal-alert terminal-alert-primary"><a href="https://github.com/clajiness/qbop/releases" target="_blank">an update is available:</a> <a href="https://github.com/clajiness/qbop/releases/tag/<%= @recent_tag %>" target="_blank"><%= @recent_tag %></a></div>
 <% end %>
 <hr>
 
 <section>
-  <h4><em>api endpoints</em></h4>
-
-  <ul>
-    <li>GET <a class="menu-item" href="/api/stats" target="_blank">/api/stats</a></li>
-    <li>
-      GET /api/tools
-      <ul>
-        <li><a class="menu-item" href="/api/tools/wireguard-targets" target="_blank">/wireguard-targets</a> (returns 503 when OPN_SKIP=true)</li>
-        <li>
-          POST /api/tools/wireguard-import
-          <ul>
-            <li>config: protonvpn wireguard configuration text</li>
-            <li>instance_uuid: selected opnsense instance uuid</li>
-            <li>peer_uuid: selected opnsense peer uuid</li>
-            <li>rename_peer: optional boolean; when true, rename the peer from a valid proton server comment in the configuration (the request fails if no valid server name is present)</li>
-            <li>updates proton wireguard credentials, tunnel addresses within the adopted tunnel's existing address-family policy, peer endpoint/allowed ips, and optionally the peer name; preserves opnsense-local dns, gateway, routing, firewall, nat, and interface settings</li>
-            <li>the enabled instance and peer must be dedicated to each other; qbop disables and applies the instance, verifies it is absent from wireguard runtime state, saves the peer and instance, applies while disabled, then re-enables, applies, and verifies the imported instance and peer keys</li>
-            <li>returns the completed instance and peer names after a successful rotation</li>
-            <li>returns 409 if another wireguard rotation is already in progress</li>
-            <li>returns 503 without parsing or rotating the configuration when OPN_SKIP=true</li>
-          </ul>
-        </li>
-        <li>
-          POST /api/tools/pubkey
-          <ul>
-            <li>JSON body: private_key: <code>YOUR_WIREGUARD_PRIVATE_KEY</code></li>
-            <li>returns the derived public_key</li>
-            <li>GET /api/tools/pubkey is deprecated; its private-key query parameter remains available only for compatibility</li>
-          </ul>
-        </li>
-        <li>
-          /public-ip
-          <ul>
-            <li><a class="menu-item" href="/api/tools/public-ip?service=akamai" target="_blank">?service=akamai</a></li>
-            <li><a class="menu-item" href="/api/tools/public-ip?service=cloudflare" target="_blank">?service=cloudflare</a></li>
-            <li><a class="menu-item" href="/api/tools/public-ip?service=google" target="_blank">?service=google</a></li>
-            <li><a class="menu-item" href="/api/tools/public-ip?service=opendns" target="_blank">?service=opendns</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li>GET <a class="menu-item" href="/api/logs" target="_blank">/api/logs</a></li>
-    <li>GET <a class="menu-item" href="/api/history?page=1&per_page=25" target="_blank">/api/history?page=1&amp;per_page=25</a></li>
-    <li>GET <a class="menu-item" href="/api/about" target="_blank">/api/about</a></li>
-    <li>GET <a class="menu-item" href="/api/health" target="_blank">/api/health</a></li>
-    <li>GET <a class="menu-item" href="/api/notifications" target="_blank">/api/notifications</a></li>
-  </ul>
-
-  <br>
+  <h4><em>api reference</em></h4>
+  <p>qbop exposes a JSON api for status, history, logs, and selected tools.</p>
 
   <fieldset>
     <legend>authentication</legend>
-    <p>all api requests require an api key, including <code>/api/health</code>.</p>
-    <p>inbound http basic auth is not supported.</p>
-    <p>send the key in the authorization header:</p>
-    <p><code>Authorization: Bearer qbop_...</code></p>
-    <p>create and revoke api keys below. new keys are shown only once.</p>
+    <p>every api request requires a qbop api key, including <code>/api/health</code>. browser sessions and http basic authentication are not accepted.</p>
+    <p>send the key with the bearer authentication scheme:</p>
+    <pre><code>Authorization: Bearer &lt;api-key&gt;</code></pre>
+    <p><a href="/api-keys">create and manage api keys</a></p>
+  </fieldset>
+  <br>
+
+  <p>set <code>QBOP_URL</code> to the qbop origin and <code>QBOP_API_KEY</code> to a complete <code>qbop_...</code> secret before using the examples. responses are JSON. a missing, malformed, or revoked key returns <code>401</code> with <code>{"error":"unauthorized"}</code>.</p>
+</section>
+
+<hr>
+
+<section class="api-reference">
+  <h4><em>status and information</em></h4>
+
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/stats</code></legend>
+    <p>returns current port, connection state, check/change times, and longest time on the same port for protonvpn, opnsense, and qbittorrent.</p>
+    <p><strong>parameters:</strong> none</p>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  "$QBOP_URL/api/stats"</code></pre>
+    <pre><code>{
+  "stats": {
+    "protonvpn": {
+      "current_port": 51820,
+      "last_changed": "2026-08-31 12:00:00 +0000",
+      "last_checked": "2026-08-31 12:01:00 +0000",
+      "delta": 60,
+      "connected": true
+    }
+  },
+  "records": {"longest_time_on_same_port": {"proton": 3600, "opnsense": 3600, "qbit": 3600}}
+}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code></p>
+  </fieldset>
+  <br>
+
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/health</code></legend>
+    <p>returns an http status for each integration. disabled opnsense or qbittorrent integrations are reported as <code>"skipped"</code>.</p>
+    <p><strong>parameters:</strong> none</p>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  "$QBOP_URL/api/health"</code></pre>
+    <pre><code>{"health":{"protonvpn":200,"opnsense":200,"qbit":"skipped"}}</code></pre>
+    <p><strong>status:</strong> <code>200</code> when all enabled services are healthy, <code>503</code> when any enabled service is stale, <code>401</code></p>
+  </fieldset>
+  <br>
+
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/notifications</code></legend>
+    <p>returns the current update-available notification and its active state.</p>
+    <p><strong>parameters:</strong> none</p>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  "$QBOP_URL/api/notifications"</code></pre>
+    <pre><code>{"notifications":{"name":"update_available","info":"v3.1.0","active":true}}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code></p>
+  </fieldset>
+  <br>
+
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/about</code></legend>
+    <p>returns build, schema, ruby, uptime, and non-secret configuration information. configured credentials are masked.</p>
+    <p><strong>parameters:</strong> none</p>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  "$QBOP_URL/api/about"</code></pre>
+    <pre><code>{
+  "about": {"app_version":"v3.0.0","commit_sha":"...","schema_version":7,"uptime":3600},
+  "env_variables": {"opn_api_key":"***","opn_api_secret":"***","qbit_pass":"***"}
+}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code></p>
   </fieldset>
 </section>
 
 <hr>
 
-<section>
-  <h4><em>api keys</em></h4>
-  <p>create and revoke credentials used to access the api.</p>
+<section class="api-reference">
+  <h4><em>activity</em></h4>
 
-  <% if @new_api_key %>
-  <div class="terminal-alert terminal-alert-primary">
-    copy this api key now. it will not be shown again.<br>
-    <code><%= @new_api_key %></code>
-  </div>
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/logs</code></legend>
+    <p>returns qbop log lines without their trailing newline characters.</p>
+    <ul>
+      <li><code>lines</code> — optional positive integer, clamped to 1–5000; defaults to <code>LOG_LINES</code>.</li>
+      <li><code>direction</code> — optional <code>asc</code> or <code>desc</code>; defaults from <code>LOG_REVERSE</code>.</li>
+    </ul>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  "$QBOP_URL/api/logs?lines=100&amp;direction=desc"</code></pre>
+    <pre><code>{"log_lines":["newest line","older line"]}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code></p>
+  </fieldset>
   <br>
-  <% end %>
 
-  <% if @api_key_error %>
-  <div class="terminal-alert terminal-alert-error"><%= Rack::Utils.escape_html(@api_key_error) %></div>
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/history</code></legend>
+    <p>returns port transitions in reverse chronological order with opnsense and qbittorrent synchronization status.</p>
+    <ul>
+      <li><code>page</code> — optional positive integer; defaults to <code>1</code>.</li>
+      <li><code>per_page</code> — optional <code>25</code>, <code>50</code>, or <code>100</code>; defaults to <code>25</code>.</li>
+    </ul>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  "$QBOP_URL/api/history?page=1&amp;per_page=25"</code></pre>
+    <pre><code>{
+  "history": [{
+    "id": 42,
+    "previous_port": 51820,
+    "new_port": 51821,
+    "detected_at": "2026-08-31 12:00:00 +0000",
+    "opnsense": {"status":"synced","synced_at":"2026-08-31 12:00:01 +0000"},
+    "qbit": {"status":"synced","synced_at":"2026-08-31 12:00:02 +0000"}
+  }],
+  "pagination": {"total_records":1,"current_page":1,"per_page":25,"total_pages":1,"from":1,"to":1}
+}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code></p>
+  </fieldset>
+</section>
+
+<hr>
+
+<section class="api-reference">
+  <h4><em>tools</em></h4>
+
+  <fieldset class="api-endpoint">
+    <legend><strong>POST</strong> <code>/api/tools/pubkey</code></legend>
+    <p>derives a wireguard public key from a private key supplied in the JSON request body. the private key must be a base64-encoded 32-byte wireguard key.</p>
+    <p><strong>JSON body:</strong> required string <code>private_key</code>. it is deliberately rejected if supplied in the query string.</p>
+    <pre><code>curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"private_key":"BASE64_WIREGUARD_PRIVATE_KEY"}' \
+  "$QBOP_URL/api/tools/pubkey"</code></pre>
+    <pre><code>{"public_key":"BASE64_WIREGUARD_PUBLIC_KEY"}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code>, <code>422</code> for a missing, malformed, or unusable key</p>
+  </fieldset>
   <br>
-  <% end %>
 
-  <form action="/api-docs/keys" method="post">
-    <fieldset>
-      <legend>create api key</legend>
-      <%= request.env.fetch('rodauth').csrf_tag('/api-docs/keys') %>
-      <div class="form-group">
-        <label for="name">name</label>
-        <input id="name" name="name" type="text" maxlength="<%= ApiKey::MAX_NAME_LENGTH %>" autocomplete="off" required>
-      </div>
-      <div class="form-group">
-        <button class="btn btn-default btn-ghost" type="submit">generate</button>
-      </div>
-    </fieldset>
-  </form>
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/tools/pubkey</code> — deprecated</legend>
+    <p>compatibility endpoint that accepts the wireguard private key in the <code>private-key</code> query parameter. use the POST endpoint so private key material is sent in the request body.</p>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  --get --data-urlencode "private-key=BASE64_WIREGUARD_PRIVATE_KEY" \
+  "$QBOP_URL/api/tools/pubkey"</code></pre>
+    <pre><code>{"public_key":"BASE64_WIREGUARD_PUBLIC_KEY"}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code></p>
+  </fieldset>
+  <br>
 
-  <% if @api_keys.empty? %>
-  <blockquote>no api keys have been created yet</blockquote>
-  <% else %>
-  <table>
-    <thead>
-      <tr>
-        <th>name</th>
-        <th>key</th>
-        <th>created</th>
-        <th>last used</th>
-        <th>action</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @api_keys.each do |api_key| %>
-      <tr>
-        <td><%= Rack::Utils.escape_html(api_key.name) %></td>
-        <td><code><%= api_key.token_prefix %>...</code></td>
-        <td><%= api_key.created_at %></td>
-        <td><%= api_key.last_used_at || 'never' %></td>
-        <td>
-          <form action="/api-docs/keys/<%= api_key.id %>/delete" method="post">
-            <%= request.env.fetch('rodauth').csrf_tag("/api-docs/keys/#{api_key.id}/delete") %>
-            <button class="btn btn-default btn-ghost" type="submit">revoke</button>
-          </form>
-        </td>
-      </tr>
-      <% end %>
-    </tbody>
-  </table>
-  <% end %>
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/tools/public-ip</code></legend>
+    <p>looks up the public IP address through a selected DNS provider.</p>
+    <p><strong>query parameter:</strong> <code>service</code> — <code>akamai</code>, <code>cloudflare</code>, <code>google</code>, or <code>opendns</code>.</p>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  "$QBOP_URL/api/tools/public-ip?service=cloudflare"</code></pre>
+    <pre><code>{"service":"cloudflare","public_ip":"203.0.113.10"}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code>. an unsupported provider is described in the <code>public_ip</code> value.</p>
+  </fieldset>
+  <br>
+
+  <fieldset class="api-endpoint">
+    <legend><strong>GET</strong> <code>/api/tools/wireguard-targets</code></legend>
+    <p>returns eligible opnsense wireguard instances and peers for use with the import endpoint.</p>
+    <p><strong>parameters:</strong> none</p>
+    <pre><code>curl --fail-with-body \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  "$QBOP_URL/api/tools/wireguard-targets"</code></pre>
+    <pre><code>{
+  "wireguard_targets": {
+    "instances": [{"uuid":"...","name":"proton-instance","interface":"wg0"}],
+    "peers": [{"uuid":"...","name":"proton-peer"}]
+  }
+}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code>, <code>422</code> if targets cannot be loaded, <code>503</code> when <code>OPN_SKIP=true</code></p>
+  </fieldset>
+  <br>
+
+  <fieldset class="api-endpoint">
+    <legend><strong>POST</strong> <code>/api/tools/wireguard-import</code></legend>
+    <p>imports a protonvpn wireguard configuration into a dedicated, enabled opnsense instance and peer. the rotation is synchronous and preserves opnsense-local DNS, gateway, routing, firewall, NAT, and interface settings.</p>
+    <ul>
+      <li><code>config</code> — required protonvpn wireguard configuration text, at most 16 KiB.</li>
+      <li><code>instance_uuid</code> — required UUID from <code>/api/tools/wireguard-targets</code>.</li>
+      <li><code>peer_uuid</code> — required UUID from <code>/api/tools/wireguard-targets</code>.</li>
+      <li><code>rename_peer</code> — optional boolean; when true, renames the peer from a valid proton server comment.</li>
+    </ul>
+    <pre><code>curl --fail-with-body \
+  -X POST \
+  -H "Authorization: Bearer $QBOP_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data-binary @- \
+  "$QBOP_URL/api/tools/wireguard-import" &lt;&lt;'JSON'
+{
+  "config": "[Interface]\nPrivateKey = ...\n...",
+  "instance_uuid": "11111111-1111-4111-8111-111111111111",
+  "peer_uuid": "22222222-2222-4222-8222-222222222222",
+  "rename_peer": false
+}
+JSON</code></pre>
+    <pre><code>{"wireguard_import":{"instance_name":"proton-instance","peer_name":"proton-peer"}}</code></pre>
+    <p><strong>status:</strong> <code>200</code>, <code>401</code>, <code>409</code> if another rotation is running, <code>422</code> for invalid input or a failed rotation, <code>503</code> when <code>OPN_SKIP=true</code></p>
+  </fieldset>
 </section>

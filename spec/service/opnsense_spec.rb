@@ -46,6 +46,20 @@ RSpec.describe Service::Opnsense do # rubocop:disable Metrics/BlockLength
     )
   end
 
+  it 'uses lowercase product names in missing-configuration errors' do
+    missing_config = config.merge(
+      opnsense_interface_addr: nil,
+      opnsense_api_key: nil,
+      opnsense_api_secret: nil
+    )
+
+    expect { described_class.new(missing_config).validate_wireguard_config }
+      .to raise_error(
+        described_class::WireguardImportError,
+        'missing opnsense configuration: OPN_INTERFACE_ADDR, OPN_API_KEY, OPN_API_SECRET'
+      )
+  end
+
   it 'returns an alias UUID' do
     response = instance_double(Faraday::Response, body: '{"uuid":"alias-uuid"}')
 

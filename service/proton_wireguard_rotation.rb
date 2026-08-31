@@ -20,8 +20,8 @@ module Service
     def validate_request(instance_uuid:, peer_uuid:)
       @opnsense.validate_wireguard_config
       {
-        instance_uuid: validate_uuid(instance_uuid, 'Instance'),
-        peer_uuid: validate_uuid(peer_uuid, 'Peer')
+        instance_uuid: validate_uuid(instance_uuid, 'instance'),
+        peer_uuid: validate_uuid(peer_uuid, 'peer')
       }
     rescue Service::Opnsense::WireguardImportError => e
       raise Error, e.message
@@ -77,18 +77,18 @@ module Service
       state[:peer_name] = peer['name'].to_s
       state[:interface] = instance['interface'].to_s
       if state[:interface].empty?
-        raise Error, "OPNsense did not return the interface for instance #{state[:instance_name]}"
+        raise Error, "opnsense did not return the interface for instance #{state[:instance_name]}"
       end
 
       state[:original_enabled] = enabled?(instance['enabled'])
-      raise Error, "Instance #{state[:instance_name]} must be enabled before import" unless state[:original_enabled]
-      raise Error, "Peer #{state[:peer_name]} must be enabled before import" unless enabled?(peer['enabled'])
+      raise Error, "instance #{state[:instance_name]} must be enabled before import" unless state[:original_enabled]
+      raise Error, "peer #{state[:peer_name]} must be enabled before import" unless enabled?(peer['enabled'])
 
       instance_peers = selected_values(instance['peers'])
       state[:current_enabled] = state[:original_enabled]
       peer_instances = selected_values(peer['servers'])
       unless instance_peers == [state[:peer_uuid]] && peer_instances == [state[:instance_uuid]]
-        raise Error, 'The selected WireGuard instance and peer must be dedicated to each other.'
+        raise Error, 'the selected wireguard instance and peer must be dedicated to each other.'
       end
 
       state[:original_instance] = normalized_fields(instance, INSTANCE_FIELDS)
@@ -142,9 +142,9 @@ module Service
     end
 
     def addresses_for_existing_families(imported_value, existing_value, subject)
-      imported = addresses_with_families(imported_value, "Proton #{subject}")
+      imported = addresses_with_families(imported_value, "proton #{subject}")
       required_families = addresses_with_families(
-        existing_value, "adopted OPNsense #{subject}"
+        existing_value, "adopted opnsense #{subject}"
       ).map(&:last).uniq
       validate_required_families(imported, required_families, subject)
 
@@ -156,7 +156,7 @@ module Service
       return if missing_families.empty?
 
       missing = missing_families.map { |family| ADDRESS_FAMILY_NAMES.fetch(family) }.join(' and ')
-      raise Error, "Proton configuration is missing #{missing} required by the adopted OPNsense #{subject}"
+      raise Error, "proton configuration is missing #{missing} required by the adopted opnsense #{subject}"
     end
 
     def addresses_with_families(value, subject)
@@ -245,7 +245,7 @@ module Service
       active = @opnsense.wireguard_runtime.any? { |record| record['if'].to_s == state[:interface] }
       return unless active
 
-      raise Error, "OPNsense WireGuard instance #{state[:instance_name]} is still active after disable/apply"
+      raise Error, "opnsense wireguard instance #{state[:instance_name]} is still active after disable/apply"
     end
 
     def verify_instance_active(state, instance_public_key:, peer_public_key:, state_label:)
@@ -254,7 +254,7 @@ module Service
       peer_active = runtime_key_present?(records, 'peer', peer_public_key)
       return if instance_active && peer_active
 
-      raise Error, "OPNsense WireGuard instance #{state[:instance_name]} is not active with the #{state_label} keys"
+      raise Error, "opnsense wireguard instance #{state[:instance_name]} is not active with the #{state_label} keys"
     end
 
     def runtime_key_present?(records, type, public_key)
@@ -276,7 +276,7 @@ module Service
       message = if error.is_a?(Error) || error.is_a?(Service::Opnsense::WireguardImportError)
                   error.message
                 else
-                  "OPNsense WireGuard rotation failed: #{error.message}"
+                  "opnsense wireguard rotation failed: #{error.message}"
                 end
       Error.new("#{message}#{rollback_status(rollback_required, rollback_errors)}")
     end
@@ -291,12 +291,12 @@ module Service
     def with_lock
       File.open(@lock_path, File::RDWR | File::CREAT, 0o600) do |lock|
         acquired = lock.flock(File::LOCK_EX | File::LOCK_NB)
-        raise Busy, 'another OPNsense WireGuard rotation is already in progress' unless acquired
+        raise Busy, 'another opnsense wireguard rotation is already in progress' unless acquired
 
         yield
       end
     rescue SystemCallError => e
-      raise Error, "could not secure the OPNsense WireGuard rotation lock: #{e.message}"
+      raise Error, "could not secure the opnsense wireguard rotation lock: #{e.message}"
     end
 
     def validate_uuid(uuid, label)

@@ -7,7 +7,7 @@
 <div class="terminal-card">
   <header>import protonvpn wireguard config</header>
   <div>
-    upload or paste a protonvpn wireguard configuration to update a dedicated opnsense instance and peer. qbop changes only proton-managed wireguard fields and preserves opnsense-local settings and associations. The configuration is never logged, persisted by qbop, or returned.
+    upload or paste a protonvpn wireguard configuration to update a dedicated opnsense instance and peer. qbop changes only proton-managed wireguard fields and preserves opnsense-local settings and associations. the configuration is never logged, persisted by qbop, or returned.
   </div>
 </div>
 <br>
@@ -17,7 +17,7 @@
 <% elsif @wireguard_targets_error %>
 <div class="terminal-alert terminal-alert-error" role="alert"><%= Rack::Utils.escape_html(@wireguard_targets_error) %></div>
 <% elsif @wireguard_targets_not_loaded %>
-<div role="status"><a class="btn btn-default btn-ghost" href="/tools">reload Tools to use the WireGuard importer</a></div>
+<div role="status"><a class="btn btn-default btn-ghost" href="/tools">reload tools to use the wireguard importer</a></div>
 <% else %>
 <form action="/wireguard-import" method="post" enctype="multipart/form-data" id="wgimportform">
   <fieldset>
@@ -52,7 +52,7 @@
       <textarea id="wireguardconfig" name="wireguardconfig" rows="12" placeholder="[Interface] ..." autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
     </div>
     <div class="form-group">
-      <label for="wireguardrenamepeer"><input id="wireguardrenamepeer" name="wireguardrenamepeer" type="checkbox" value="true"/> rename peer to match new proton server. Uses proton's server identifier to generate a name such as <code>Proton_US-IL661</code>.</label>
+      <label for="wireguardrenamepeer"><input id="wireguardrenamepeer" name="wireguardrenamepeer" type="checkbox" value="true"/> rename peer to match new proton server. uses proton's server identifier to generate a name such as <code>Proton_US-IL661</code>.</label>
     </div>
     <div class="form-group">
       <input id="wireguardresult" name="wireguardresult" type="text" value="<%= Rack::Utils.escape_html(@wireguard_result) %>" placeholder="import result" readonly/>
