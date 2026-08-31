@@ -208,7 +208,7 @@ qbop updates Proton WireGuard credentials, tunnel addresses within the adopted t
 
 Imports run synchronously and exclusively. The request waits for each OPNsense apply before advancing to the next state, so it reports the completed result or any rollback failure immediately. A lock file in the persistent `data` volume prevents overlapping rotations, and a competing request is rejected with a conflict response.
 
-The configured OPNsense API key needs the **VPN: WireGuard: Configuration** privilege in addition to the permissions used by qbop's firewall-alias integration. Uploaded and pasted configurations are not logged or retained.
+The configured OPNsense API key needs the **VPN: WireGuard: Configuration** privilege in addition to the permissions used by qbop's firewall-alias integration. qbop does not log, persist, or return uploaded and pasted configurations.
 
 ### Query Parameters
 The stats, logs, and history pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
