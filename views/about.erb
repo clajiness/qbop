@@ -53,13 +53,15 @@
 </blockquote>
 <hr>
 
-<% if @web_auth_enabled %>
 <h4><em>account</em></h4>
 <blockquote>
+  <% if @web_auth_enabled %>
   <a href="/account">manage email and password</a>
+  <br>
+  <% end %>
+  <a href="/api-keys">create and manage api keys</a>
 </blockquote>
 <hr>
-<% end %>
 
 <h4><em>env variables</em></h4>
 <blockquote>

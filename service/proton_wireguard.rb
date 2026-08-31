@@ -22,12 +22,12 @@ module Service
 
     def self.peer_name_for(server_identifier)
       identifier = server_identifier.to_s
-      error = 'Unable to rename peer because a Proton server identifier was not found in the configuration.'
+      error = 'unable to rename peer because a proton server identifier was not found in the configuration.'
       raise ImportError, error unless identifier.match?(PROTON_SERVER_IDENTIFIER)
 
       prefix, _separator, number = identifier.rpartition('#')
       peer_name = "Proton_#{prefix}#{number}"
-      error = 'Unable to rename peer because the generated name is not valid for OPNsense.'
+      error = 'unable to rename peer because the generated name is not valid for opnsense.'
       raise ImportError, error unless peer_name.match?(OPNSENSE_PEER_NAME)
 
       peer_name
@@ -51,7 +51,7 @@ module Service
     def validate_config_text(config_text)
       config = config_text.to_s.dup.force_encoding(Encoding::UTF_8)
       raise ImportError, 'configuration must be valid UTF-8 text' unless config.valid_encoding?
-      raise ImportError, 'paste or upload a ProtonVPN WireGuard configuration' if config.strip.empty?
+      raise ImportError, 'paste or upload a protonvpn wireguard configuration' if config.strip.empty?
       raise ImportError, "configuration exceeds #{MAX_CONFIG_BYTES} bytes" if config.bytesize > MAX_CONFIG_BYTES
 
       config
@@ -97,7 +97,7 @@ module Service
     end
 
     def select_section(section, seen_sections)
-      raise ImportError, "unsupported WireGuard section [#{section}]" unless SUPPORTED_SETTINGS.key?(section)
+      raise ImportError, "unsupported wireguard section [#{section}]" unless SUPPORTED_SETTINGS.key?(section)
 
       seen_sections[section] += 1
       raise ImportError, "configuration must contain exactly one [#{section}] section" if seen_sections[section] > 1
@@ -110,7 +110,7 @@ module Service
 
       key, value = content.split('=', 2)&.map(&:strip)
       unless key && value && !key.empty? && !value.empty?
-        raise ImportError, "invalid WireGuard setting on line #{line_number}"
+        raise ImportError, "invalid wireguard setting on line #{line_number}"
       end
       unless SUPPORTED_SETTINGS.fetch(current_section).include?(key)
         raise ImportError, "unsupported #{current_section} setting #{key}"
@@ -132,11 +132,11 @@ module Service
 
     def validate_port_forwarding(metadata)
       if metadata[:moderate_nat] && metadata[:moderate_nat] != 'off'
-        raise ImportError, 'Moderate NAT is incompatible with ProtonVPN port forwarding'
+        raise ImportError, 'Moderate NAT is incompatible with protonvpn port forwarding'
       end
       return if metadata[:nat_pmp] == 'on'
 
-      raise ImportError, 'NAT-PMP (Port Forwarding) must be enabled in the ProtonVPN configuration'
+      raise ImportError, 'NAT-PMP (Port Forwarding) must be enabled in the protonvpn configuration'
     end
 
     def build_import(sections, metadata) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
@@ -169,11 +169,11 @@ module Service
     def validate_key(value, label)
       decoded = Base64.strict_decode64(value)
       valid = decoded.bytesize == 32 && Base64.strict_encode64(decoded) == value
-      raise ImportError, "#{label} is not a valid WireGuard key" unless valid
+      raise ImportError, "#{label} is not a valid wireguard key" unless valid
 
       value
     rescue ArgumentError, TypeError
-      raise ImportError, "#{label} is not a valid WireGuard key"
+      raise ImportError, "#{label} is not a valid wireguard key"
     end
 
     def derive_public_key(private_key)

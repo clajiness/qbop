@@ -54,7 +54,7 @@ module Service
     rescue WireguardImportError
       raise
     rescue StandardError => e
-      raise WireguardImportError, "could not load OPNsense WireGuard targets: #{e.message}"
+      raise WireguardImportError, "could not load opnsense wireguard targets: #{e.message}"
     end
 
     def validate_wireguard_config
@@ -66,7 +66,7 @@ module Service
       missing = settings.filter_map { |name, value| name if value.to_s.strip.empty? }
       return if missing.empty?
 
-      raise WireguardImportError, "missing OPNsense configuration: #{missing.join(', ')}"
+      raise WireguardImportError, "missing opnsense configuration: #{missing.join(', ')}"
     end
 
     def wireguard_instance(uuid)
@@ -81,14 +81,14 @@ module Service
       response = request_json(
         :post, "/api/wireguard/server/set_server/#{uuid}", payload: { 'server' => payload }
       )
-      expect_result(response, 'saved', 'update the WireGuard instance')
+      expect_result(response, 'saved', 'update the wireguard instance')
     end
 
     def save_wireguard_peer(uuid, payload)
       response = request_json(
         :post, "/api/wireguard/client/set_client/#{uuid}", payload: { 'client' => payload }
       )
-      expect_result(response, 'saved', 'update the WireGuard peer')
+      expect_result(response, 'saved', 'update the wireguard peer')
     end
 
     def reconfigure_wireguard
@@ -97,7 +97,7 @@ module Service
         '/api/wireguard/service/reconfigure',
         timeout: WIREGUARD_RECONFIGURE_TIMEOUT
       )
-      expect_result(response, 'ok', 'apply the WireGuard configuration')
+      expect_result(response, 'ok', 'apply the wireguard configuration')
     end
 
     def wireguard_runtime
@@ -107,7 +107,7 @@ module Service
       records = response['rows']
       return records if records.is_a?(Array)
 
-      raise WireguardImportError, 'OPNsense did not return WireGuard runtime records'
+      raise WireguardImportError, 'opnsense did not return wireguard runtime records'
     end
 
     private
@@ -134,7 +134,7 @@ module Service
       response = request_json(:get, "/api/wireguard/#{type}/#{endpoint}/#{uuid}")
       response.fetch(type) do
         subject = type == 'server' ? 'instance' : 'peer'
-        raise WireguardImportError, "OPNsense did not return the existing #{subject}"
+        raise WireguardImportError, "opnsense did not return the existing #{subject}"
       end
     end
 
@@ -149,12 +149,12 @@ module Service
         end
       end
       unless response.status.to_i.between?(200, 299)
-        raise WireguardImportError, "OPNsense returned HTTP #{response.status} for #{path}"
+        raise WireguardImportError, "opnsense returned HTTP #{response.status} for #{path}"
       end
 
       JSON.parse(response.body)
     rescue JSON::ParserError
-      raise WireguardImportError, "OPNsense returned an invalid response for #{path}"
+      raise WireguardImportError, "opnsense returned an invalid response for #{path}"
     end
 
     def expect_result(response, expected, action)
@@ -162,7 +162,7 @@ module Service
 
       validations = response.fetch('validations', {}).map { |field, message| "#{field}: #{Array(message).join(', ')}" }
       detail = validations.empty? ? response['result'].to_s : validations.join('; ')
-      raise WireguardImportError, "OPNsense could not #{action}#{detail.empty? ? '' : ": #{detail}"}"
+      raise WireguardImportError, "opnsense could not #{action}#{detail.empty? ? '' : ": #{detail}"}"
     end
 
     def faraday_conn(config)

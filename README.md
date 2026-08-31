@@ -40,7 +40,7 @@ Recommended upgrade sequence:
 3. Remove obsolete `BASIC_AUTH_*` environment variables.
 4. Start the 3.0 image normally. qbop runs its database migrations automatically during startup; no manual database editing is required.
 5. Create the administrator at `/setup`, unless browser authentication is disabled.
-6. Open `/api-docs` and create an API key.
+6. Open `/api-keys` and create an API key.
 7. Update every API client and monitoring check to send `Authorization: Bearer qbop_...`, including checks of `/api/health`.
 8. Restart qbop and verify the web UI, history, integrations, and authenticated API requests.
 
@@ -184,9 +184,9 @@ Every API endpoint requires a valid qbop API key, including `/api/health`. Inbou
 
 To configure an API client:
 
-1. Sign in to qbop and open `/api-docs` through **api** in the navigation.
-2. Review the endpoint documentation and scroll to **api keys**.
-3. Create a named API key.
+1. Sign in to qbop and open `/api-docs` through **api docs** in the navigation.
+2. Follow the **API Keys** link to `/api-keys`.
+3. Create a named API key there.
 4. Copy the complete `qbop_...` value immediately.
 5. Send it in the `Authorization` header:
 
@@ -194,9 +194,9 @@ To configure an API client:
    Authorization: Bearer qbop_xxxxxxxxx
    ```
 
-6. Revoke the old key from the same page when it is no longer needed.
+6. Revoke the old key from `/api-keys` when it is no longer needed.
 
-`/api-docs` combines the current endpoint documentation with API-key creation and revocation. API-key secrets are shown only once and cannot be recovered later. Create a replacement before revoking a key when rotating credentials. When browser authentication is disabled, `/api-docs` and its key-management section are accessible with the rest of the web UI, so protect that UI with a trusted external access layer.
+`/api-docs` is the API reference, and `/api-keys` provides API-key creation and revocation. API-key secrets are shown only once and cannot be recovered later. Create a replacement before revoking a key when rotating credentials. When browser authentication is disabled, `/api-keys` is accessible with the rest of the web UI, so protect that UI with a trusted external access layer.
 
 ## Usage
 

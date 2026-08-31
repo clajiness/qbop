@@ -186,7 +186,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     response = api_post('/api/tools/pubkey', { private_key: private_key })
 
     expect(response.status).to eq(422)
-    expect(response_json(response)).to eq('error' => 'private_key is not a valid WireGuard key')
+    expect(response_json(response)).to eq('error' => 'private_key is not a valid wireguard key')
     expect(response.body).not_to include(private_key)
   end
 
@@ -198,7 +198,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     response = api_post('/api/tools/pubkey', { private_key: private_key })
 
     expect(response.status).to eq(422)
-    expect(response_json(response)).to eq('error' => 'could not derive WireGuard public key')
+    expect(response_json(response)).to eq('error' => 'could not derive wireguard public key')
     expect(response.body).not_to include(private_key, 'wg derivation failed')
   end
 
@@ -237,7 +237,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(503)
     expect(response_json(response)['error']).to eq(
-      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'
+      'proton wireguard import is unavailable because opnsense integration is disabled.'
     )
   end
 
@@ -255,7 +255,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(503)
     expect(response_json(response)['error']).to eq(
-      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'
+      'proton wireguard import is unavailable because opnsense integration is disabled.'
     )
     expect(response.body).not_to include('distinctive-skipped-api-private-config-value', 'PrivateKey')
   end
@@ -318,7 +318,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(422)
     expect(response_json(response)['error']).to include(
-      'Unable to rename peer because a Proton server identifier was not found'
+      'unable to rename peer because a proton server identifier was not found'
     )
   end
 

@@ -9,7 +9,7 @@ module Framework
   # It sets the response format to JSON and prefixes all routes with '/api'.
   class API < Grape::API # rubocop:disable Metrics/ClassLength
     WIREGUARD_IMPORT_UNAVAILABLE =
-      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'.freeze
+      'proton wireguard import is unavailable because opnsense integration is disabled.'.freeze
 
     format :json
     prefix :api
@@ -37,12 +37,12 @@ module Framework
 
         private_key = params['private_key'].to_s.strip
         error!({ 'error' => 'private_key is required' }, 422) if private_key.empty?
-        error!({ 'error' => 'private_key is not a valid WireGuard key' }, 422) unless valid_wireguard_key?(private_key)
+        error!({ 'error' => 'private_key is not a valid wireguard key' }, 422) unless valid_wireguard_key?(private_key)
 
         public_key = Service::Helpers.new.generate_wg_public_key(private_key)
         return public_key if valid_wireguard_key?(public_key)
 
-        error!({ 'error' => 'could not derive WireGuard public key' }, 422)
+        error!({ 'error' => 'could not derive wireguard public key' }, 422)
       end
 
       def valid_wireguard_key?(value)

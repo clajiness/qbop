@@ -336,7 +336,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
 
     expect do
       rotation_for(opnsense).rotate(wireguard, instance_uuid: 'new', peer_uuid: peer_uuid)
-    end.to raise_error(described_class::Error, /Instance selection is invalid/)
+    end.to raise_error(described_class::Error, /instance selection is invalid/)
   end
 
   it 'rejects an invalid generated peer name before contacting OPNsense' do
@@ -352,7 +352,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
         peer_uuid: peer_uuid,
         rename_peer: true
       )
-    end.to raise_error(described_class::Error, /generated name is not valid for OPNsense/)
+    end.to raise_error(described_class::Error, /generated name is not valid for opnsense/)
   end
 
   it 'rejects a disabled instance before writing' do
@@ -376,7 +376,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
 
     expect do
       rotation_for(opnsense).rotate(wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid)
-    end.to raise_error(described_class::Error, /Peer proton-peer must be enabled before import/)
+    end.to raise_error(described_class::Error, /peer proton-peer must be enabled before import/)
   end
 
   it 'rejects a peer shared with another instance before mutation' do

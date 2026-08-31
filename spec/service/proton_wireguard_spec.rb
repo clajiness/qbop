@@ -120,10 +120,10 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
 
   it 'continues validating every consumed WireGuard setting' do
     invalid_settings = {
-      config.sub(private_key, 'invalid') => /Interface private key is not a valid WireGuard key/,
+      config.sub(private_key, 'invalid') => /Interface private key is not a valid wireguard key/,
       config.sub('Address = 10.2.0.2/32, 2a07:b944::2:2/128', 'Address = invalid') =>
         /Interface address is invalid/,
-      config.sub(peer_public_key, 'invalid') => /Peer public key is not a valid WireGuard key/,
+      config.sub(peer_public_key, 'invalid') => /Peer public key is not a valid wireguard key/,
       config.sub('AllowedIPs = 0.0.0.0/0, ::/0', 'AllowedIPs = invalid') =>
         /Peer allowed IPs is invalid/,
       config.sub('Endpoint = 192.0.2.10:51820', 'Endpoint = invalid') =>
@@ -146,7 +146,7 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
       expect { described_class.new(helpers).import(duplicate_peer) }
         .to raise_error(described_class::ImportError, /exactly one \[Peer\] section/)
       expect { described_class.new(helpers).import(unsupported_section) }
-        .to raise_error(described_class::ImportError, /unsupported WireGuard section \[Unknown\]/)
+        .to raise_error(described_class::ImportError, /unsupported wireguard section \[Unknown\]/)
     end
   end
 
@@ -185,7 +185,7 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
     identifier = "#{'A' * 57}#1"
 
     expect { described_class.peer_name_for(identifier) }
-      .to raise_error(described_class::ImportError, /not valid for OPNsense/)
+      .to raise_error(described_class::ImportError, /not valid for opnsense/)
   end
 
   it 'rejects a config that does not declare NAT-PMP status' do

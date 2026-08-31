@@ -719,7 +719,7 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
       "document.getElementById('oidc-login-form').submit()", OIDC_SPEC_CLIENT_SECRET
     )
     expect(logged_out_page.status).to eq(200)
-    expect(logged_out_page.body).to include('You have been logged out.')
+    expect(logged_out_page.body).to include('you have been logged out.')
     expect(logged_out_page.body).not_to include("document.getElementById('oidc-login-form').submit()")
 
     SpecDatabase.reset!

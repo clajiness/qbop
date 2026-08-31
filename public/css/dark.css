@@ -52,6 +52,18 @@
   overflow-x: auto;
 }
 
+.api-key-table-wrapper {
+  overflow-x: auto;
+}
+
+.api-key-table {
+  min-width: 48rem;
+}
+
+.api-endpoint pre {
+  overflow-x: auto;
+}
+
 .history-table {
   min-width: 50rem;
 }

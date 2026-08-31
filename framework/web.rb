@@ -6,7 +6,7 @@ require_relative '../service/proton_wireguard_rotation'
 module Framework
   # The Web class is a Sinatra application that provides qbop's web UI routes.
   class Web < Sinatra::Application # rubocop:disable Metrics/ClassLength
-    WIREGUARD_IMPORT_UNAVAILABLE = 'Proton WireGuard import requires OPNsense integration.'.freeze
+    WIREGUARD_IMPORT_UNAVAILABLE = 'proton wireguard import requires opnsense integration.'.freeze
 
     before do
       unless public_asset_request? || public_authentication_request? || !web_auth_enabled?
@@ -19,7 +19,7 @@ module Framework
         halt 403 unless authentication.scope.valid_csrf?
       end
 
-      headers 'Cache-Control' => 'no-store' if api_docs_request? || tools_request?
+      headers 'Cache-Control' => 'no-store' if api_keys_request? || tools_request?
 
       update = Notification.select(:info, :active).where(name: 'update_available').first
       @recent_tag = update&.info
@@ -55,11 +55,15 @@ module Framework
     end
 
     get '/api-docs' do
+      erb :api_docs
+    end
+
+    get '/api-keys' do
       @new_api_key = request.session.delete(:new_api_key)
       @api_key_error = request.session.delete(:api_key_error)
       @api_keys = ApiKey.reverse_order(:created_at, :id).all
 
-      erb :api_docs
+      erb :api_keys
     end
 
     get '/account' do
@@ -92,23 +96,23 @@ module Framework
       erb :logged_out
     end
 
-    post '/api-docs/keys' do
+    post '/api-keys' do
       issued_key = ApiKey.issue(params['name'])
       request.session[:new_api_key] = issued_key.token
-      redirect '/api-docs', 303
+      redirect '/api-keys', 303
     rescue ApiKey::InvalidName => e
       request.session[:api_key_error] = e.message
-      redirect '/api-docs', 303
+      redirect '/api-keys', 303
     end
 
-    post '/api-docs/keys/:id/delete' do
+    post '/api-keys/:id/delete' do
       halt 404 unless params['id'].match?(/\A[1-9][0-9]*\z/)
 
       api_key = ApiKey[params['id'].to_i]
       halt 404 unless api_key
 
       api_key.delete
-      redirect '/api-docs', 303
+      redirect '/api-keys', 303
     end
 
     get '/tools' do
@@ -252,8 +256,8 @@ module Framework
       [AuthenticationConfig::OIDC_FAILURE_PATH, AuthenticationConfig::LOGGED_OUT_PATH].include?(request.path_info)
     end
 
-    def api_docs_request?
-      request.path_info == '/api-docs' || request.path_info.start_with?('/api-docs/')
+    def api_keys_request?
+      request.path_info == '/api-keys' || request.path_info.start_with?('/api-keys/')
     end
 
     def tools_request?
@@ -303,7 +307,7 @@ module Framework
     end
 
     def api_key_mutation_request?
-      request.path_info == '/api-docs/keys' || request.path_info.start_with?('/api-docs/keys/')
+      request.path_info == '/api-keys' || request.path_info.start_with?('/api-keys/')
     end
 
     def web_auth_enabled?
