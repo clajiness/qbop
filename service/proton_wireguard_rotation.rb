@@ -5,8 +5,9 @@ module Service
   # Safely rotates an existing OPNsense WireGuard instance and peer.
   class ProtonWireguardRotation # rubocop:disable Metrics/ClassLength
     LOCK_PATH = File.expand_path('../data/wireguard-import.lock', __dir__)
-    INSTANCE_FIELDS = %w[pubkey privkey dns tunneladdress gateway].freeze
+    INSTANCE_FIELDS = %w[pubkey privkey tunneladdress].freeze
     PEER_FIELDS = %w[name pubkey tunneladdress serveraddress serverport].freeze
+    ADDRESS_FAMILY_NAMES = { 4 => 'IPv4', 6 => 'IPv6' }.freeze
 
     class Error < StandardError; end
     class Busy < Error; end
@@ -41,6 +42,7 @@ module Service
 
       begin
         prepare_rotation(state)
+        prepare_address_policy(state, wireguard)
         set_instance_enabled(state, false)
         @opnsense.reconfigure_wireguard
         verify_instance_stopped(state)
@@ -91,12 +93,25 @@ module Service
       state[:original_peer] = normalized_fields(peer, PEER_FIELDS).merge('servers' => peer_instances.join(','))
     end
 
+    def prepare_address_policy(state, wireguard)
+      state[:instance_tunnel_addresses] = addresses_for_existing_families(
+        wireguard.fetch(:instance).fetch(:tunnel_addresses),
+        state.fetch(:original_instance).fetch('tunneladdress'),
+        'instance tunnel addresses'
+      )
+      state[:peer_allowed_ips] = addresses_for_existing_families(
+        wireguard.fetch(:peer).fetch(:allowed_ips),
+        state.fetch(:original_peer).fetch('tunneladdress'),
+        'peer allowed IPs'
+      )
+    end
+
     # Mark writes before sending them because OPNsense may save a request whose response is lost.
     def update_peer(state, peer, peer_name)
       state[:peer_updated] = true
       payload = {
         'pubkey' => peer.fetch(:public_key),
-        'tunneladdress' => opnsense_list(peer.fetch(:allowed_ips)),
+        'tunneladdress' => opnsense_list(state.fetch(:peer_allowed_ips)),
         'serveraddress' => peer.fetch(:endpoint_address),
         'serverport' => peer.fetch(:endpoint_port).to_s,
         'servers' => state.fetch(:original_peer).fetch('servers')
@@ -119,11 +134,38 @@ module Service
       payload = {
         'pubkey' => instance.fetch(:public_key),
         'privkey' => instance.fetch(:private_key),
-        'dns' => opnsense_list(instance.fetch(:dns_servers)),
-        'tunneladdress' => opnsense_list(instance.fetch(:tunnel_addresses)),
-        'gateway' => instance.fetch(:gateway)
+        'tunneladdress' => opnsense_list(state.fetch(:instance_tunnel_addresses))
       }
       @opnsense.save_wireguard_instance(state[:instance_uuid], payload)
+    end
+
+    def addresses_for_existing_families(imported_value, existing_value, subject)
+      imported = addresses_with_families(imported_value, "Proton #{subject}")
+      required_families = addresses_with_families(
+        existing_value, "adopted OPNsense #{subject}"
+      ).map(&:last).uniq
+      validate_required_families(imported, required_families, subject)
+
+      imported.select { |_address, family| required_families.include?(family) }.map(&:first).join(', ')
+    end
+
+    def validate_required_families(imported, required_families, subject)
+      missing_families = required_families - imported.map(&:last)
+      return if missing_families.empty?
+
+      missing = missing_families.map { |family| ADDRESS_FAMILY_NAMES.fetch(family) }.join(' and ')
+      raise Error, "Proton configuration is missing #{missing} required by the adopted OPNsense #{subject}"
+    end
+
+    def addresses_with_families(value, subject)
+      addresses = value.to_s.split(',').map(&:strip).reject(&:empty?)
+      raise Error, "#{subject} did not contain any addresses" if addresses.empty?
+
+      addresses.map do |address|
+        [address, IPAddr.new(address).ipv4? ? 4 : 6]
+      end
+    rescue IPAddr::InvalidAddressError
+      raise Error, "#{subject} contains an invalid address"
     end
 
     def set_instance_enabled(state, enabled)

@@ -24,9 +24,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
       instance: {
         public_key: 'new-instance-public-key',
         private_key: 'new-instance-private-key',
-        dns_servers: '10.2.0.1',
-        tunnel_addresses: '10.2.0.2/32',
-        gateway: '10.2.0.1'
+        tunnel_addresses: '10.2.0.2/32, 2a07:b944::2:2/128'
       },
       peer: {
         public_key: 'new-peer-public-key',
@@ -43,15 +41,13 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     {
       'pubkey' => 'new-instance-public-key',
       'privkey' => 'new-instance-private-key',
-      'dns' => '10.2.0.1',
-      'tunneladdress' => '10.2.0.2/32',
-      'gateway' => '10.2.0.1'
+      'tunneladdress' => '10.2.0.2/32'
     }
   end
   let(:new_peer) do
     {
       'pubkey' => 'new-peer-public-key',
-      'tunneladdress' => '0.0.0.0/0,::/0',
+      'tunneladdress' => '0.0.0.0/0',
       'serveraddress' => '192.0.2.10',
       'serverport' => '51820',
       'servers' => instance_uuid
@@ -61,9 +57,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     {
       'pubkey' => 'old-instance-public-key',
       'privkey' => 'old-instance-private-key',
-      'dns' => '10.3.0.1',
-      'tunneladdress' => '10.3.0.2/32',
-      'gateway' => '10.3.0.1'
+      'tunneladdress' => '10.3.0.2/32'
     }
   end
   let(:old_peer) do
@@ -83,30 +77,31 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     values.to_h { |value| [value, { 'value' => value, 'selected' => 1 }] }
   end
 
-  def instance_record(enabled: '1') # rubocop:disable Metrics/MethodLength
+  def instance_record(enabled: '1', tunnel_addresses: ['10.3.0.2/32']) # rubocop:disable Metrics/MethodLength
     {
       'name' => 'proton-instance',
       'enabled' => enabled,
       'pubkey' => 'old-instance-public-key',
       'privkey' => 'old-instance-private-key',
       'port' => '51821',
-      'dns' => selected_options('10.3.0.1'),
-      'tunneladdress' => selected_options('10.3.0.2/32'),
-      'gateway' => '10.3.0.1',
+      'dns' => {},
+      'tunneladdress' => selected_options(*tunnel_addresses),
+      'disableroutes' => '1',
+      'gateway' => '10.100.100.100',
       'mtu' => '1420',
       'interface' => 'wg0'
     }
   end
 
-  def peer_record(instances: [instance_uuid])
+  def peer_record(instances: [instance_uuid], allowed_ips: ['0.0.0.0/0'])
     {
       'name' => 'proton-peer',
       'pubkey' => 'old-peer-public-key',
-      'tunneladdress' => selected_options('0.0.0.0/0'),
+      'tunneladdress' => selected_options(*allowed_ips),
       'serveraddress' => '198.51.100.10',
       'serverport' => '51820',
       'servers' => selected_options(*instances),
-      'keepliveinterval' => '25',
+      'keepalive' => '25',
       'psk' => 'preserved-preshared-key'
     }
   end
@@ -118,10 +113,20 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     ]
   end
 
-  def stub_pair(opnsense, enabled: '1', instances: [instance_uuid])
+  def stub_pair(
+    opnsense,
+    enabled: '1',
+    instances: [instance_uuid],
+    instance_addresses: ['10.3.0.2/32'],
+    peer_allowed_ips: ['0.0.0.0/0']
+  )
     allow(opnsense).to receive(:validate_wireguard_config)
-    allow(opnsense).to receive(:wireguard_instance).with(instance_uuid).and_return(instance_record(enabled: enabled))
-    allow(opnsense).to receive(:wireguard_peer).with(peer_uuid).and_return(peer_record(instances: instances))
+    allow(opnsense).to receive(:wireguard_instance).with(instance_uuid).and_return(
+      instance_record(enabled: enabled, tunnel_addresses: instance_addresses)
+    )
+    allow(opnsense).to receive(:wireguard_peer).with(peer_uuid).and_return(
+      peer_record(instances: instances, allowed_ips: peer_allowed_ips)
+    )
   end
 
   def rotation_for(opnsense)
@@ -199,6 +204,71 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     expect(enable).to have_been_requested.once
     expect(apply).to have_been_requested.times(3)
     expect(runtime).to have_been_requested.times(2)
+  end
+
+  it 'keeps both address families when the adopted instance and peer are dual-stack' do # rubocop:disable Metrics/BlockLength
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(
+      opnsense,
+      instance_addresses: ['10.3.0.2/32', '2001:db8::2/128'],
+      peer_allowed_ips: ['0.0.0.0/0', '::/0']
+    )
+    allow(opnsense).to receive(:save_wireguard_instance)
+    allow(opnsense).to receive(:reconfigure_wireguard)
+    allow(opnsense).to receive(:wireguard_runtime).and_return(
+      [],
+      runtime_records(
+        instance_public_key: 'new-instance-public-key',
+        peer_public_key: 'new-peer-public-key'
+      )
+    )
+    expect(opnsense).to receive(:save_wireguard_peer).with(
+      peer_uuid, new_peer.merge('tunneladdress' => '0.0.0.0/0,::/0')
+    )
+    expect(opnsense).to receive(:save_wireguard_instance).with(
+      instance_uuid,
+      new_instance.merge('tunneladdress' => '10.2.0.2/32,2a07:b944::2:2/128')
+    )
+
+    result = rotation_for(opnsense).rotate(
+      wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid
+    )
+
+    expect(result).to eq(instance_name: 'proton-instance', peer_name: 'proton-peer')
+  end
+
+  it 'rejects a Proton config missing an instance address family before mutation' do
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(opnsense, instance_addresses: ['10.3.0.2/32', '2001:db8::2/128'])
+    ipv4_wireguard = wireguard.merge(
+      instance: wireguard.fetch(:instance).merge(tunnel_addresses: '10.2.0.2/32')
+    )
+    expect(opnsense).not_to receive(:save_wireguard_instance)
+    expect(opnsense).not_to receive(:save_wireguard_peer)
+    expect(opnsense).not_to receive(:reconfigure_wireguard)
+
+    expect do
+      rotation_for(opnsense).rotate(
+        ipv4_wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid
+      )
+    end.to raise_error(described_class::Error, /missing IPv6.*instance tunnel addresses/)
+  end
+
+  it 'rejects a Proton config missing a peer address family before mutation' do
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(opnsense, peer_allowed_ips: ['0.0.0.0/0', '::/0'])
+    ipv4_wireguard = wireguard.merge(
+      peer: wireguard.fetch(:peer).merge(allowed_ips: '0.0.0.0/0')
+    )
+    expect(opnsense).not_to receive(:save_wireguard_instance)
+    expect(opnsense).not_to receive(:save_wireguard_peer)
+    expect(opnsense).not_to receive(:reconfigure_wireguard)
+
+    expect do
+      rotation_for(opnsense).rotate(
+        ipv4_wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid
+      )
+    end.to raise_error(described_class::Error, /missing IPv6.*peer allowed IPs/)
   end
 
   it 'adds the generated name only when peer renaming is selected' do

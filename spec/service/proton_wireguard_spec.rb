@@ -17,7 +17,7 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
       # NAT-PMP (Port Forwarding) = on
       PrivateKey = #{private_key}
       Address = 10.2.0.2/32, 2a07:b944::2:2/128
-      DNS = 10.2.0.1
+      DNS = 10.2.0.1, 2a07:b944::2:1
       ListenPort = 51821
       MTU = 1300
 
@@ -34,18 +34,14 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
 
     expect(helpers).to have_received(:generate_wg_public_key).with(private_key)
     expect(result.keys).to contain_exactly(:instance, :peer, :metadata)
-    expect(result[:instance].keys).to contain_exactly(
-      :public_key, :private_key, :dns_servers, :tunnel_addresses, :gateway
-    )
+    expect(result[:instance].keys).to contain_exactly(:public_key, :private_key, :tunnel_addresses)
     expect(result[:peer].keys).to contain_exactly(
       :public_key, :allowed_ips, :endpoint_address, :endpoint_port
     )
     expect(result[:instance]).to include(
       public_key: derived_public_key,
       private_key: private_key,
-      dns_servers: '10.2.0.1',
-      tunnel_addresses: '10.2.0.2/32, 2a07:b944::2:2/128',
-      gateway: '10.2.0.1'
+      tunnel_addresses: '10.2.0.2/32, 2a07:b944::2:2/128'
     )
     expect(result[:peer]).to include(
       public_key: peer_public_key,
@@ -54,6 +50,13 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
       endpoint_port: 51_820
     )
     expect(result[:metadata]).to eq({})
+  end
+
+  it 'validates Proton DNS without exposing it as an OPNsense instance value' do
+    invalid_dns = config.sub('DNS = 10.2.0.1, 2a07:b944::2:1', 'DNS = invalid')
+
+    expect { described_class.new(helpers).import(invalid_dns) }
+      .to raise_error(described_class::ImportError, /DNS server is invalid/)
   end
 
   it 'derives Proton_SE108 from an SE server comment' do

@@ -147,7 +147,7 @@ module Service
       peer_public_key = validate_key(peer.fetch('PublicKey'), 'Peer public key')
       public_key = derive_public_key(private_key)
       addresses = validate_network_list(interface.fetch('Address'), 'Interface address')
-      dns_servers = validate_ip_list(interface.fetch('DNS'), 'DNS server')
+      validate_ip_list(interface.fetch('DNS'), 'DNS server')
       allowed_ips = validate_network_list(peer.fetch('AllowedIPs'), 'Peer allowed IPs')
       endpoint_address, endpoint_port = validate_endpoint(peer.fetch('Endpoint'))
 
@@ -155,9 +155,7 @@ module Service
         instance: {
           public_key: public_key,
           private_key: private_key,
-          dns_servers: dns_servers.join(', '),
-          tunnel_addresses: addresses.join(', '),
-          gateway: dns_servers.first
+          tunnel_addresses: addresses.join(', ')
         },
         peer: {
           public_key: peer_public_key,

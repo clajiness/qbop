@@ -20,6 +20,7 @@
             <li>instance_uuid: selected opnsense instance uuid</li>
             <li>peer_uuid: selected opnsense peer uuid</li>
             <li>rename_peer: optional boolean; when true, rename the peer from a valid proton server comment in the configuration (the request fails if no valid server name is present)</li>
+            <li>updates proton wireguard credentials, tunnel addresses within the adopted tunnel's existing address-family policy, peer endpoint/allowed ips, and optionally the peer name; preserves opnsense-local dns, gateway, routing, firewall, nat, and interface settings</li>
             <li>the instance must be enabled; qbop disables and applies it, verifies it is absent from wireguard runtime state, saves the peer and instance, applies while disabled, then re-enables, applies, and verifies the imported instance and peer keys</li>
             <li>returns the completed instance and peer names after a successful rotation</li>
             <li>returns 409 if another wireguard rotation is already in progress</li>
