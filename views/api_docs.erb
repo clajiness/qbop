@@ -12,7 +12,7 @@
     <li>
       GET /api/tools
       <ul>
-        <li><a class="menu-item" href="/api/tools/wireguard-targets" target="_blank">/wireguard-targets</a></li>
+        <li><a class="menu-item" href="/api/tools/wireguard-targets" target="_blank">/wireguard-targets</a> (returns 503 when OPN_SKIP=true)</li>
         <li>
           POST /api/tools/wireguard-import
           <ul>
@@ -24,6 +24,7 @@
             <li>the enabled instance and peer must be dedicated to each other; qbop disables and applies the instance, verifies it is absent from wireguard runtime state, saves the peer and instance, applies while disabled, then re-enables, applies, and verifies the imported instance and peer keys</li>
             <li>returns the completed instance and peer names after a successful rotation</li>
             <li>returns 409 if another wireguard rotation is already in progress</li>
+            <li>returns 503 without parsing or rotating the configuration when OPN_SKIP=true</li>
           </ul>
         </li>
         <li>/pubkey?private-key={your_private_key}</li>

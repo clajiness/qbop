@@ -6,6 +6,9 @@ module Framework
   # This class defines an API using the Grape framework.
   # It sets the response format to JSON and prefixes all routes with '/api'.
   class API < Grape::API # rubocop:disable Metrics/ClassLength
+    WIREGUARD_IMPORT_UNAVAILABLE =
+      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'.freeze
+
     format :json
     prefix :api
 
@@ -16,6 +19,12 @@ module Framework
         return if ApiKey.authenticate(token)
 
         error!({ 'error' => 'unauthorized' }, 401, 'WWW-Authenticate' => 'Bearer realm="qbop"')
+      end
+
+      def require_wireguard_import_available!
+        return unless Service::Helpers.new.true?(ENV['OPN_SKIP'])
+
+        error!({ 'error' => WIREGUARD_IMPORT_UNAVAILABLE }, 503)
       end
     end
 
@@ -72,6 +81,7 @@ module Framework
     end
 
     get '/tools/wireguard-targets' do
+      require_wireguard_import_available!
       targets = Service::Opnsense.new(Service::Helpers.new.env_variables).wireguard_targets
 
       { 'wireguard_targets' => targets }
@@ -80,6 +90,7 @@ module Framework
     end
 
     post '/tools/wireguard-import' do
+      require_wireguard_import_available!
       wireguard = Service::ProtonWireguard.new.import(params['config'])
       result = Service::ProtonWireguardRotation.new(
         Service::Helpers.new.env_variables

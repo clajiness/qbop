@@ -327,18 +327,21 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).not_to include('distinctive-busy-private-config-value')
   end
 
-  it 'renders public key tool results' do
+  it 'renders public key tool results without loading WireGuard targets' do
+    expect(Service::Opnsense).not_to receive(:new)
     allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
 
     response = web_request.post('/pubkey', input: 'privatekey=private-key')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('public-key')
+    expect(response.body).to include('Proton WireGuard targets were not loaded for this response.')
+    expect(response.body).not_to include('could not load OPNsense WireGuard targets')
   end
 
   it 'renders public key and public IP results without loading targets when OPNsense is skipped' do
     ENV['OPN_SKIP'] = 'true'
-    expect_any_instance_of(Service::Opnsense).not_to receive(:wireguard_targets)
+    expect(Service::Opnsense).not_to receive(:new)
     allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
     allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
 
@@ -351,31 +354,16 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(public_ip_response.body).to include('akamai -> 192.0.2.1')
   end
 
-  it 'renders public IP tool results' do
+  it 'renders public IP tool results without loading WireGuard targets' do
+    expect(Service::Opnsense).not_to receive(:new)
     allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
 
     response = web_request.post('/public-ip', input: 'select=akamai')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('akamai -> 192.0.2.1')
-  end
-
-  it 'renders public key and public IP results when WireGuard target loading fails' do
-    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_raise(
-      Service::Opnsense::WireguardImportError, 'could not load OPNsense WireGuard targets: unavailable'
-    )
-    allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
-    allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
-
-    public_key_response = web_request.post('/pubkey', input: 'privatekey=private-key')
-    public_ip_response = web_request.post('/public-ip', input: 'select=akamai')
-
-    expect(public_key_response.status).to eq(200)
-    expect(public_key_response.body).to include('public-key', 'could not load OPNsense WireGuard targets: unavailable')
-    expect(public_ip_response.status).to eq(200)
-    expect(public_ip_response.body).to include(
-      'akamai -> 192.0.2.1', 'could not load OPNsense WireGuard targets: unavailable'
-    )
+    expect(response.body).to include('Proton WireGuard targets were not loaded for this response.')
+    expect(response.body).not_to include('could not load OPNsense WireGuard targets')
   end
 
   it 'renders logs' do

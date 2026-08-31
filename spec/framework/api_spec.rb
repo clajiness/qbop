@@ -147,6 +147,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   it 'returns public key tool output' do
+    ENV['OPN_SKIP'] = 'true'
     allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
 
     response = api_get('/api/tools/pubkey?private-key=private-key')
@@ -155,6 +156,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   it 'returns selectable OPNsense WireGuard targets' do
+    ENV['OPN_SKIP'] = 'false'
     targets = {
       instances: [{ uuid: '11111111-1111-4111-8111-111111111111', name: 'proton-instance' }],
       peers: [{ uuid: '22222222-2222-4222-8222-222222222222', name: 'proton-peer' }]
@@ -167,7 +169,39 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response_json(response)['wireguard_targets']).to eq(JSON.parse(targets.to_json))
   end
 
+  it 'does not load WireGuard targets when OPNsense integration is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    expect(Service::Opnsense).not_to receive(:new)
+
+    response = api_get('/api/tools/wireguard-targets')
+
+    expect(response.status).to eq(503)
+    expect(response_json(response)['error']).to eq(
+      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'
+    )
+  end
+
+  it 'does not parse or rotate WireGuard configuration when OPNsense integration is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    submitted_config = "[Interface]\nPrivateKey = distinctive-skipped-api-private-config-value"
+    expect(Service::Opnsense).not_to receive(:new)
+    expect(Service::ProtonWireguard).not_to receive(:new)
+    expect(Service::ProtonWireguardRotation).not_to receive(:new)
+
+    response = api_post(
+      '/api/tools/wireguard-import',
+      { config: submitted_config, instance_uuid: 'instance', peer_uuid: 'peer' }
+    )
+
+    expect(response.status).to eq(503)
+    expect(response_json(response)['error']).to eq(
+      'Proton WireGuard import is unavailable because OPNsense integration is disabled.'
+    )
+    expect(response.body).not_to include('distinctive-skipped-api-private-config-value', 'PrivateKey')
+  end
+
   it 'completes a ProtonVPN WireGuard rotation without returning its private values' do # rubocop:disable Metrics/BlockLength
+    ENV['OPN_SKIP'] = 'false'
     instance_uuid = '11111111-1111-4111-8111-111111111111'
     peer_uuid = '22222222-2222-4222-8222-222222222222'
     parsed = {
@@ -268,6 +302,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   it 'returns unknown provider details for unsupported public IP providers' do
+    ENV['OPN_SKIP'] = 'true'
     response = api_get('/api/tools/public-ip?service=invalid')
 
     expect(response_json(response)['public_ip']).to start_with('Unknown provider')

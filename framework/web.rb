@@ -6,6 +6,10 @@ require_relative '../service/proton_wireguard_rotation'
 module Framework
   # The Web class is a Sinatra application that provides qbop's web UI routes.
   class Web < Sinatra::Application # rubocop:disable Metrics/ClassLength
+    WIREGUARD_IMPORT_UNAVAILABLE = 'Proton WireGuard import requires OPNsense integration.'.freeze
+    WIREGUARD_IMPORT_NOT_LOADED =
+      'Proton WireGuard targets were not loaded for this response. Return to Tools to use the importer.'.freeze
+
     before do
       unless public_asset_request? || public_authentication_request? || !web_auth_enabled?
         authentication = request.env.fetch('rodauth')
@@ -150,7 +154,7 @@ module Framework
 
       @public_key = helpers.generate_wg_public_key(params['privatekey']&.strip)
 
-      load_wireguard_targets
+      initialize_unloaded_wireguard_targets
       erb :tools
     end
 
@@ -162,7 +166,7 @@ module Framework
 
       @public_ip = "#{service} -> #{public_ip}"
 
-      load_wireguard_targets
+      initialize_unloaded_wireguard_targets
       erb :tools
     end
 
@@ -274,13 +278,22 @@ module Framework
     def load_wireguard_targets
       @wireguard_targets = { instances: [], peers: [] }
       if opnsense_skipped?
-        @wireguard_import_unavailable = 'Proton WireGuard import requires OPNsense integration.'
+        @wireguard_import_unavailable = WIREGUARD_IMPORT_UNAVAILABLE
         return
       end
 
       @wireguard_targets = Service::Opnsense.new(Service::Helpers.new.env_variables).wireguard_targets
     rescue Service::Opnsense::WireguardImportError => e
       @wireguard_targets_error = e.message
+    end
+
+    def initialize_unloaded_wireguard_targets
+      @wireguard_targets = { instances: [], peers: [] }
+      @wireguard_import_unavailable = if opnsense_skipped?
+                                        WIREGUARD_IMPORT_UNAVAILABLE
+                                      else
+                                        WIREGUARD_IMPORT_NOT_LOADED
+                                      end
     end
 
     def opnsense_skipped?
