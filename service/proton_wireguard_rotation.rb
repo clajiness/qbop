@@ -65,7 +65,7 @@ module Service
         rollback_attempted = true
         raise rotation_error(e, rollback_required, rollback(state))
       ensure
-        # Thread termination still runs ensure; restore state if an in-process worker is stopped.
+        # Thread termination still runs ensure; restore state if the request thread is interrupted.
         rollback(state) unless completed || rollback_attempted
       end
     end

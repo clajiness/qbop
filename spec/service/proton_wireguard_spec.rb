@@ -49,14 +49,77 @@ RSpec.describe Service::ProtonWireguard do # rubocop:disable Metrics/BlockLength
       endpoint_address: '192.0.2.10',
       endpoint_port: 51_820
     )
+    expect(result[:instance]).not_to have_key(:dns)
     expect(result[:metadata]).to eq({})
   end
 
-  it 'validates Proton DNS without exposing it as an OPNsense instance value' do
-    invalid_dns = config.sub('DNS = 10.2.0.1, 2a07:b944::2:1', 'DNS = invalid')
+  it 'parses a config without DNS' do
+    result = described_class.new(helpers).import(
+      config.sub("DNS = 10.2.0.1, 2a07:b944::2:1\n", '')
+    )
 
-    expect { described_class.new(helpers).import(invalid_dns) }
-      .to raise_error(described_class::ImportError, /DNS server is invalid/)
+    expect(result[:instance]).to include(tunnel_addresses: '10.2.0.2/32, 2a07:b944::2:2/128')
+    expect(result[:instance]).not_to have_key(:dns)
+  end
+
+  it 'tolerates unusual DNS values without consuming them' do
+    unusual_dns = config.sub(
+      'DNS = 10.2.0.1, 2a07:b944::2:1',
+      'DNS = proton-dns, not-an-ip, 2001:db8::/64'
+    )
+
+    result = described_class.new(helpers).import(unusual_dns)
+
+    expect(result[:instance]).not_to have_key(:dns)
+  end
+
+  it 'still requires every consumed WireGuard setting' do
+    required_settings = {
+      "PrivateKey = #{private_key}\n" => /missing PrivateKey in \[Interface\]/,
+      "Address = 10.2.0.2/32, 2a07:b944::2:2/128\n" => /missing Address in \[Interface\]/,
+      "PublicKey = #{peer_public_key}\n" => /missing PublicKey in \[Peer\]/,
+      "AllowedIPs = 0.0.0.0/0, ::/0\n" => /missing AllowedIPs in \[Peer\]/,
+      "Endpoint = 192.0.2.10:51820\n" => /missing Endpoint in \[Peer\]/
+    }
+
+    aggregate_failures do
+      required_settings.each do |line, message|
+        expect { described_class.new(helpers).import(config.sub(line, '')) }
+          .to raise_error(described_class::ImportError, message)
+      end
+    end
+  end
+
+  it 'continues validating every consumed WireGuard setting' do
+    invalid_settings = {
+      config.sub(private_key, 'invalid') => /Interface private key is not a valid WireGuard key/,
+      config.sub('Address = 10.2.0.2/32, 2a07:b944::2:2/128', 'Address = invalid') =>
+        /Interface address is invalid/,
+      config.sub(peer_public_key, 'invalid') => /Peer public key is not a valid WireGuard key/,
+      config.sub('AllowedIPs = 0.0.0.0/0, ::/0', 'AllowedIPs = invalid') =>
+        /Peer allowed IPs is invalid/,
+      config.sub('Endpoint = 192.0.2.10:51820', 'Endpoint = invalid') =>
+        /Peer endpoint must include an address and port/
+    }
+
+    aggregate_failures do
+      invalid_settings.each do |invalid_config, message|
+        expect { described_class.new(helpers).import(invalid_config) }
+          .to raise_error(described_class::ImportError, message)
+      end
+    end
+  end
+
+  it 'continues enforcing WireGuard section structure' do
+    duplicate_peer = config.sub('[Peer]', "[Peer]\n[Peer]")
+    unsupported_section = config.sub('[Peer]', '[Unknown]')
+
+    aggregate_failures do
+      expect { described_class.new(helpers).import(duplicate_peer) }
+        .to raise_error(described_class::ImportError, /exactly one \[Peer\] section/)
+      expect { described_class.new(helpers).import(unsupported_section) }
+        .to raise_error(described_class::ImportError, /unsupported WireGuard section \[Unknown\]/)
+    end
   end
 
   it 'derives Proton_SE108 from an SE server comment' do

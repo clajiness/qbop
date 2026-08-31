@@ -14,7 +14,7 @@ module Service
       'Peer' => %w[PublicKey AllowedIPs Endpoint PersistentKeepalive]
     }.freeze
     REQUIRED_SETTINGS = {
-      'Interface' => %w[PrivateKey Address DNS],
+      'Interface' => %w[PrivateKey Address],
       'Peer' => %w[PublicKey AllowedIPs Endpoint]
     }.freeze
 
@@ -147,7 +147,6 @@ module Service
       peer_public_key = validate_key(peer.fetch('PublicKey'), 'Peer public key')
       public_key = derive_public_key(private_key)
       addresses = validate_network_list(interface.fetch('Address'), 'Interface address')
-      validate_ip_list(interface.fetch('DNS'), 'DNS server')
       allowed_ips = validate_network_list(peer.fetch('AllowedIPs'), 'Peer allowed IPs')
       endpoint_address, endpoint_port = validate_endpoint(peer.fetch('Endpoint'))
 
@@ -187,12 +186,6 @@ module Service
     def validate_network_list(value, label)
       validate_list(value, label) do |item|
         item.include?('/') && valid_ip_network?(item)
-      end
-    end
-
-    def validate_ip_list(value, label)
-      validate_list(value, label) do |item|
-        !item.include?('/') && valid_ip_network?(item)
       end
     end
 
