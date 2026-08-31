@@ -30,9 +30,11 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     commit_sha = ENV['COMMIT_SHA']
     build_date = ENV['BUILD_DATE']
     web_auth_enabled = ENV['WEB_AUTH_ENABLED']
+    opnsense_skip = ENV['OPN_SKIP']
     ENV.delete('VERSION')
     ENV.delete('COMMIT_SHA')
     ENV.delete('BUILD_DATE')
+    ENV.delete('OPN_SKIP')
     ENV['WEB_AUTH_ENABLED'] = 'false'
     example.run
   ensure
@@ -40,6 +42,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     commit_sha.nil? ? ENV.delete('COMMIT_SHA') : ENV['COMMIT_SHA'] = commit_sha
     build_date.nil? ? ENV.delete('BUILD_DATE') : ENV['BUILD_DATE'] = build_date
     web_auth_enabled.nil? ? ENV.delete('WEB_AUTH_ENABLED') : ENV['WEB_AUTH_ENABLED'] = web_auth_enabled
+    opnsense_skip.nil? ? ENV.delete('OPN_SKIP') : ENV['OPN_SKIP'] = opnsense_skip
   end
 
   before do
@@ -143,6 +146,53 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     checkbox = response.body[/<input[^>]+id="wireguardrenamepeer"[^>]*>/]
     expect(checkbox).not_to include('disabled', 'checked')
     expect(response.body).not_to include('protonPeerName', 'FileReader', 'wireguardrenamepeerlabel')
+  end
+
+  it 'keeps the tools page available without loading WireGuard targets when OPNsense is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    expect_any_instance_of(Service::Opnsense).not_to receive(:wireguard_targets)
+
+    response = web_request.get('/tools')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include(
+      'Proton WireGuard import requires OPNsense integration.',
+      'generate wireguard public key',
+      'get public ip address'
+    )
+    expect(response.body).not_to include('id="wgimportform"')
+  end
+
+  it 'does not process a WireGuard import when OPNsense is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    submitted_config = '[Interface] distinctive-skipped-private-config-value'
+    expect_any_instance_of(Service::Opnsense).not_to receive(:wireguard_targets)
+    expect_any_instance_of(Service::ProtonWireguard).not_to receive(:import)
+    expect(Service::ProtonWireguardRotation).not_to receive(:new)
+
+    response = web_request.post(
+      '/wireguard-import', input: URI.encode_www_form(wireguardconfig: submitted_config)
+    )
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('Proton WireGuard import requires OPNsense integration.')
+    expect(response.body).not_to include('distinctive-skipped-private-config-value')
+  end
+
+  it 'keeps the tools page available when WireGuard target loading fails' do
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_raise(
+      Service::Opnsense::WireguardImportError, 'could not load OPNsense WireGuard targets: unavailable'
+    )
+
+    response = web_request.get('/tools')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include(
+      'could not load OPNsense WireGuard targets: unavailable',
+      'generate wireguard public key',
+      'get public ip address'
+    )
+    expect(response.body).not_to include('id="wgimportform"')
   end
 
   it 'updates the selected OPNsense WireGuard instance and peer synchronously' do # rubocop:disable Metrics/BlockLength
@@ -286,6 +336,21 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('public-key')
   end
 
+  it 'renders public key and public IP results without loading targets when OPNsense is skipped' do
+    ENV['OPN_SKIP'] = 'true'
+    expect_any_instance_of(Service::Opnsense).not_to receive(:wireguard_targets)
+    allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
+    allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
+
+    public_key_response = web_request.post('/pubkey', input: 'privatekey=private-key')
+    public_ip_response = web_request.post('/public-ip', input: 'select=akamai')
+
+    expect(public_key_response.status).to eq(200)
+    expect(public_key_response.body).to include('public-key')
+    expect(public_ip_response.status).to eq(200)
+    expect(public_ip_response.body).to include('akamai -> 192.0.2.1')
+  end
+
   it 'renders public IP tool results' do
     allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
 
@@ -293,6 +358,24 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(200)
     expect(response.body).to include('akamai -> 192.0.2.1')
+  end
+
+  it 'renders public key and public IP results when WireGuard target loading fails' do
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_raise(
+      Service::Opnsense::WireguardImportError, 'could not load OPNsense WireGuard targets: unavailable'
+    )
+    allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key).and_return('public-key')
+    allow_any_instance_of(Service::Helpers).to receive(:get_public_ip).and_return('192.0.2.1')
+
+    public_key_response = web_request.post('/pubkey', input: 'privatekey=private-key')
+    public_ip_response = web_request.post('/public-ip', input: 'select=akamai')
+
+    expect(public_key_response.status).to eq(200)
+    expect(public_key_response.body).to include('public-key', 'could not load OPNsense WireGuard targets: unavailable')
+    expect(public_ip_response.status).to eq(200)
+    expect(public_ip_response.body).to include(
+      'akamai -> 192.0.2.1', 'could not load OPNsense WireGuard targets: unavailable'
+    )
   end
 
   it 'renders logs' do

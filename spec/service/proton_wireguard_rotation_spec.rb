@@ -18,6 +18,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
   let(:instance_uuid) { '11111111-1111-4111-8111-111111111111' }
   let(:peer_uuid) { '22222222-2222-4222-8222-222222222222' }
   let(:other_instance_uuid) { '33333333-3333-4333-8333-333333333333' }
+  let(:other_peer_uuid) { '44444444-4444-4444-8444-444444444444' }
   let(:lock_file) { Tempfile.new('qbop-wireguard-rotation-spec') }
   let(:wireguard) do
     {
@@ -77,7 +78,9 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     values.to_h { |value| [value, { 'value' => value, 'selected' => 1 }] }
   end
 
-  def instance_record(enabled: '1', tunnel_addresses: ['10.3.0.2/32']) # rubocop:disable Metrics/MethodLength
+  def instance_record( # rubocop:disable Metrics/MethodLength
+    enabled: '1', tunnel_addresses: ['10.3.0.2/32'], peers: [peer_uuid]
+  )
     {
       'name' => 'proton-instance',
       'enabled' => enabled,
@@ -89,7 +92,8 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
       'disableroutes' => '1',
       'gateway' => '10.100.100.100',
       'mtu' => '1420',
-      'interface' => 'wg0'
+      'interface' => 'wg0',
+      'peers' => selected_options(*peers)
     }
   end
 
@@ -113,16 +117,17 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     ]
   end
 
-  def stub_pair(
+  def stub_pair( # rubocop:disable Metrics/ParameterLists
     opnsense,
     enabled: '1',
     instances: [instance_uuid],
+    peers: [peer_uuid],
     instance_addresses: ['10.3.0.2/32'],
     peer_allowed_ips: ['0.0.0.0/0']
   )
     allow(opnsense).to receive(:validate_wireguard_config)
     allow(opnsense).to receive(:wireguard_instance).with(instance_uuid).and_return(
-      instance_record(enabled: enabled, tunnel_addresses: instance_addresses)
+      instance_record(enabled: enabled, tunnel_addresses: instance_addresses, peers: peers)
     )
     allow(opnsense).to receive(:wireguard_peer).with(peer_uuid).and_return(
       peer_record(instances: instances, allowed_ips: peer_allowed_ips)
@@ -133,14 +138,11 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     described_class.new(config, opnsense: opnsense, lock_path: lock_file.path)
   end
 
-  it 'uses the exact disable, apply, peer, instance, apply, enable, apply API order' do # rubocop:disable Metrics/BlockLength
+  it 'preserves the dedicated association and exact rotation API order' do # rubocop:disable Metrics/BlockLength
     stub_request(:get, "https://opnsense.local/api/wireguard/server/get_server/#{instance_uuid}")
       .to_return(status: 200, body: { 'server' => instance_record }.to_json)
     stub_request(:get, "https://opnsense.local/api/wireguard/client/get_client/#{peer_uuid}")
-      .to_return(
-        status: 200,
-        body: { 'client' => peer_record(instances: [instance_uuid, other_instance_uuid]) }.to_json
-      )
+      .to_return(status: 200, body: { 'client' => peer_record }.to_json)
     events = []
     saved = { status: 200, body: { 'result' => 'saved' }.to_json }
     instance_endpoint = "https://opnsense.local/api/wireguard/server/set_server/#{instance_uuid}"
@@ -152,7 +154,7 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
       saved
     end
     peer = stub_request(:post, peer_endpoint).with do |request|
-      JSON.parse(request.body) == { 'client' => new_peer.merge('servers' => "#{instance_uuid},#{other_instance_uuid}") }
+      JSON.parse(request.body) == { 'client' => new_peer }
     end
     peer.to_return do
       events << :update_peer
@@ -358,13 +360,44 @@ RSpec.describe Service::ProtonWireguardRotation do # rubocop:disable Metrics/Blo
     end.to raise_error(described_class::Error, /must be enabled/)
   end
 
-  it 'rejects a peer that is not associated with the selected instance before writing' do
+  it 'rejects a peer shared with another instance before mutation' do
     opnsense = instance_double(Service::Opnsense)
-    stub_pair(opnsense, instances: [other_instance_uuid])
+    stub_pair(opnsense, instances: [instance_uuid, other_instance_uuid])
+    expect(opnsense).not_to receive(:save_wireguard_instance)
+    expect(opnsense).not_to receive(:save_wireguard_peer)
+    expect(opnsense).not_to receive(:reconfigure_wireguard)
 
     expect do
       rotation_for(opnsense).rotate(wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid)
-    end.to raise_error(described_class::Error, /is not assigned/)
+    end.to raise_error(described_class::Error, /must be dedicated to each other/)
+  end
+
+  it 'rejects an instance containing another peer before mutation' do
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(opnsense, peers: [peer_uuid, other_peer_uuid])
+    expect(opnsense).not_to receive(:save_wireguard_instance)
+    expect(opnsense).not_to receive(:save_wireguard_peer)
+    expect(opnsense).not_to receive(:reconfigure_wireguard)
+
+    expect do
+      rotation_for(opnsense).rotate(wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid)
+    end.to raise_error(described_class::Error, /must be dedicated to each other/)
+  end
+
+  it 'rejects an instance and peer that are both shared before mutation' do
+    opnsense = instance_double(Service::Opnsense)
+    stub_pair(
+      opnsense,
+      instances: [instance_uuid, other_instance_uuid],
+      peers: [peer_uuid, other_peer_uuid]
+    )
+    expect(opnsense).not_to receive(:save_wireguard_instance)
+    expect(opnsense).not_to receive(:save_wireguard_peer)
+    expect(opnsense).not_to receive(:reconfigure_wireguard)
+
+    expect do
+      rotation_for(opnsense).rotate(wireguard, instance_uuid: instance_uuid, peer_uuid: peer_uuid)
+    end.to raise_error(described_class::Error, /must be dedicated to each other/)
   end
 
   it 'rejects a concurrent rotation before reading OPNsense' do

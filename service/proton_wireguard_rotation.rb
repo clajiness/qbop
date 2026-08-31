@@ -83,10 +83,11 @@ module Service
       state[:original_enabled] = instance_enabled?(instance['enabled'])
       raise Error, "Instance #{state[:instance_name]} must be enabled before import" unless state[:original_enabled]
 
+      instance_peers = selected_values(instance['peers'])
       state[:current_enabled] = state[:original_enabled]
       peer_instances = selected_values(peer['servers'])
-      unless peer_instances.include?(state[:instance_uuid])
-        raise Error, "Peer #{state[:peer_name]} is not assigned to instance #{state[:instance_name]}"
+      unless instance_peers == [state[:peer_uuid]] && peer_instances == [state[:instance_uuid]]
+        raise Error, 'The selected WireGuard instance and peer must be dedicated to each other.'
       end
 
       state[:original_instance] = normalized_fields(instance, INSTANCE_FIELDS)

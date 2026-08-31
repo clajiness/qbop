@@ -124,7 +124,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     keys = %w[
       WEB_AUTH_ENABLED BASIC_AUTH_ENABLED BASIC_AUTH_USER BASIC_AUTH_PASS
       OIDC_ENABLED OIDC_AUTO_REDIRECT LOCAL_LOGIN_ENABLED OIDC_ISSUER
-      OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_PUBLIC_URL
+      OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_PUBLIC_URL OPN_SKIP
     ]
     original_env = keys.to_h { |key| [key, ENV[key]] }
     keys.each { |key| ENV.delete(key) }
@@ -236,6 +236,9 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     create_account
     client = ApplicationSessionClient.new(app)
     login(client)
+    allow_any_instance_of(Service::Opnsense).to receive(:wireguard_targets).and_return(
+      instances: [], peers: []
+    )
     tools_page = client.get('/tools')
 
     expect(tools_page.status).to eq(200)

@@ -114,28 +114,32 @@ module Framework
       erb :tools
     end
 
-    post '/wireguard-import' do
-      begin
-        @wireguard_instance_uuid = params['wireguardinstance'].to_s.strip
-        @wireguard_peer_uuid = params['wireguardpeer'].to_s.strip
-        config_text = wireguard_config_input(params['wireguardconfig']&.to_s)
-        wireguard = Service::ProtonWireguard.new.import(config_text)
-        result = Service::ProtonWireguardRotation.new(
-          Service::Helpers.new.env_variables
-        ).rotate(
-          wireguard,
-          instance_uuid: @wireguard_instance_uuid,
-          peer_uuid: @wireguard_peer_uuid,
-          rename_peer: Service::Helpers.new.true?(params['wireguardrenamepeer'])
-        )
-        @wireguard_result = "updated instance #{result[:instance_name]} and peer #{result[:peer_name]}"
-      rescue Service::ProtonWireguardRotation::Busy => e
-        status 409
-        @wireguard_error = e.message
-      rescue Service::ProtonWireguard::ImportError, Service::ProtonWireguardRotation::Error => e
-        @wireguard_error = e.message
-      ensure
+    post '/wireguard-import' do # rubocop:disable Metrics/BlockLength
+      if opnsense_skipped?
         load_wireguard_targets
+      else
+        begin
+          @wireguard_instance_uuid = params['wireguardinstance'].to_s.strip
+          @wireguard_peer_uuid = params['wireguardpeer'].to_s.strip
+          config_text = wireguard_config_input(params['wireguardconfig']&.to_s)
+          wireguard = Service::ProtonWireguard.new.import(config_text)
+          result = Service::ProtonWireguardRotation.new(
+            Service::Helpers.new.env_variables
+          ).rotate(
+            wireguard,
+            instance_uuid: @wireguard_instance_uuid,
+            peer_uuid: @wireguard_peer_uuid,
+            rename_peer: Service::Helpers.new.true?(params['wireguardrenamepeer'])
+          )
+          @wireguard_result = "updated instance #{result[:instance_name]} and peer #{result[:peer_name]}"
+        rescue Service::ProtonWireguardRotation::Busy => e
+          status 409
+          @wireguard_error = e.message
+        rescue Service::ProtonWireguard::ImportError, Service::ProtonWireguardRotation::Error => e
+          @wireguard_error = e.message
+        ensure
+          load_wireguard_targets
+        end
       end
 
       erb :tools
@@ -268,10 +272,19 @@ module Framework
     end
 
     def load_wireguard_targets
+      @wireguard_targets = { instances: [], peers: [] }
+      if opnsense_skipped?
+        @wireguard_import_unavailable = 'Proton WireGuard import requires OPNsense integration.'
+        return
+      end
+
       @wireguard_targets = Service::Opnsense.new(Service::Helpers.new.env_variables).wireguard_targets
     rescue Service::Opnsense::WireguardImportError => e
-      @wireguard_targets = { instances: [], peers: [] }
       @wireguard_targets_error = e.message
+    end
+
+    def opnsense_skipped?
+      Service::Helpers.new.true?(ENV['OPN_SKIP'])
     end
 
     def csrf_mutation_request?

@@ -7,11 +7,16 @@
 <div class="terminal-card">
   <header>import protonvpn wireguard config</header>
   <div>
-    upload or paste a protonvpn wireguard configuration to update an existing opnsense instance and peer. qbop updates credentials, tunnel addresses within the adopted tunnel's existing address-family policy, peer endpoint/allowed ips, and optionally the peer name. opnsense-local settings such as dns, gateway, routing behavior, firewall rules, nat, interface assignments, and peer associations are preserved. qbop verifies the instance is absent from wireguard runtime state after disabling it, then verifies the imported instance and peer keys after re-enabling it. the configuration is not logged, saved, or returned in the response.
+    upload or paste a protonvpn wireguard configuration to update an existing opnsense instance and peer that are dedicated to each other. qbop updates credentials, tunnel addresses within the adopted tunnel's existing address-family policy, peer endpoint/allowed ips, and optionally the peer name. opnsense-local settings such as dns, gateway, routing behavior, firewall rules, nat, interface assignments, and peer associations are preserved. qbop verifies the instance is absent from wireguard runtime state after disabling it, then verifies the imported instance and peer keys after re-enabling it. the configuration is not logged, saved, or returned in the response.
   </div>
 </div>
 <br>
 
+<% if @wireguard_import_unavailable %>
+<div class="terminal-alert terminal-alert-primary" role="status"><%= Rack::Utils.escape_html(@wireguard_import_unavailable) %></div>
+<% elsif @wireguard_targets_error %>
+<div class="terminal-alert terminal-alert-error" role="alert"><%= Rack::Utils.escape_html(@wireguard_targets_error) %></div>
+<% else %>
 <form action="/wireguard-import" method="post" enctype="multipart/form-data" id="wgimportform">
   <fieldset>
     <legend>import protonvpn wireguard config</legend>
@@ -57,10 +62,6 @@
     </div>
   </fieldset>
 </form>
-
-<% if @wireguard_targets_error %>
-<br>
-<div class="terminal-alert terminal-alert-error" role="alert"><%= Rack::Utils.escape_html(@wireguard_targets_error) %></div>
 <% end %>
 
 <% if @wireguard_error %>
