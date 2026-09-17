@@ -123,6 +123,18 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).not_to include('an update is available')
   end
 
+  it 'renders authoritative server uptime with a manual refresh on About' do
+    allow(Framework::Uptime).to receive(:uptime_seconds).and_return(90_061, 90_063)
+
+    response = web_request.get('/about')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('1d, 1h, 1m, 1s')
+    expect(response.body).to include('onclick="window.location.reload()">refresh</button>')
+    expect(response.body).not_to include('uptime.js', 'data-uptime-seconds', 'sse-connect=', 'http-equiv="refresh"')
+    expect(web_request.get('/about').body).to include('1d, 1h, 1m, 3s')
+  end
+
   it 'renders the tools page' do
     targets = {
       instances: [{ uuid: '11111111-1111-4111-8111-111111111111', name: 'proton-instance', interface: 'wg0' }],
@@ -392,7 +404,8 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       expect(response.status).to eq(200)
       expect(response.body).to include('<!doctype html>', '/js/vendor/htmx-2.0.10.min.js')
       expect(response.body.scan('sse-connect="/events"').length).to eq(1)
-      expect(response.body).to include("sse:#{region}_changed, sse:refresh")
+      trigger = region == 'logs' ? 'sse:refresh' : "sse:#{region}_changed, sse:refresh"
+      expect(response.body).to include("hx-trigger=\"#{trigger}\"")
       expect(response.body).not_to include('http-equiv="refresh"', 'name="refresh"', 'window.location.reload')
     end
     expect(web_request.get('/about').body).not_to include('sse-connect=')
@@ -423,6 +436,11 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
                                                                        .and_return(['<script>alert(1)</script>'])
     page = web_request.get('/logs?lines=500&direction=desc')
     expect(page.body).to include('hx-get="/partials/logs?lines=500&amp;direction=desc"')
+    log_changes = page.body[/<div hidden[^>]*>/m]
+    log_region = page.body[/<div id="logs"[^>]*>/m]
+    expect(log_changes).to include('hx-trigger="sse:logs_changed throttle:500ms"', 'hx-target="#logs"')
+    expect(log_region).to include('hx-trigger="sse:refresh"')
+    expect(log_region).not_to include('throttle:')
     expect(page.body).to include('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(page.body.index('<form')).to be < page.body.index('id="logs"')
 

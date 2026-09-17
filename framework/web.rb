@@ -203,8 +203,7 @@ module Framework
       @main_build = helpers.main_build?
       @schema_version = helpers.get_db_version
       @ruby_version = "#{RUBY_VERSION} (p#{RUBY_PATCHLEVEL})"
-      @uptime_seconds = Framework::Uptime.uptime_seconds.to_i
-      @uptime = helpers.seconds_to_s(@uptime_seconds)
+      @uptime = helpers.seconds_to_s(Framework::Uptime.uptime_seconds)
       @start_time = Framework::Uptime.started_at
       @repo_url = 'https://github.com/clajiness/qbop'
 

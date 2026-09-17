@@ -178,6 +178,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(302)
     expect(redirect_path(response)).to eq('/login')
+    expect(response['hx-redirect']).to be_nil
   end
 
   it 'protects SSE and every partial with browser login even when an API key is supplied' do
@@ -201,7 +202,8 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     client = ApplicationSessionClient.new(app)
     login(client)
     allow(Framework::EventStream).to receive(:new).and_wrap_original do |original, subscriber|
-      original.call(subscriber, lifetime: 0)
+      subscriber.close
+      original.call(subscriber)
     end
 
     response = client.get('/events')
@@ -213,10 +215,46 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(response.body).to eq("retry: 3000\nevent: refresh\ndata: \n\n")
 
     %w[status history logs].each do |region|
-      partial = client.get("/partials/#{region}")
+      partial = client.get("/partials/#{region}", 'HTTP_HX_REQUEST' => 'true')
       expect(partial.status).to eq(200)
+      expect(partial['hx-redirect']).to be_nil
       expect(partial.body).not_to include('<!doctype')
     end
+  end
+
+  it 'redirects unauthenticated HTMX requests without a swappable login body or API-key access' do
+    create_account
+    token = ApiKey.issue('HTMX is browser-only').token
+    client = Rack::MockRequest.new(app)
+
+    %w[/partials/status /partials/history /partials/logs /history /account].each do |path|
+      [{}, bearer_auth(token), { 'HTTP_COOKIE' => 'qbop.session=expired' }].each do |headers|
+        response = client.get(path, headers.merge('HTTP_HX_REQUEST' => 'true'))
+
+        expect(response.status).to eq(204)
+        expect(response['hx-redirect']).to eq('/login')
+        expect(response['cache-control']).to eq('no-store')
+        expect(response['location']).to be_nil
+        expect(response.body).to be_empty
+      end
+    end
+  end
+
+  it 'navigates an HTMX client to login after its browser session is cleared' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    expect(client.get('/partials/status', 'HTTP_HX_REQUEST' => 'true').status).to eq(200)
+
+    logout = client.get('/logout')
+    client.post('/logout', _csrf: csrf_token(logout))
+    response = client.get('/partials/status', 'HTTP_HX_REQUEST' => 'true')
+
+    expect(response.status).to eq(204)
+    expect(response['hx-redirect']).to eq('/login')
+    expect(response.body).to be_empty
+    expect(client.get('/history')['location']).to eq('/login')
+    expect(client.get('/events')['location']).to eq('/login')
   end
 
   it 'serves vendored scripts before login without making live routes public' do

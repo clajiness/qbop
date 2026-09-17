@@ -19,12 +19,32 @@ RSpec.describe Framework::EventStream do # rubocop:disable Metrics/BlockLength
   end
 
   it 'refreshes on reconnect even when notifications were missed' do
-    events.publish(:history_changed)
     2.times do
+      events.publish(:history_changed)
+      subscriber = events.subscribe
       frames = []
-      described_class.new(events.subscribe, events: events, lifetime: 0).each { |frame| frames << frame }
+      described_class.new(subscriber, events: events).each do |frame|
+        frames << frame
+        events.unsubscribe(subscriber)
+      end
       expect(frames).to eq(["retry: 3000\nevent: refresh\ndata: \n\n"])
     end
+  end
+
+  it 'keeps sending 15-second heartbeats beyond five minutes until the subscriber closes' do
+    elapsed = 0
+    allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { elapsed }
+    allow(subscriber).to receive(:take).with(timeout: 15) do
+      elapsed += 15
+      [] if elapsed < 330
+    end
+    frames = []
+
+    described_class.new(subscriber, events: events).each { |frame| frames << frame }
+
+    expect(elapsed).to eq(330)
+    expect(frames.drop(1)).to eq(Array.new(21, ": heartbeat\n\n"))
+    expect(subscriber).to have_received(:take).with(timeout: 15).exactly(22).times
   end
 
   it 'sends idle comments without triggering a partial fetch' do
@@ -39,8 +59,9 @@ RSpec.describe Framework::EventStream do # rubocop:disable Metrics/BlockLength
 
   it 'releases the subscription when a socket write fails' do
     stream = described_class.new(subscriber, events: events)
+    events.publish(:status_changed)
 
-    write = ->(_frame) { raise IOError, 'disconnected' }
+    write = ->(frame) { raise IOError, 'disconnected' if frame.include?('status_changed') }
     expect { stream.each(&write) }.to raise_error(IOError)
     expect(subscriber.take(timeout: 0)).to be_nil
   end
@@ -60,5 +81,24 @@ RSpec.describe Framework::EventStream do # rubocop:disable Metrics/BlockLength
     end
 
     expect(frames.length).to eq(1)
+  end
+
+  it 'wakes and cleans up a waiting stream when the server shuts down' do
+    waiting = Queue.new
+    allow(subscriber).to receive(:take).and_wrap_original do |original, **options|
+      waiting << true
+      original.call(**options)
+    end
+    stream = described_class.new(subscriber, events: events)
+    reader = Thread.new { stream.each { |_frame| nil } }
+    expect(waiting.pop(timeout: 1)).to be(true)
+
+    events.shutdown
+
+    expect(reader.join(1)).to eq(reader)
+    expect(subscriber.take(timeout: 0)).to be_nil
+  ensure
+    stream&.close
+    reader&.kill
   end
 end

@@ -218,15 +218,15 @@ Stats, history, and logs update automatically using locally served HTMX 2 and it
 job -> committed model change / log write -> publish event -> SSE -> HTMX GET -> server-rendered partial
 ```
 
-The stats page shows downstream synchronization as pending, synced, error, or skipped. History page/page-size choices and log line-count/direction choices survive live updates. Forms and direct page loads work without JavaScript. If a connection drops, the page remains usable; reconnecting sends a `refresh` notification to fetch current state, including changes missed offline. Old `refresh` query parameters are ignored.
+The stats page shows downstream synchronization as pending, synced, error, or skipped. History page/page-size choices and log line-count/direction choices survive live updates. Forms and direct page loads work without JavaScript. If a connection drops, the page remains usable; reconnecting sends a `refresh` notification to fetch current state, including changes missed offline. If your browser session expires, the next live update takes you to the login page. Old `refresh` query parameters are ignored.
 
-The broadcaster is bounded and process-local: run one Puma process with SuckerPunch. The included `config/puma.rb` uses 16 request threads and permits up to eight live browser connections, leaving capacity for ordinary requests. Additional live connections retry automatically. Duplicate pending events coalesce, and publishers never write to browser sockets. Disconnects release subscriptions; 15-second comment heartbeats detect dead connections, and streams reconnect after five minutes to recheck browser authentication. Puma shutdown waits at most five seconds for requests before terminating them.
+The broadcaster is bounded and process-local: run one Puma process with SuckerPunch. The included `config/puma.rb` uses 16 request threads and permits up to eight live browser connections, leaving capacity for ordinary requests. Additional live connections retry automatically. Duplicate pending events coalesce, and publishers never write to browser sockets. Healthy SSE connections stay open, with a heartbeat every 15 seconds. Disconnects release subscriptions. Puma shutdown waits at most five seconds for requests before terminating them.
 
 Reverse proxies should allow streaming `/events`, disable response buffering/caching there, and use a read timeout longer than the heartbeat interval. qbop sends `X-Accel-Buffering: no` and `Cache-Control: no-cache`; HTML partials use `no-store`. Custom Puma launch configurations must retain a single process and more request threads than the eight-subscriber cap.
 
-Live logs use the existing centralized file logger. With `LOG_TO_STDOUT=true`, new entries go to container stdout, so `/logs` continues to show only the existing `log/qbop.log` contents. File changes made outside qbop do not publish notifications.
+Live logs use the existing centralized file logger. During bursts, the browser throttles log refreshes to roughly one per 500ms; reconnect refreshes remain immediate. With `LOG_TO_STDOUT=true`, new entries go to container stdout, so `/logs` continues to show only the existing `log/qbop.log` contents. File changes made outside qbop do not publish notifications.
 
-The About page's uptime display ticks once per second in the browser, without reloading or making server requests. It starts from the server's uptime at page load and catches up when the tab resumes. Opening the page again after a server restart resets the display to the new uptime.
+The About page shows server-rendered uptime and other information. Its refresh button requests current values when needed.
 
 ### Query Parameters
 

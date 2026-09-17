@@ -4,6 +4,8 @@
 <% end %>
 <hr>
 
+<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
+
 <h4><em>app version</em></h4>
 <blockquote>
   <%= @app_version %><br>
@@ -41,7 +43,7 @@
 </blockquote>
 
 <h4><em>app uptime</em></h4>
-<blockquote id="app-uptime" data-uptime-seconds="<%= @uptime_seconds %>">
+<blockquote>
   <%= @uptime %>
 </blockquote>
 
@@ -101,5 +103,3 @@
 <% end %>
   </pre>
 </section>
-
-<script src="/js/uptime.js" defer></script>
