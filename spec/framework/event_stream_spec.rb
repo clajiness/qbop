@@ -33,7 +33,6 @@ RSpec.describe Framework::EventStream do # rubocop:disable Metrics/BlockLength
 
   it 'keeps sending 15-second heartbeats beyond five minutes until the subscriber closes' do
     elapsed = 0
-    allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { elapsed }
     allow(subscriber).to receive(:take).with(timeout: 15) do
       elapsed += 15
       [] if elapsed < 330
