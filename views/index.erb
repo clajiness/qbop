@@ -4,61 +4,7 @@
 <% end %>
 <hr>
 
-<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
-
-<form action="/" method="get">
-  <fieldset>
-    <legend>stats controls</legend>
-    <div class="form-group">
-      <label for="refresh">auto-refresh (seconds)</label>
-      <input id="refresh" name="refresh" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="3600" value="<%= @refresh_seconds %>">
-    </div>
-    <div class="form-group">
-      <button class="btn btn-default btn-ghost" type="submit">apply</button>
-      <a class="btn btn-default btn-ghost" href="/?refresh=0">off</a>
-    </div>
-  </fieldset>
-</form>
-<hr>
-
-<h4><em>protonvpn</em> <%= @proton_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
-<blockquote>
-  current port: <%= @proton_stats.current_port %><br>
-  last changed: <%= @proton_stats.updated_at || 'unknown' %><br>
-  last checked: <%= @proton_stats.last_checked || 'unknown' %><br>
-  &#916;: <%= @proton_delta %>
-</blockquote>
-
-<h4><em>opnsense</em> <%= @opn_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
-<blockquote>
-  <% if @opn_skip %>
-  skipped per the OPN_SKIP env variable
-  <% else %>
-  current port: <%= @opn_stats.current_port %><br>
-  last changed: <%= @opn_stats.updated_at || 'unknown' %><br>
-  last checked: <%= @opn_stats.last_checked || 'unknown' %><br>
-  &#916;: <%= @opn_delta %>
-  <% end %>
-</blockquote>
-
-<h4><em>qbittorrent</em> <%= @qbit_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
-<blockquote>
-  <% if @qbit_skip %>
-  skipped per the QBIT_SKIP env variable
-  <% else %>
-  current port: <%= @qbit_stats.current_port %><br>
-  last changed: <%= @qbit_stats.updated_at || 'unknown' %><br>
-  last checked: <%= @qbit_stats.last_checked || 'unknown' %><br>
-  &#916;: <%= @qbit_delta %>
-  <% end %>
-</blockquote>
-<hr>
-
-<h4><em>longest time on same port</em></h4>
-<blockquote>
-  proton: <%= @proton_longest_time_on_same_port %><br>
-  opnsense: <%= @opn_longest_time_on_same_port %><br>
-  qbittorrent: <%= @qbit_longest_time_on_same_port %>
-</blockquote>
-
-<button class="btn btn-default btn-ghost" type="button" onclick="window.location.reload()">refresh</button><br><br>
+<div id="status" hx-get="/partials/status"
+     hx-trigger="sse:status_changed, sse:refresh" hx-swap="innerHTML">
+  <%= erb :_status, layout: false %>
+</div>

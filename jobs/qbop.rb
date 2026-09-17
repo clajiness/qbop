@@ -40,6 +40,10 @@ class Qbop # rubocop:disable Metrics/ClassLength
     handle_opnsense(forwarded_port)
     handle_qbit(forwarded_port)
 
+    # Failed checks can make the time-based connection indicators stale even
+    # when no source row changed. Re-evaluate them after the completed checks.
+    Framework::Events.publish(:status_changed)
+
     @logger.info('end of loop')
     @logger.info("sleeping for #{@config[:loop_freq]} seconds...")
     @logger.info('----------')

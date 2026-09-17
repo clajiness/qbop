@@ -1,0 +1,41 @@
+<h4><em>protonvpn</em> <%= @proton_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
+<blockquote>
+  current port: <%= @proton_stats.current_port %><br>
+  last changed: <%= @proton_stats.updated_at || 'unknown' %><br>
+  last checked: <%= @proton_stats.last_checked || 'unknown' %><br>
+  &#916;: <%= @proton_delta %>
+</blockquote>
+
+<h4><em>opnsense</em> <%= @opn_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
+<blockquote>
+  <% if @opn_skip %>
+  skipped per the OPN_SKIP env variable
+  <% else %>
+  current port: <%= @opn_stats.current_port %><br>
+  <% if @transition %>sync: <%= @transition.sync_status('opnsense') %><br><% end %>
+  last changed: <%= @opn_stats.updated_at || 'unknown' %><br>
+  last checked: <%= @opn_stats.last_checked || 'unknown' %><br>
+  &#916;: <%= @opn_delta %>
+  <% end %>
+</blockquote>
+
+<h4><em>qbittorrent</em> <%= @qbit_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
+<blockquote>
+  <% if @qbit_skip %>
+  skipped per the QBIT_SKIP env variable
+  <% else %>
+  current port: <%= @qbit_stats.current_port %><br>
+  <% if @transition %>sync: <%= @transition.sync_status('qbit') %><br><% end %>
+  last changed: <%= @qbit_stats.updated_at || 'unknown' %><br>
+  last checked: <%= @qbit_stats.last_checked || 'unknown' %><br>
+  &#916;: <%= @qbit_delta %>
+  <% end %>
+</blockquote>
+<hr>
+
+<h4><em>longest time on same port</em></h4>
+<blockquote>
+  proton: <%= @proton_longest_time_on_same_port %><br>
+  opnsense: <%= @opn_longest_time_on_same_port %><br>
+  qbittorrent: <%= @qbit_longest_time_on_same_port %>
+</blockquote>

@@ -241,20 +241,6 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  describe '#validate_refresh_interval' do
-    it 'returns a positive refresh interval' do
-      expect(Service::Helpers.new.validate_refresh_interval('5')).to eq(5)
-    end
-
-    it 'returns 0 when refresh is disabled' do
-      expect(Service::Helpers.new.validate_refresh_interval('0')).to eq(0)
-    end
-
-    it 'clamps very large refresh intervals' do
-      expect(Service::Helpers.new.validate_refresh_interval('9999')).to eq(3600)
-    end
-  end
-
   describe '#validate_log_lines' do
     it 'returns a positive line count' do
       expect(Service::Helpers.new.validate_log_lines('500')).to eq(500)
@@ -446,8 +432,9 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
   describe '#logger_instance' do
     require 'logger'
     it 'returns a logger instance' do
-      default = Logger.new('log/qbop.log', 10, 5_120_000)
-      expect(Service::Helpers.new.logger_instance.class).to eq(default.class)
+      logger = Service::Helpers.new.logger_instance
+      expect(logger).to be_a(Logger)
+      logger.close
     end
   end
 end

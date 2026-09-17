@@ -180,6 +180,55 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     expect(redirect_path(response)).to eq('/login')
   end
 
+  it 'protects SSE and every partial with browser login even when an API key is supplied' do
+    create_account
+    token = ApiKey.issue('live route test').token
+    request = Rack::MockRequest.new(app)
+    expect(Framework::Events).not_to receive(:subscribe)
+
+    %w[/events /partials/status /partials/history /partials/logs].each do |path|
+      [{}, bearer_auth(token)].each do |headers|
+        response = request.get(path, headers)
+        expect(response.status).to eq(302)
+        expect(redirect_path(response)).to eq('/login')
+        expect(response.body).not_to include('current port:', 'event: refresh')
+      end
+    end
+  end
+
+  it 'serves authenticated SSE and partials through the real session middleware' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    allow(Framework::EventStream).to receive(:new).and_wrap_original do |original, subscriber|
+      original.call(subscriber, lifetime: 0)
+    end
+
+    response = client.get('/events')
+    expect(response.status).to eq(200)
+    expect(response['content-type']).to start_with('text/event-stream')
+    expect(response['cache-control']).to eq('no-cache')
+    expect(response['x-accel-buffering']).to eq('no')
+    expect(response['content-length']).to be_nil
+    expect(response.body).to eq("retry: 3000\nevent: refresh\ndata: \n\n")
+
+    %w[status history logs].each do |region|
+      partial = client.get("/partials/#{region}")
+      expect(partial.status).to eq(200)
+      expect(partial.body).not_to include('<!doctype')
+    end
+  end
+
+  it 'serves vendored scripts before login without making live routes public' do
+    request = Rack::MockRequest.new(app)
+    %w[htmx-2.0.10.min.js htmx-ext-sse-2.2.4.js].each do |file|
+      response = request.get("/js/vendor/#{file}")
+      expect(response.status).to eq(200)
+      expect(response['content-type']).to include('javascript')
+    end
+    expect(redirect_path(request.get('/events'))).to eq('/setup')
+  end
+
   it 'provides a minimal account page only to authenticated users' do
     create_account
     anonymous = Rack::MockRequest.new(app)
