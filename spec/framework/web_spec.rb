@@ -438,9 +438,10 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(page.body).to include('hx-get="/partials/logs?lines=500&amp;direction=desc"')
     log_changes = page.body[/<div hidden[^>]*>/m]
     log_region = page.body[/<div id="logs"[^>]*>/m]
-    expect(log_changes).to include('hx-trigger="sse:logs_changed throttle:500ms"', 'hx-target="#logs"')
+    # Reset the delay on each event so the refresh includes the final writes in a burst.
+    expect(log_changes).to include('hx-trigger="sse:logs_changed delay:500ms"', 'hx-target="#logs"')
     expect(log_region).to include('hx-trigger="sse:refresh"')
-    expect(log_region).not_to include('throttle:')
+    expect(log_region).not_to include('delay:', 'throttle:')
     expect(page.body).to include('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(page.body.index('<form')).to be < page.body.index('id="logs"')
 

@@ -27,9 +27,9 @@
 </form>
 <hr>
 
-<%# HTMX shares throttle state per element; keep reconnect refreshes independent. %>
+<%# Debounce until 500ms after the last log event; keep reconnect refreshes independent. %>
 <div hidden hx-get="/partials/logs?lines=<%= @log_lines %>&amp;direction=<%= @log_direction %>"
-     hx-trigger="sse:logs_changed throttle:500ms" hx-target="#logs" hx-swap="innerHTML" hx-sync="#logs:queue last"></div>
+     hx-trigger="sse:logs_changed delay:500ms" hx-target="#logs" hx-swap="innerHTML" hx-sync="#logs:queue last"></div>
 <div id="logs" hx-get="/partials/logs?lines=<%= @log_lines %>&amp;direction=<%= @log_direction %>"
      hx-trigger="sse:refresh" hx-swap="innerHTML" hx-sync="this:queue last">
   <%= erb :_logs, layout: false %>

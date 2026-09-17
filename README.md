@@ -224,7 +224,7 @@ The broadcaster is bounded and process-local: run one Puma process with SuckerPu
 
 Reverse proxies should allow streaming `/events`, disable response buffering/caching there, and use a read timeout longer than the heartbeat interval. qbop sends `X-Accel-Buffering: no` and `Cache-Control: no-cache`; HTML partials use `no-store`. Custom Puma launch configurations must retain a single process and more request threads than the eight-subscriber cap.
 
-Live logs use the existing centralized file logger. During bursts, the browser throttles log refreshes to roughly one per 500ms; reconnect refreshes remain immediate. With `LOG_TO_STDOUT=true`, new entries go to container stdout, so `/logs` continues to show only the existing `log/qbop.log` contents. File changes made outside qbop do not publish notifications.
+Live logs use the existing centralized file logger. During bursts, the browser debounces log refreshes until 500ms after the last event; reconnect refreshes remain immediate. With `LOG_TO_STDOUT=true`, new entries go to container stdout, so `/logs` continues to show only the existing `log/qbop.log` contents. File changes made outside qbop do not publish notifications.
 
 The About page shows server-rendered uptime and other information. Its refresh button requests current values when needed.
 
