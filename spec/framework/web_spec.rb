@@ -123,14 +123,14 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).not_to include('an update is available')
   end
 
-  it 'renders authoritative server uptime with a manual refresh on About' do
+  it 'renders current server uptime on each About page load without a refresh button' do
     allow(Framework::Uptime).to receive(:uptime_seconds).and_return(90_061, 90_063)
 
     response = web_request.get('/about')
 
     expect(response.status).to eq(200)
     expect(response.body).to include('1d, 1h, 1m, 1s')
-    expect(response.body).to include('onclick="window.location.reload()">refresh</button>')
+    expect(response.body).not_to include('window.location.reload', '>refresh</button>')
     expect(response.body).not_to include('uptime.js', 'data-uptime-seconds', 'sse-connect=', 'http-equiv="refresh"')
     expect(web_request.get('/about').body).to include('1d, 1h, 1m, 3s')
   end

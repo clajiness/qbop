@@ -226,7 +226,7 @@ Reverse proxies should allow streaming `/events`, disable response buffering/cac
 
 Live logs use the existing centralized file logger. During bursts, the browser debounces log refreshes until 500ms after the last event; reconnect refreshes remain immediate. With `LOG_TO_STDOUT=true`, new entries go to container stdout, so `/logs` continues to show only the existing `log/qbop.log` contents. File changes made outside qbop do not publish notifications.
 
-The About page shows server-rendered uptime and other information. Its refresh button requests current values when needed.
+The About page shows server-rendered uptime and other information as of page load. Reload the page in your browser to get current values.
 
 ### Query Parameters
 

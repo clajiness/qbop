@@ -5,6 +5,6 @@
 <hr>
 
 <div id="status" hx-get="/partials/status"
-     hx-trigger="sse:status_changed, sse:refresh" hx-swap="innerHTML">
+    hx-trigger="sse:status_changed, sse:refresh" hx-swap="innerHTML">
   <%= erb :_status, layout: false %>
 </div>

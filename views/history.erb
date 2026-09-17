@@ -26,6 +26,6 @@
 <hr>
 
 <div id="history" hx-get="/partials/history?page=<%= @pagination.current_page %>&amp;per_page=<%= @pagination.per_page %>"
-     hx-trigger="sse:history_changed, sse:refresh" hx-swap="innerHTML">
+    hx-trigger="sse:history_changed, sse:refresh" hx-swap="innerHTML">
   <%= erb :_history, layout: false %>
 </div>
