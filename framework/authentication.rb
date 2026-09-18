@@ -12,8 +12,21 @@ module Framework
     OIDC_FAILURE_MESSAGE = OidcAuthentication::FAILURE_MESSAGE
 
     def self.new(app, config: AuthenticationConfig.new)
-      roda_app(config).new(app)
+      authentication = roda_app(config).new(app)
+      ->(env) { htmx_login_redirect(env, authentication.call(env)) }
     end
+
+    # XHR follows a 302 before HTMX can inspect it, which would swap login HTML
+    # into a live region. An empty 204 lets HX-Redirect navigate the whole page.
+    def self.htmx_login_redirect(env, response)
+      status, headers, body = response
+      return response unless env['HTTP_HX_REQUEST'] == 'true' && status == 302 && headers['location'] == '/login'
+
+      body.close if body.respond_to?(:close)
+      headers = headers.except('location', 'content-type', 'content-length')
+      [204, headers.merge('hx-redirect' => '/login', 'cache-control' => 'no-store'), []]
+    end
+    private_class_method :htmx_login_redirect
 
     def self.rodauth(config: AuthenticationConfig.new)
       roda_app(config).rodauth

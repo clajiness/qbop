@@ -1,4 +1,5 @@
 require 'time'
+require_relative 'event_logger'
 
 module Service
   # The Helpers class provides utility methods for accessing environment variables
@@ -77,12 +78,6 @@ module Service
       else
         3
       end
-    end
-
-    def validate_refresh_interval(refresh)
-      return 0 if refresh.nil?
-
-      refresh.to_i.clamp(0, 3600)
     end
 
     def validate_log_lines(log_lines, default = env_variables[:log_lines])
@@ -240,7 +235,7 @@ module Service
     end
 
     def logger_instance
-      default = Logger.new('log/qbop.log', 10, 5_120_000)
+      default = EventLogger.new('log/qbop.log', 10, 5_120_000)
 
       if true?(env_variables[:log_to_stdout])
         Logger.new($stdout)

@@ -21,9 +21,11 @@ RUN bundle config set without 'development test' && bundle install;
 # copy application source and create necessary directories
 USER root
 COPY config.ru Rakefile /opt/qbop/
+COPY config/ /opt/qbop/config/
 COPY db/ /opt/qbop/db/
 COPY framework/ /opt/qbop/framework/
 COPY jobs/ /opt/qbop/jobs/
+COPY licenses/ /opt/qbop/licenses/
 COPY models/ /opt/qbop/models/
 COPY public/ /opt/qbop/public/
 COPY service/ /opt/qbop/service/

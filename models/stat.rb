@@ -1,3 +1,5 @@
+require_relative '../framework/events'
+
 class Stat < Sequel::Model # rubocop:disable Style/Documentation
   Snapshot = Data.define(:source_id, :source_name, :current_port, :same_port, :updated_at, :last_checked) do
     def [](key)
@@ -6,6 +8,11 @@ class Stat < Sequel::Model # rubocop:disable Style/Documentation
   end
 
   many_to_one :source
+
+  def after_save
+    super
+    db.after_commit { Framework::Events.publish(:status_changed) }
+  end
 
   def self.by_source_id
     all.to_h { |stat| [stat.source_id, stat.to_snapshot] }

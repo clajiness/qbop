@@ -1,6 +1,6 @@
 Metrics/BlockLength:
   AllowedMethods: ['loop']
-  
+
 Naming/AccessorMethodName:
   Enabled: false
 

@@ -210,25 +210,34 @@ Imports run synchronously and exclusively. The request waits for each OPNsense a
 
 The configured OPNsense API key needs the **VPN: WireGuard: Configuration** privilege in addition to the permissions used by qbop's firewall-alias integration. qbop does not log, persist, or return uploaded and pasted configurations.
 
+### Live web updates
+
+Stats, history, and logs update automatically using locally served HTMX 2 and its SSE extension. Each page opens one `/events` connection using the same browser authentication as normal navigation. Events contain only notification names; authenticated HTML partials read the current database or log file:
+
+```text
+job -> committed model change / log write -> publish event -> SSE -> HTMX GET -> server-rendered partial
+```
+
+The stats page shows downstream synchronization as pending, synced, error, or skipped. History page/page-size choices and log line-count/direction choices survive live updates. Forms and direct page loads work without JavaScript. If a connection drops, the page remains usable; reconnecting sends a `refresh` notification to fetch current state, including changes missed offline. If your browser session expires, the next live update takes you to the login page. Old `refresh` query parameters are ignored.
+
+The broadcaster is bounded and process-local: run one Puma process with SuckerPunch. The included `config/puma.rb` uses 16 request threads and permits up to eight live browser connections, leaving capacity for ordinary requests. Additional live connections retry automatically. Duplicate pending events coalesce, and publishers never write to browser sockets. Healthy SSE connections stay open, with a heartbeat every 15 seconds. Disconnects release subscriptions. Puma shutdown waits at most five seconds for requests before terminating them.
+
+Reverse proxies should allow streaming `/events`, disable response buffering/caching there, and use a read timeout longer than the heartbeat interval. qbop sends `X-Accel-Buffering: no` and `Cache-Control: no-cache`; HTML partials use `no-store`. Custom Puma launch configurations must retain a single process and more request threads than the eight-subscriber cap.
+
+Live logs use the existing centralized file logger. During bursts, the browser debounces log refreshes until 500ms after the last event; reconnect refreshes remain immediate. With `LOG_TO_STDOUT=true`, new entries go to container stdout, so `/logs` continues to show only the existing `log/qbop.log` contents. File changes made outside qbop do not publish notifications.
+
+The About page shows server-rendered uptime and other information as of page load. Reload the page in your browser to get current values.
+
 ### Query Parameters
-The stats, logs, and history pages can auto-refresh by passing `refresh` in seconds. Use `refresh=0` or omit the parameter to disable it.
 
 Query parameters are per-request overrides and do not change environment variables.
 
 Examples:
-- `/?refresh=5`
-- `/?refresh=0`
-- `/logs?lines=500&direction=desc&refresh=5`
-- `/logs?lines=500&direction=asc&refresh=0`
+- `/logs?lines=500&direction=desc`
+- `/logs?lines=500&direction=asc`
 - `/api/logs?lines=500&direction=desc`
 - `/history?page=2&per_page=50`
-- `/history?page=2&per_page=50&refresh=5`
 - `/api/history?page=2&per_page=50`
-
-Stats, logs, and history UI parameters:
-| Parameter | Default | Description |
-| :--- | :--- | :--- |
-| `refresh` | `0` | Auto-refresh interval in seconds, from 0 to 3600. |
 
 Logs UI and API parameters:
 | Parameter | Default | Description |
@@ -245,7 +254,6 @@ History UI and API parameters:
 The history records only Proton port assignments. Fresh installations include the initial assignment; upgraded installations begin with the next port change. Each transition reports `pending`, `synced`, `error`, or `skipped` for OPNsense and qBittorrent. Pending means synchronization has not completed; error means the most recent synchronization write failed, with the detailed reason remaining in the logs. Existing logs are not backfilled, and the oldest record is removed when a 501st transition is added.
 
 Notes:
-- `refresh` only applies to the web UI.
 - Invalid `lines` values fall back to `LOG_LINES`, then `50`.
 - Invalid `direction` values fall back to `LOG_REVERSE`, then `asc`.
 - Invalid history pagination values fall back to page `1` and `25` transitions per page.

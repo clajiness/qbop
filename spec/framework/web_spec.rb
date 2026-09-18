@@ -61,11 +61,11 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('unknown')
   end
 
-  it 'renders the stats page with meta refresh when requested' do
+  it 'ignores legacy refresh parameters and enables live status updates' do
     response = web_request.get('/?refresh=5')
 
     expect(response.status).to eq(200)
-    expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
+    expect(response.body).not_to include('http-equiv="refresh"', 'auto-refresh', 'name="refresh"')
   end
 
   it 'renders update notification details when present' do
@@ -121,6 +121,18 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       }x
     )
     expect(response.body).not_to include('an update is available')
+  end
+
+  it 'renders current server uptime on each About page load without a refresh button' do
+    allow(Framework::Uptime).to receive(:uptime_seconds).and_return(90_061, 90_063)
+
+    response = web_request.get('/about')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('1d, 1h, 1m, 1s')
+    expect(response.body).not_to include('window.location.reload', '>refresh</button>')
+    expect(response.body).not_to include('uptime.js', 'data-uptime-seconds', 'sse-connect=', 'http-equiv="refresh"')
+    expect(web_request.get('/about').body).to include('1d, 1h, 1m, 3s')
   end
 
   it 'renders the tools page' do
@@ -385,6 +397,96 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('log line')
   end
 
+  it 'renders complete live pages without requiring HTMX request headers' do
+    { '/' => 'status', '/history' => 'history', '/logs' => 'logs' }.each do |path, region|
+      response = web_request.get(path)
+
+      expect(response.status).to eq(200)
+      expect(response.body).to include('<!doctype html>', '/js/vendor/htmx-2.0.10.min.js')
+      expect(response.body.scan('sse-connect="/events"').length).to eq(1)
+      trigger = region == 'logs' ? 'sse:refresh' : "sse:#{region}_changed, sse:refresh"
+      expect(response.body).to include("hx-trigger=\"#{trigger}\"")
+      expect(response.body).not_to include('http-equiv="refresh"', 'name="refresh"', 'window.location.reload')
+    end
+    expect(web_request.get('/about').body).not_to include('sse-connect=')
+  end
+
+  it 'renders current status and synchronization progress as an uncached partial' do
+    transition = PortTransition.record_transition(
+      previous_port: 11_111, new_port: 12_345, opnsense_skipped: false, qbit_skipped: false
+    )
+    pending = web_request.get('/partials/status')
+    expect(pending.body.scan('sync: pending').length).to eq(2)
+
+    PortTransition.mark_synced('opnsense', transition.new_port)
+    response = web_request.get('/partials/status')
+    expect(response.status).to eq(200)
+    expect(response['cache-control']).to eq('no-store')
+    expect(response.body).to include('current port: 12345', 'sync: synced', 'sync: pending')
+    expect(response.body).not_to include('<!doctype', '<script', 'terminal-nav', '<form')
+
+    PortTransition.mark_error('qbit', transition.new_port)
+    expect(web_request.get('/partials/status').body).to include('sync: error')
+    PortTransition.mark_synced('qbit', transition.new_port)
+    expect(web_request.get('/partials/status').body.scan('sync: synced').length).to eq(2)
+  end
+
+  it 'keeps log count and ordering in live requests and escapes logged HTML' do
+    allow_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).with(500, true)
+                                                                       .and_return(['<script>alert(1)</script>'])
+    page = web_request.get('/logs?lines=500&direction=desc')
+    expect(page.body).to include('hx-get="/partials/logs?lines=500&amp;direction=desc"')
+    log_changes = page.body[/<div hidden[^>]*>/m]
+    log_region = page.body[/<div id="logs"[^>]*>/m]
+    # Reset the delay on each event so the refresh includes the final writes in a burst.
+    expect(log_changes).to include('hx-trigger="sse:logs_changed delay:500ms"', 'hx-target="#logs"')
+    expect(log_region).to include('hx-trigger="sse:refresh"')
+    expect(log_region).not_to include('delay:', 'throttle:')
+    expect(page.body).to include('&lt;script&gt;alert(1)&lt;/script&gt;')
+    expect(page.body.index('<form')).to be < page.body.index('id="logs"')
+
+    allow_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).with(500, false).and_return(['oldest'])
+    partial = web_request.get('/partials/logs?lines=500&direction=asc')
+    expect(partial.status).to eq(200)
+    expect(partial['cache-control']).to eq('no-store')
+    expect(partial.body).to include('last 500 lines of log output, oldest first', 'oldest')
+    expect(partial.body).not_to include('<!doctype', '<form')
+  end
+
+  it 'keeps the selected history page and page size when records change' do
+    60.times do |index|
+      PortTransition.record_transition(
+        previous_port: index + 10_000, new_port: index + 10_001,
+        opnsense_skipped: false, qbit_skipped: false, detected_at: Time.at(index)
+      )
+    end
+    page = web_request.get('/history?page=2&per_page=50')
+    expect(page.body).to include('hx-get="/partials/history?page=2&amp;per_page=50"')
+    expect(page.body.index('<form')).to be < page.body.index('id="history"')
+
+    PortTransition.record_transition(
+      previous_port: 10_060, new_port: 10_061, opnsense_skipped: false, qbit_skipped: false
+    )
+    partial = web_request.get('/partials/history?page=2&per_page=50')
+    expect(partial.status).to eq(200)
+    expect(partial['cache-control']).to eq('no-store')
+    expect(partial.body).to include('showing 51&ndash;61 of 61', 'page 2 of 2', '/history?page=1&per_page=50')
+    expect(partial.body).not_to include('<!doctype', '<form', 'refresh=')
+  end
+
+  it 'returns a retryable response at the SSE subscriber limit' do
+    allow(Framework::Events).to receive(:subscribe).and_return(nil)
+    response = web_request.get('/events')
+
+    expect(response.status).to eq(503)
+    expect(response['retry-after']).to eq('3')
+  end
+
+  it 'does not subscribe on a HEAD request' do
+    expect(Framework::Events).not_to receive(:subscribe)
+    expect(web_request.head('/events').status).to eq(200)
+  end
+
   it 'renders logs with query string controls' do
     expect_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).with(500, true).and_return(['new log'])
 
@@ -392,7 +494,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(response.status).to eq(200)
     expect(response.body).to include('new log')
-    expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
+    expect(response.body).not_to include('http-equiv="refresh"', 'auto-refresh', 'name="refresh"')
     expect(response.body).to include('last 500 lines of log output, newest first')
   end
 
@@ -428,9 +530,9 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.body).to include('<a class="pagination-link" href="/history?page=1')
     expect(response.body).to include('skipped')
     expect(response.body).to include('value="25" selected')
-    expect(response.body).to include('<meta http-equiv="refresh" content="5" />')
-    expect(response.body).to include('/history?page=1&per_page=25&refresh=5')
-    expect(response.body).to include('/history?page=2&per_page=25&refresh=0')
+    expect(response.body).not_to include('http-equiv="refresh"', 'auto-refresh', 'name="refresh"')
+    expect(response.body).to include('/history?page=1&per_page=25')
+    expect(response.body).to include('hx-get="/partials/history?page=2&amp;per_page=25"')
   end
 
   it 'renders successful timestamps without redundant status text and labels other states' do

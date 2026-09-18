@@ -1,3 +1,5 @@
+require_relative '../framework/events'
+
 class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
   RETENTION_LIMIT = 500
   Page = Data.define(:records, :total_records, :current_page, :per_page, :total_pages, :from, :to)
@@ -13,6 +15,14 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
       skipped: :qbit_skipped
     }.freeze
   }.freeze
+
+  def after_save
+    super
+    db.after_commit do
+      Framework::Events.publish(:history_changed)
+      Framework::Events.publish(:status_changed)
+    end
+  end
 
   def self.record_transition(previous_port:, new_port:, opnsense_skipped:, qbit_skipped:, detected_at: Time.now)
     db.transaction do

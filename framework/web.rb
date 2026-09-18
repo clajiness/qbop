@@ -1,4 +1,5 @@
 require_relative 'authentication_config'
+require_relative 'event_stream'
 require_relative '../service/opnsense'
 require_relative '../service/proton_wireguard'
 require_relative '../service/proton_wireguard_rotation'
@@ -27,31 +28,26 @@ module Framework
     end
 
     get '/' do
-      helpers = Service::Helpers.new
-      stats = Stat.by_source_name
-
-      @refresh_seconds = helpers.validate_refresh_interval(params['refresh'])
-
-      @proton_stats = stats['proton']
-      @opn_stats = stats['opnsense']
-      @qbit_stats = stats['qbit']
-
-      @proton_connected = helpers.connected_to_service?(@proton_stats.last_checked)
-      @opn_connected = helpers.connected_to_service?(@opn_stats.last_checked)
-      @qbit_connected = helpers.connected_to_service?(@qbit_stats.last_checked)
-
-      @proton_delta = helpers.time_delta_to_s(@proton_stats.last_checked, @proton_stats.updated_at)
-      @opn_delta = helpers.time_delta_to_s(@opn_stats.last_checked, @opn_stats.updated_at)
-      @qbit_delta = helpers.time_delta_to_s(@qbit_stats.last_checked, @qbit_stats.updated_at)
-
-      @opn_skip = helpers.true?(ENV['OPN_SKIP'])
-      @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
-
-      @proton_longest_time_on_same_port = helpers.seconds_to_s(@proton_stats.same_port)
-      @opn_longest_time_on_same_port = helpers.seconds_to_s(@opn_stats.same_port)
-      @qbit_longest_time_on_same_port = helpers.seconds_to_s(@qbit_stats.same_port)
-
+      @live_updates = true
+      load_status
       erb :index
+    end
+
+    get '/partials/status' do
+      headers 'Cache-Control' => 'no-store'
+      load_status
+      erb :_status, layout: false
+    end
+
+    get '/events' do
+      content_type 'text/event-stream'
+      headers 'Cache-Control' => 'no-cache', 'X-Accel-Buffering' => 'no'
+      halt 200 if request.head?
+
+      subscriber = Events.subscribe
+      halt 503, { 'Retry-After' => '3' }, 'Live updates are busy; reconnect shortly.' unless subscriber
+
+      body EventStream.new(subscriber)
     end
 
     get '/api-docs' do
@@ -173,28 +169,27 @@ module Framework
     end
 
     get '/logs' do
-      helpers = Service::Helpers.new
-
-      @refresh_seconds = helpers.validate_refresh_interval(params['refresh'])
-      @log_lines = helpers.validate_log_lines(params['lines'])
-      @log_direction = helpers.format_log_direction(
-        params['direction'], default_reverse: helpers.true?(helpers.env_variables[:log_reverse])
-      )
-      log_reverse = @log_direction == 'desc'
-      @output = helpers.log_lines_to_a(@log_lines, log_reverse)
-
+      @live_updates = true
+      load_logs
       erb :logs
     end
 
+    get '/partials/logs' do
+      headers 'Cache-Control' => 'no-store'
+      load_logs
+      erb :_logs, layout: false
+    end
+
     get '/history' do
-      helpers = Service::Helpers.new
-      @refresh_seconds = helpers.validate_refresh_interval(params['refresh'])
-      page = helpers.validate_page(params['page'])
-      per_page = helpers.validate_history_page_size(params['per_page'])
-
-      @pagination = PortTransition.paginate(page: page, per_page: per_page)
-
+      @live_updates = true
+      load_history
       erb :history
+    end
+
+    get '/partials/history' do
+      headers 'Cache-Control' => 'no-store'
+      load_history
+      erb :_history, layout: false
     end
 
     get '/about' do # rubocop:disable Metrics/BlockLength
@@ -248,8 +243,53 @@ module Framework
 
     private
 
+    def load_status # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+      helpers = Service::Helpers.new
+      stats = Stat.by_source_name
+
+      @proton_stats = stats['proton']
+      @opn_stats = stats['opnsense']
+      @qbit_stats = stats['qbit']
+
+      @proton_connected = helpers.connected_to_service?(@proton_stats.last_checked)
+      @opn_connected = helpers.connected_to_service?(@opn_stats.last_checked)
+      @qbit_connected = helpers.connected_to_service?(@qbit_stats.last_checked)
+
+      @proton_delta = helpers.time_delta_to_s(@proton_stats.last_checked, @proton_stats.updated_at)
+      @opn_delta = helpers.time_delta_to_s(@opn_stats.last_checked, @opn_stats.updated_at)
+      @qbit_delta = helpers.time_delta_to_s(@qbit_stats.last_checked, @qbit_stats.updated_at)
+
+      @opn_skip = helpers.true?(ENV['OPN_SKIP'])
+      @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
+
+      @proton_longest_time_on_same_port = helpers.seconds_to_s(@proton_stats.same_port)
+      @opn_longest_time_on_same_port = helpers.seconds_to_s(@opn_stats.same_port)
+      @qbit_longest_time_on_same_port = helpers.seconds_to_s(@qbit_stats.same_port)
+
+      @transition = PortTransition.where(new_port: @proton_stats.current_port).order(Sequel.desc(:id)).first
+    end
+
+    def load_logs
+      helpers = Service::Helpers.new
+
+      @log_lines = helpers.validate_log_lines(params['lines'])
+      @log_direction = helpers.format_log_direction(
+        params['direction'], default_reverse: helpers.true?(helpers.env_variables[:log_reverse])
+      )
+      log_reverse = @log_direction == 'desc'
+      @output = helpers.log_lines_to_a(@log_lines, log_reverse)
+    end
+
+    def load_history
+      helpers = Service::Helpers.new
+      page = helpers.validate_page(params['page'])
+      per_page = helpers.validate_history_page_size(params['per_page'])
+
+      @pagination = PortTransition.paginate(page: page, per_page: per_page)
+    end
+
     def public_asset_request?
-      request.path_info.start_with?('/css/', '/images/')
+      request.path_info.start_with?('/css/', '/images/', '/js/')
     end
 
     def public_authentication_request?

@@ -106,6 +106,57 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     expect(PortTransition.first.new_port).to eq(23_456)
   end
 
+  it 'publishes each committed stage of a Proton to downstream synchronization' do
+    %w[proton opnsense qbit].each do |name|
+      source = Source.create(name: name)
+      source.seed_tables
+      job.instance_variable_set(:"@#{name}_data", source)
+    end
+    job.instance_variable_set(:@helpers, Service::Helpers.new)
+    job.instance_variable_set(:@proton, double(natpmpc: { stdout: 'mapped', stderr: '' }, parse_response: 23_456))
+    opnsense = double(set_alias_value: double(status: 200), apply_changes: double(status: 200))
+    job.instance_variable_set(:@opnsense, opnsense)
+    job.instance_variable_set(:@qbit, double(qbt_app_set_preferences: double(status: 200)))
+    subscriber = Framework::Events.subscribe
+
+    job.send(:handle_proton)
+    expect(subscriber.take(timeout: 0)).to contain_exactly(:status_changed, :history_changed)
+    expect(PortTransition.first.sync_status('opnsense')).to eq('pending')
+    expect(PortTransition.first.sync_status('qbit')).to eq('pending')
+
+    job.send(:update_opnsense_alias, 23_456, 'alias-uuid')
+    expect(subscriber.take(timeout: 0)).to contain_exactly(:status_changed, :history_changed)
+    expect(PortTransition.first.sync_status('opnsense')).to eq('synced')
+    expect(PortTransition.first.sync_status('qbit')).to eq('pending')
+
+    job.send(:update_qbit_port, 23_456)
+    expect(subscriber.take(timeout: 0)).to contain_exactly(:status_changed, :history_changed)
+    expect(PortTransition.first.sync_status('qbit')).to eq('synced')
+  ensure
+    Framework::Events.unsubscribe(subscriber) if subscriber
+  end
+
+  it 'publishes synchronization write failures and recovery' do
+    source = Source.create(name: 'qbit')
+    source.seed_tables
+    record_transition
+    job.instance_variable_set(:@qbit_data, source)
+    qbit = double
+    allow(qbit).to receive(:qbt_app_set_preferences).and_return(double(status: 500), double(status: 200))
+    job.instance_variable_set(:@qbit, qbit)
+    subscriber = Framework::Events.subscribe
+
+    job.send(:update_qbit_port, 23_456)
+    expect(subscriber.take(timeout: 0)).to contain_exactly(:status_changed, :history_changed)
+    expect(PortTransition.first.sync_status('qbit')).to eq('error')
+
+    job.send(:update_qbit_port, 23_456)
+    expect(subscriber.take(timeout: 0)).to contain_exactly(:status_changed, :history_changed)
+    expect(PortTransition.first.sync_status('qbit')).to eq('synced')
+  ensure
+    Framework::Events.unsubscribe(subscriber) if subscriber
+  end
+
   it 'uses an existing Proton port as the first transition baseline after an upgrade' do
     source = Source.create(name: 'proton')
     source.seed_tables

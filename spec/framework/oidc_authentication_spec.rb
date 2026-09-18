@@ -665,6 +665,39 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
     expect(client.get('/auth-state').body).to eq('anonymous')
   end
 
+  it 'navigates HTMX requests to login when an OIDC session becomes invalid' do
+    create_account
+    [{ OIDC_ENABLED: 'false' }, { OIDC_ISSUER: 'https://replacement-id.example.com' }].each do |overrides|
+      @client = OidcAuthenticationClient.new(build_app)
+      begin_authorization
+      complete_authorization
+      @client.instance_variable_set(:@request, Rack::MockRequest.new(build_app(oidc_config(overrides))))
+
+      response = @client.get('/partials/status', 'HTTP_HX_REQUEST' => 'true')
+
+      expect(response.status).to eq(204)
+      expect(response['hx-redirect']).to eq('/login')
+      expect(response.body).to be_empty
+      expect(@client.get('/auth-state').body).to eq('anonymous')
+    end
+  end
+
+  it 'navigates HTMX requests to login when local login is disabled for an existing password session' do
+    create_account
+    client = OidcAuthenticationClient.new(build_app(oidc_config(OIDC_ENABLED: 'false')))
+    page = client.get('/login')
+    client.post('/login', login: 'admin@example.com', password: 'correct horse battery staple', _csrf: csrf_token(page))
+    oidc_only_app = build_app(oidc_config(LOCAL_LOGIN_ENABLED: 'false'))
+    client.instance_variable_set(:@request, Rack::MockRequest.new(oidc_only_app))
+
+    response = client.get('/partials/logs', 'HTTP_HX_REQUEST' => 'true')
+
+    expect(response.status).to eq(204)
+    expect(response['hx-redirect']).to eq('/login')
+    expect(response.body).to be_empty
+    expect(client.get('/auth-state').body).to eq('anonymous')
+  end
+
   it 'keeps every direct local-password route variant unable to authenticate when disabled' do
     create_account
     client = OidcAuthenticationClient.new(build_app(oidc_config(LOCAL_LOGIN_ENABLED: 'false')))

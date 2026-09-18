@@ -1,0 +1,8 @@
+<h4><em>last <%= @log_lines %> lines of log output, <%= @log_direction == 'desc' ? 'newest first' : 'oldest first' %></em></h4>
+<section>
+  <pre>
+<% @output.each do |line| %>
+<%= Rack::Utils.escape_html(line) %>
+<% end %>
+  </pre>
+</section>

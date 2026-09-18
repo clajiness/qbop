@@ -1,0 +1,67 @@
+<h4><em>port transition history</em></h4>
+<% if @pagination.records.empty? %>
+<blockquote>
+  no port transitions have been recorded yet
+</blockquote>
+<% else %>
+<p>showing <%= @pagination.from %>&ndash;<%= @pagination.to %> of <%= @pagination.total_records %> transitions, newest first</p>
+
+<div class="history-table-wrapper">
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>detected</th>
+        <th>port</th>
+        <th>opnsense</th>
+        <th>qbittorrent</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @pagination.records.each do |transition| %>
+      <tr>
+        <td><%= transition.detected_at %></td>
+        <td><%= transition.previous_port || 'initial' %> &rarr; <%= transition.new_port %></td>
+        <td><%= transition.opnsense_synced_at || transition.sync_status('opnsense') %></td>
+        <td><%= transition.qbit_synced_at || transition.sync_status('qbit') %></td>
+      </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<% end %>
+
+<nav aria-label="history pages">
+  <span class="pagination-row">
+    <% if @pagination.current_page > 1 %>
+    <a class="pagination-link" href="/history?page=<%= @pagination.current_page - 1 %>&per_page=<%= @pagination.per_page %>">previous</a>
+    <% end %>
+
+    <span>pages:</span>
+    <%
+      nearby_pages = ((@pagination.current_page - 2)..(@pagination.current_page + 2)).to_a
+      visible_pages = ([1, @pagination.total_pages] + nearby_pages)
+                      .select { |page_number| page_number.between?(1, @pagination.total_pages) }
+                      .uniq
+                      .sort
+      previous_page_number = nil
+    %>
+    <% visible_pages.each do |page_number| %>
+      <% if previous_page_number && page_number > previous_page_number + 1 %>
+      <span class="pagination-gap" aria-hidden="true">&hellip;</span>
+      <% end %>
+
+      <% if page_number == @pagination.current_page %>
+      <span class="pagination-current" aria-current="page"><span aria-hidden="true">[</span><%= page_number %><span aria-hidden="true">]</span></span>
+      <% else %>
+      <a class="pagination-link" href="/history?page=<%= page_number %>&per_page=<%= @pagination.per_page %>"><%= page_number %></a>
+      <% end %>
+      <% previous_page_number = page_number %>
+    <% end %>
+
+    <% if @pagination.current_page < @pagination.total_pages %>
+    <a class="pagination-link" href="/history?page=<%= @pagination.current_page + 1 %>&per_page=<%= @pagination.per_page %>">next</a>
+    <% end %>
+  </span>
+</nav>
+
+<p>page <%= @pagination.current_page %> of <%= @pagination.total_pages %></p>
