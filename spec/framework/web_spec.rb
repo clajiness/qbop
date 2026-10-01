@@ -81,7 +81,11 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     response = web_request.get('/about')
 
     expect(response.status).to eq(200)
-    expect(response.body).to include('v2.7.0')
+    expect(response.body).to include(
+      '<div class="terminal-alert terminal-alert-primary">' \
+      '<a href="https://github.com/clajiness/qbop/releases" target="_blank">an update is available:</a> ' \
+      '<a href="https://github.com/clajiness/qbop/releases/tag/v2.7.0" target="_blank">v2.7.0</a></div>'
+    )
     expect(response.body).to match(
       %r{<h4><em>image</em></h4>\s*<blockquote>\s*commit:\s*unknown\s*<br>\s*built: unknown\s*</blockquote>}
     )

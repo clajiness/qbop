@@ -182,7 +182,7 @@ module Service
     def log_lines_to_a(log_lines, reverse = nil)
       return [] if log_lines.nil?
 
-      output = File.readlines('log/qbop.log').last(validate_log_lines(log_lines))
+      output = tail_lines('log/qbop.log', validate_log_lines(log_lines))
       reverse = true?(env_variables[:log_reverse]) if reverse.nil?
       output.reverse! if reverse
 
@@ -255,6 +255,13 @@ module Service
     end
 
     private
+
+    def tail_lines(path, line_limit)
+      File.foreach(path).each_with_object([]) do |line, output|
+        output.shift if output.length == line_limit
+        output << line
+      end
+    end
 
     def environment_value(name, default = nil)
       value = ENV[name]
