@@ -56,7 +56,7 @@ RSpec.describe Service::Qbit do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  describe '#qbt_app_preferences' do
+  describe '#qbt_app_preferences' do # rubocop:disable Metrics/BlockLength
     it 'uses bearer authentication when an API key is configured' do
       config[:qbit_api_key] = 'qbt_test_key'
       response = instance_double(Faraday::Response, body: '{"listen_port": 12345}')
@@ -75,6 +75,19 @@ RSpec.describe Service::Qbit do # rubocop:disable Metrics/BlockLength
     it 'uses cookie authentication when no API key is configured' do
       response = instance_double(Faraday::Response, body: '{"listen_port": 12345}')
 
+      allow(conn).to receive(:get).and_yield(request).and_return(response)
+
+      qbit = described_class.new(config)
+      allow(qbit).to receive(:qbt_auth_login).and_return('SID=test_sid')
+
+      expect(qbit.qbt_app_preferences).to eq(12_345)
+      expect(request.headers['Cookie']).to eq('SID=test_sid')
+      expect(request.headers).not_to have_key('Authorization')
+    end
+
+    it 'uses username and password authentication when the API key is blank' do
+      config[:qbit_api_key] = '  '
+      response = instance_double(Faraday::Response, body: '{"listen_port": 12345}')
       allow(conn).to receive(:get).and_yield(request).and_return(response)
 
       qbit = described_class.new(config)

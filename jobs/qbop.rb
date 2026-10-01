@@ -52,9 +52,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
   def handle_proton # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
     response = @proton.natpmpc(@config[:proton_gateway])
-    raise StandardError, response[:stderr].chomp unless response[:stderr].empty?
-
-    forwarded_port = @proton.parse_response(response[:stdout].chomp)
+    forwarded_port = @proton.forwarded_port(response)
     @proton_data.set_last_checked if forwarded_port
 
     if forwarded_port.nil?
@@ -142,15 +140,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
   end
 
   def update_opnsense_alias(forwarded_port, uuid)
-    response_status = perform_sync_write('opnsense', forwarded_port) do
-      @opnsense.set_alias_value(forwarded_port, uuid).status
-    end
-
-    if response_status != 200
-      PortTransition.mark_error('opnsense', forwarded_port)
-      @logger.error("OPNsense's alias was not updated - response code: #{response_status}")
-      return
-    end
+    perform_sync_write('opnsense', forwarded_port) { @opnsense.set_alias_value(forwarded_port, uuid) }
 
     @logger.info("OPNsense alias has been updated to #{forwarded_port}")
     apply_opnsense_changes(forwarded_port)

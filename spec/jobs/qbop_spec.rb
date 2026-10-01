@@ -91,8 +91,8 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     source.seed_tables
     helpers = Service::Helpers.new
     proton = double(
-      natpmpc: { stdout: 'Mapped public port 23456 protocol TCP', stderr: '' },
-      parse_response: 23_456
+      natpmpc: :mapping,
+      forwarded_port: 23_456
     )
     job.instance_variable_set(:@helpers, helpers)
     job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1', opnsense_skip: 'false', qbit_skip: 'false' })
@@ -106,6 +106,23 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     expect(PortTransition.first.new_port).to eq(23_456)
   end
 
+  it 'does not update Proton state when either NAT-PMP mapping is invalid' do
+    source = Source.create(name: 'proton').tap(&:seed_tables)
+    source.set_current_port(12_345)
+    proton = double(natpmpc: :invalid_mapping)
+    allow(proton).to receive(:forwarded_port)
+      .and_raise(Service::Proton::MappingError, 'TCP NAT-PMP command failed')
+    job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1' })
+    job.instance_variable_set(:@proton, proton)
+    job.instance_variable_set(:@proton_data, source)
+
+    expect(job.send(:handle_proton)).to be_nil
+    expect(source.get_current_port).to eq(12_345)
+    expect(source.get_last_checked).to be_nil
+    expect(PortTransition.count).to eq(0)
+    expect(logger).to have_received(:error).with(instance_of(Service::Proton::MappingError))
+  end
+
   it 'publishes each committed stage of a Proton to downstream synchronization' do
     %w[proton opnsense qbit].each do |name|
       source = Source.create(name: name)
@@ -113,8 +130,8 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
       job.instance_variable_set(:"@#{name}_data", source)
     end
     job.instance_variable_set(:@helpers, Service::Helpers.new)
-    job.instance_variable_set(:@proton, double(natpmpc: { stdout: 'mapped', stderr: '' }, parse_response: 23_456))
-    opnsense = double(set_alias_value: double(status: 200), apply_changes: double(status: 200))
+    job.instance_variable_set(:@proton, double(natpmpc: :mapping, forwarded_port: 23_456))
+    opnsense = double(set_alias_value: nil, apply_changes: double(status: 200))
     job.instance_variable_set(:@opnsense, opnsense)
     job.instance_variable_set(:@qbit, double(qbt_app_set_preferences: double(status: 200)))
     subscriber = Framework::Events.subscribe
@@ -162,8 +179,8 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     source.seed_tables
     source.set_current_port(12_345)
     helpers = Service::Helpers.new
-    proton = double(natpmpc: { stdout: 'Mapped public port', stderr: '' })
-    allow(proton).to receive(:parse_response).and_return(12_345, 23_456, 23_456)
+    proton = double(natpmpc: :mapping)
+    allow(proton).to receive(:forwarded_port).and_return(12_345, 23_456, 23_456)
     job.instance_variable_set(:@helpers, helpers)
     job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1', opnsense_skip: 'false', qbit_skip: 'false' })
     job.instance_variable_set(:@proton, proton)
@@ -234,7 +251,7 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
       qbit_skipped: false
     )
     opnsense = double(
-      set_alias_value: double(status: 200),
+      set_alias_value: nil,
       apply_changes: double(status: 200)
     )
     job.instance_variable_set(:@opnsense, opnsense)
@@ -257,7 +274,7 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     job.instance_variable_set(:@qbit_data, qbit_source)
     job.instance_variable_set(
       :@opnsense,
-      double(set_alias_value: double(status: 200), apply_changes: double(status: 200))
+      double(set_alias_value: nil, apply_changes: double(status: 200))
     )
     job.instance_variable_set(:@opnsense_data, opnsense_source)
 
@@ -270,24 +287,34 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     expect(transition.opnsense_error_at).to be_nil
   end
 
-  { 'alias update' => [500, 200], 'apply' => [200, 500] }.each do |stage, statuses|
-    it "records an OPNsense error when the #{stage} response is unsuccessful" do
-      transition = record_transition
-      opnsense_source = Source.create(name: 'opnsense')
-      opnsense_source.seed_tables
-      opnsense = double(
-        set_alias_value: double(status: statuses.first),
-        apply_changes: double(status: statuses.last)
-      )
-      job.instance_variable_set(:@opnsense, opnsense)
-      job.instance_variable_set(:@opnsense_data, opnsense_source)
+  it 'records an OPNsense error and skips apply when the alias update is rejected' do
+    transition = record_transition
+    opnsense = double
+    allow(opnsense).to receive(:set_alias_value)
+      .and_raise(Service::Opnsense::AliasUpdateError, 'opnsense rejected the alias update: failed')
+    expect(opnsense).not_to receive(:apply_changes)
+    job.instance_variable_set(:@opnsense, opnsense)
 
-      job.send(:update_opnsense_alias, 23_456, 'alias-uuid')
+    expect { job.send(:update_opnsense_alias, 23_456, 'alias-uuid') }
+      .to raise_error(Service::Opnsense::AliasUpdateError)
 
-      expect(transition.refresh.sync_status('opnsense')).to eq('error')
-      expect(transition.opnsense_synced_at).to be_nil
-      expect(transition.qbit_error_at).to be_nil
-    end
+    expect(transition.refresh.sync_status('opnsense')).to eq('error')
+    expect(transition.opnsense_synced_at).to be_nil
+  end
+
+  it 'records an OPNsense error when the apply response is unsuccessful' do
+    transition = record_transition
+    opnsense_source = Source.create(name: 'opnsense')
+    opnsense_source.seed_tables
+    opnsense = double(set_alias_value: nil, apply_changes: double(status: 500))
+    job.instance_variable_set(:@opnsense, opnsense)
+    job.instance_variable_set(:@opnsense_data, opnsense_source)
+
+    job.send(:update_opnsense_alias, 23_456, 'alias-uuid')
+
+    expect(transition.refresh.sync_status('opnsense')).to eq('error')
+    expect(transition.opnsense_synced_at).to be_nil
+    expect(transition.qbit_error_at).to be_nil
   end
 
   it 'retries OPNsense apply after a saved alias is followed by an apply failure' do
@@ -297,7 +324,7 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     opnsense = double
     allow(opnsense).to receive(:get_alias_uuid).and_return('alias-uuid')
     allow(opnsense).to receive(:get_alias_value).and_return(12_345, 23_456, 23_456)
-    allow(opnsense).to receive(:set_alias_value).and_return(double(status: 200))
+    allow(opnsense).to receive(:set_alias_value)
     allow(opnsense).to receive(:apply_changes).and_return(
       double(status: 500),
       double(status: 500),

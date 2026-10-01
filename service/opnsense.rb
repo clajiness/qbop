@@ -7,6 +7,7 @@ module Service
     OPN_UUID = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
 
     class WireguardImportError < StandardError; end
+    class AliasUpdateError < StandardError; end
 
     def initialize(config)
       @config = config
@@ -31,11 +32,13 @@ module Service
     end
 
     def set_alias_value(forwarded_port, uuid)
-      @conn.post do |req|
+      response = @conn.post do |req|
         req.url "/api/firewall/alias/set_item/#{uuid}"
         req.headers['Content-Type'] = 'application/json'
         req.body = { 'alias': { 'content': forwarded_port } }.to_json
       end
+
+      validate_alias_update_response(response)
     end
 
     def apply_changes
@@ -111,6 +114,36 @@ module Service
     end
 
     private
+
+    def validate_alias_update_response(response)
+      validate_alias_update_status(response)
+      result = parse_alias_update_response(response.body)
+      return response if result.is_a?(Hash) && result['result'] == 'saved'
+
+      detail = alias_update_failure_detail(result)
+      raise AliasUpdateError, "opnsense rejected the alias update#{": #{detail}" unless detail.empty?}"
+    end
+
+    def validate_alias_update_status(response)
+      return if response.status.to_i.between?(200, 299)
+
+      raise AliasUpdateError, "opnsense returned HTTP #{response.status} while updating the alias"
+    end
+
+    def parse_alias_update_response(body)
+      result = JSON.parse(body)
+      return result if result.is_a?(Hash)
+
+      raise AliasUpdateError, 'opnsense returned an unexpected response while updating the alias'
+    rescue JSON::ParserError
+      raise AliasUpdateError, 'opnsense returned an invalid response while updating the alias'
+    end
+
+    def alias_update_failure_detail(result)
+      validations = result.fetch('validations', {})
+      detail = validations.map { |field, message| "#{field}: #{Array(message).join(', ')}" }.join('; ')
+      detail.empty? ? result['result'].to_s : detail
+    end
 
     def wireguard_target_records(type)
       endpoint = type == 'server' ? 'search_server' : 'search_client'

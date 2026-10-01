@@ -31,10 +31,14 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     build_date = ENV['BUILD_DATE']
     web_auth_enabled = ENV['WEB_AUTH_ENABLED']
     opnsense_skip = ENV['OPN_SKIP']
+    loop_freq = ENV['LOOP_FREQ']
+    proton_gateway = ENV['PROTON_GATEWAY']
     ENV.delete('VERSION')
     ENV.delete('COMMIT_SHA')
     ENV.delete('BUILD_DATE')
     ENV.delete('OPN_SKIP')
+    ENV.delete('LOOP_FREQ')
+    ENV.delete('PROTON_GATEWAY')
     ENV['WEB_AUTH_ENABLED'] = 'false'
     example.run
   ensure
@@ -43,6 +47,8 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     build_date.nil? ? ENV.delete('BUILD_DATE') : ENV['BUILD_DATE'] = build_date
     web_auth_enabled.nil? ? ENV.delete('WEB_AUTH_ENABLED') : ENV['WEB_AUTH_ENABLED'] = web_auth_enabled
     opnsense_skip.nil? ? ENV.delete('OPN_SKIP') : ENV['OPN_SKIP'] = opnsense_skip
+    loop_freq.nil? ? ENV.delete('LOOP_FREQ') : ENV['LOOP_FREQ'] = loop_freq
+    proton_gateway.nil? ? ENV.delete('PROTON_GATEWAY') : ENV['PROTON_GATEWAY'] = proton_gateway
   end
 
   before do
@@ -371,7 +377,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(public_key_response.body).to include('proton wireguard import requires opnsense integration.')
     expect(public_key_response.body).not_to include('reload tools to use the wireguard importer')
     expect(public_ip_response.status).to eq(200)
-    expect(public_ip_response.body).to include('akamai -> 192.0.2.1')
+    expect(public_ip_response.body).to include('akamai -&gt; 192.0.2.1')
     expect(public_ip_response.body).to include('proton wireguard import requires opnsense integration.')
     expect(public_ip_response.body).not_to include('reload tools to use the wireguard importer')
   end
@@ -383,9 +389,44 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     response = web_request.post('/public-ip', input: 'select=akamai')
 
     expect(response.status).to eq(200)
-    expect(response.body).to include('akamai -> 192.0.2.1')
+    expect(response.body).to include('akamai -&gt; 192.0.2.1')
     expect(response.body).to include('href="/tools">reload tools to use the wireguard importer</a>')
     expect(response.body).not_to include('could not load OPNsense WireGuard targets')
+  end
+
+  it 'allowlists public IP providers without reflecting invalid input' do
+    expect_any_instance_of(Service::Helpers).not_to receive(:get_public_ip)
+    provider = '"><script>provider()</script><input value="'
+
+    invalid_provider_response = web_request.post(
+      '/public-ip', input: URI.encode_www_form(select: provider)
+    )
+
+    expect(invalid_provider_response.body).to include('value="unknown provider"')
+    expect(invalid_provider_response.body).not_to include(provider, '<script>provider()</script>')
+  end
+
+  it 'escapes both dynamic tool-result attributes' do
+    allow_any_instance_of(Service::Helpers).to receive(:generate_wg_public_key)
+      .and_return('"><script>key()</script>')
+    allow_any_instance_of(Service::Helpers).to receive(:get_public_ip)
+      .and_return('"><script>address()</script>')
+    key_response = web_request.post('/pubkey', input: 'privatekey=private-key')
+    public_ip_response = web_request.post('/public-ip', input: 'select=akamai')
+
+    expect(key_response.body).to include('&quot;&gt;&lt;script&gt;key()&lt;/script&gt;')
+    expect(key_response.body).not_to include('<script>key()</script>')
+    expect(public_ip_response.body).to include('akamai -&gt; &quot;&gt;&lt;script&gt;address()&lt;/script&gt;')
+    expect(public_ip_response.body).not_to include('<script>address()</script>')
+  end
+
+  it 'shows normalized loop frequency and Proton gateway defaults on the About page' do
+    ENV['LOOP_FREQ'] = 'invalid'
+    ENV['PROTON_GATEWAY'] = ''
+
+    response = web_request.get('/about')
+
+    expect(response.body).to include('LOOP_FREQ: 45', 'PROTON_GATEWAY: 10.2.0.1')
   end
 
   it 'renders logs' do

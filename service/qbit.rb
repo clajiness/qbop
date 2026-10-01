@@ -51,7 +51,7 @@ module Service
     end
 
     def auth_headers
-      if @config[:qbit_api_key]
+      if !@config[:qbit_api_key].to_s.strip.empty?
         { 'Authorization' => "Bearer #{@config[:qbit_api_key]}" }
       else
         { 'Cookie' => qbt_auth_login }

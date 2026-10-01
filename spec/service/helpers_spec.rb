@@ -61,6 +61,21 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
         expect(Service::Helpers.new.env_variables[:loop_freq]).not_to eq(nil)
       end
     end
+    it 'uses one default for blank or invalid loop frequencies' do
+      helpers = Service::Helpers.new
+
+      ['', 'not-a-number', '-5'].each do |value|
+        ENV['LOOP_FREQ'] = value
+        expect(helpers.env_variables[:loop_freq]).to eq(45)
+        expect(helpers.connected_to_service?(Time.now - 1)).to be(true)
+      end
+    end
+
+    it 'preserves a valid explicit loop frequency' do
+      ENV['LOOP_FREQ'] = '120'
+
+      expect(Service::Helpers.new.env_variables[:loop_freq]).to eq(120)
+    end
     context 'when required_attempts is not set' do
       it 'returns the required attempts' do
         expect(Service::Helpers.new.env_variables[:required_attempts]).to eq(3)
@@ -76,6 +91,13 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
       it 'does not return nil' do
         expect(Service::Helpers.new.env_variables[:proton_gateway]).not_to eq(nil)
       end
+    end
+    it 'defaults a blank proton gateway and preserves an explicit gateway' do
+      ENV['PROTON_GATEWAY'] = ''
+      expect(Service::Helpers.new.env_variables[:proton_gateway]).to eq('10.2.0.1')
+
+      ENV['PROTON_GATEWAY'] = '10.20.0.1'
+      expect(Service::Helpers.new.env_variables[:proton_gateway]).to eq('10.20.0.1')
     end
     context 'when opnsense_skip is not set' do
       it 'returns nil' do
@@ -121,6 +143,11 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
       it 'returns nil' do
         expect(Service::Helpers.new.env_variables[:qbit_api_key]).to eq(nil)
       end
+    end
+    it 'treats a blank qBit API key as unset' do
+      ENV['QBIT_API_KEY'] = '  '
+
+      expect(Service::Helpers.new.env_variables[:qbit_api_key]).to be_nil
     end
     context 'when qbit_user is not set' do
       it 'returns nil' do
