@@ -209,6 +209,7 @@ module Framework
 
     get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
+      config = helpers.env_variables
 
       { 'about' => {
           app_version: helpers.app_version,
@@ -221,12 +222,12 @@ module Framework
         },
         'env_variables' => {
           'ui_mode': ENV['UI_MODE'],
-          'loop_freq': ENV['LOOP_FREQ'],
+          'loop_freq': config[:loop_freq],
           'required_attempts': ENV['REQUIRED_ATTEMPTS'],
           'log_lines': ENV['LOG_LINES'],
           'log_reverse': helpers.true?(ENV['LOG_REVERSE']),
           'log_to_stdout': helpers.true?(ENV['LOG_TO_STDOUT']),
-          'proton_gateway': ENV['PROTON_GATEWAY'],
+          'proton_gateway': config[:proton_gateway],
           'opn_skip': helpers.true?(ENV['OPN_SKIP']),
           'opn_interface_addr': ENV['OPN_INTERFACE_ADDR'],
           'opn_api_key': '***',

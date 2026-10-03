@@ -6,15 +6,16 @@ module Service
   # and parsing specific configuration values used in the application.
   class Helpers # rubocop:disable Metrics/ClassLength
     HISTORY_PAGE_SIZES = [25, 50, 100].freeze
+    PUBLIC_IP_PROVIDERS = %w[akamai cloudflare google opendns].freeze
 
     def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
       {
         ui_mode: format_ui_mode(ENV['UI_MODE'] || 'dark'),
         script_version: app_version,
         commit_sha: commit_sha,
-        loop_freq: validate_loop_frequency(ENV['LOOP_FREQ'] || 45),
+        loop_freq: loop_frequency,
         required_attempts: validate_required_attempts(ENV['REQUIRED_ATTEMPTS'] || 3),
-        proton_gateway: ENV['PROTON_GATEWAY'] || '10.2.0.1',
+        proton_gateway: environment_value('PROTON_GATEWAY', '10.2.0.1'),
         opnsense_skip: ENV['OPN_SKIP'] || 'false',
         opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
         opnsense_api_key: ENV['OPN_API_KEY'],
@@ -23,7 +24,7 @@ module Service
         opnsense_ssl_verify: true?(ENV['OPN_SSL_VERIFY'] || 'false'),
         qbit_skip: ENV['QBIT_SKIP'] || 'false',
         qbit_addr: ENV['QBIT_ADDR'],
-        qbit_api_key: ENV['QBIT_API_KEY'],
+        qbit_api_key: environment_value('QBIT_API_KEY'),
         qbit_user: ENV['QBIT_USER'],
         qbit_pass: ENV['QBIT_PASS'],
         qbit_ssl_verify: true?(ENV['QBIT_SSL_VERIFY'] || 'false'),
@@ -65,11 +66,12 @@ module Service
     end
 
     def validate_loop_frequency(loop_freq)
-      if loop_freq&.to_i&.positive?
-        loop_freq&.to_i
-      else
-        45
-      end
+      frequency = Integer(loop_freq, exception: false)
+      frequency&.positive? ? frequency : 45
+    end
+
+    def loop_frequency
+      validate_loop_frequency(environment_value('LOOP_FREQ', 45))
     end
 
     def validate_required_attempts(required_attempts)
@@ -161,7 +163,7 @@ module Service
     def connected_to_service?(last_checked)
       last_checked_time = time_value(last_checked)
 
-      !!(last_checked_time && last_checked_time >= (Time.now - ((ENV['LOOP_FREQ'] || 45).to_i * 3)))
+      !!(last_checked_time && last_checked_time >= (Time.now - (loop_frequency * 3)))
     rescue StandardError
       false
     end
@@ -180,7 +182,7 @@ module Service
     def log_lines_to_a(log_lines, reverse = nil)
       return [] if log_lines.nil?
 
-      output = File.readlines('log/qbop.log').last(validate_log_lines(log_lines))
+      output = tail_lines('log/qbop.log', validate_log_lines(log_lines))
       reverse = true?(env_variables[:log_reverse]) if reverse.nil?
       output.reverse! if reverse
 
@@ -214,6 +216,9 @@ module Service
     end
 
     def get_public_ip(provider) # rubocop:disable Metrics/MethodLength,Metrics/CyclomaticComplexity
+      provider = public_ip_provider(provider)
+      return 'unknown provider' unless provider
+
       case provider
       when 'akamai'
         stdout, stderr = Open3.capture3('timeout', '5', 'dig', 'whoami.akamai.net.', '@ns1-1.akamaitech.net.', '+short')
@@ -225,13 +230,16 @@ module Service
         )
       when 'opendns'
         stdout, stderr = Open3.capture3('timeout', '5', 'dig', 'myip.opendns.com', '@dns.opendns.com', '+short')
-      else
-        return 'unknown provider'
       end
 
       stdout.empty? ? stderr&.tr('"', '') : stdout&.tr('"', '')
     rescue StandardError
       'error retrieving public ip'
+    end
+
+    def public_ip_provider(provider)
+      provider = provider.to_s.strip.downcase
+      provider if PUBLIC_IP_PROVIDERS.include?(provider)
     end
 
     def logger_instance
@@ -247,6 +255,18 @@ module Service
     end
 
     private
+
+    def tail_lines(path, line_limit)
+      File.foreach(path).each_with_object([]) do |line, output|
+        output.shift if output.length == line_limit
+        output << line
+      end
+    end
+
+    def environment_value(name, default = nil)
+      value = ENV[name]
+      value.nil? || value.strip.empty? ? default : value
+    end
 
     def time_value(value)
       return value if value.is_a?(Time)

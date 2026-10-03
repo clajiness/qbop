@@ -16,6 +16,7 @@ module Framework
 
     def self.configure_routes(auth)
       auth.prefix ''
+      auth.already_logged_in { redirect '/' }
       auth.create_account_route 'setup'
       auth.change_login_route 'account/change-email'
       auth.change_password_route 'account/change-password'

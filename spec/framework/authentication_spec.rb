@@ -273,6 +273,18 @@ RSpec.describe Framework::Authentication do # rubocop:disable Metrics/BlockLengt
     expect(@client.get('/auth-state').body).to match(/\Aauthenticated:\d+\z/)
   end
 
+  it 'redirects signed-in users away from login and preserves their session' do
+    create_account
+    login
+    account_id = DB[:accounts].get(:id)
+
+    response = @client.get('/login')
+
+    expect(response.status).to eq(302)
+    expect(response['location']).to end_with('/')
+    expect(@client.get('/auth-state').body).to eq("authenticated:#{account_id}")
+  end
+
   it 'changes the singleton account email and preserves the current session' do
     create_account
     login

@@ -159,10 +159,8 @@ module Framework
     post '/public-ip' do
       helpers = Service::Helpers.new
 
-      service = params['select']&.strip&.downcase
-      public_ip = helpers.get_public_ip(service)
-
-      @public_ip = "#{service} -> #{public_ip}"
+      service = helpers.public_ip_provider(params['select'])
+      @public_ip = service ? "#{service} -> #{helpers.get_public_ip(service)}" : 'unknown provider'
 
       initialize_unloaded_wireguard_targets
       erb :tools
@@ -194,6 +192,7 @@ module Framework
 
     get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
+      config = helpers.env_variables
 
       @app_version = helpers.app_version
       @app_commit = helpers.commit_sha
@@ -208,12 +207,12 @@ module Framework
       @repo_url = 'https://github.com/clajiness/qbop'
 
       @ui_mode = ENV['UI_MODE']
-      @loop_freq = ENV['LOOP_FREQ']
+      @loop_freq = config[:loop_freq]
       @required_attempts = ENV['REQUIRED_ATTEMPTS']
       @log_lines = ENV['LOG_LINES']
       @log_reverse = helpers.true?(ENV['LOG_REVERSE'])
       @log_to_stdout = helpers.true?(ENV['LOG_TO_STDOUT'])
-      @proton_gateway = ENV['PROTON_GATEWAY']
+      @proton_gateway = config[:proton_gateway]
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
       @opn_api_key = '***'

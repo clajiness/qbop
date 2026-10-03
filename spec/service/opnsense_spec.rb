@@ -88,7 +88,7 @@ RSpec.describe Service::Opnsense do # rubocop:disable Metrics/BlockLength
   end
 
   it 'sets an alias value' do
-    response = instance_double(Faraday::Response)
+    response = instance_double(Faraday::Response, status: 200, body: '{"result":"saved"}')
 
     allow(Faraday).to receive(:new).and_return(conn)
     allow(conn).to receive(:post).and_yield(request).and_return(response)
@@ -99,6 +99,46 @@ RSpec.describe Service::Opnsense do # rubocop:disable Metrics/BlockLength
     expect(request.url_path).to eq('/api/firewall/alias/set_item/alias-uuid')
     expect(request.headers['Content-Type']).to eq('application/json')
     expect(request.body).to eq({ 'alias': { 'content': 54_321 } }.to_json)
+  end
+
+  it 'rejects an alias update reported as failed in a successful HTTP response' do
+    response = instance_double(
+      Faraday::Response,
+      status: 200,
+      body: '{"result":"failed","validations":{"alias.content":"invalid port"}}'
+    )
+    allow(Faraday).to receive(:new).and_return(conn)
+    allow(conn).to receive(:post).and_yield(request).and_return(response)
+
+    expect { described_class.new(config).set_alias_value(54_321, 'alias-uuid') }
+      .to raise_error(described_class::AliasUpdateError, /alias.content: invalid port/)
+  end
+
+  it 'rejects a malformed alias-update response body' do
+    response = instance_double(Faraday::Response, status: 200, body: 'not json')
+    allow(Faraday).to receive(:new).and_return(conn)
+    allow(conn).to receive(:post).and_yield(request).and_return(response)
+
+    expect { described_class.new(config).set_alias_value(54_321, 'alias-uuid') }
+      .to raise_error(described_class::AliasUpdateError, /invalid response/)
+  end
+
+  it 'rejects an unexpected alias-update response body' do
+    response = instance_double(Faraday::Response, status: 200, body: '[]')
+    allow(Faraday).to receive(:new).and_return(conn)
+    allow(conn).to receive(:post).and_yield(request).and_return(response)
+
+    expect { described_class.new(config).set_alias_value(54_321, 'alias-uuid') }
+      .to raise_error(described_class::AliasUpdateError, /unexpected response/)
+  end
+
+  it 'rejects a non-successful alias-update HTTP response' do
+    response = instance_double(Faraday::Response, status: 422, body: '{"result":"failed"}')
+    allow(Faraday).to receive(:new).and_return(conn)
+    allow(conn).to receive(:post).and_yield(request).and_return(response)
+
+    expect { described_class.new(config).set_alias_value(54_321, 'alias-uuid') }
+      .to raise_error(described_class::AliasUpdateError, /HTTP 422/)
   end
 
   it 'applies alias changes' do

@@ -33,7 +33,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   around do |example|
-    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE]
+    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE LOOP_FREQ PROTON_GATEWAY]
     original_env = env_keys.to_h { |key| [key, ENV[key]] }
 
     env_keys.each { |key| ENV.delete(key) }
@@ -447,6 +447,8 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     ENV['VERSION'] = 'v2.9.0'
     ENV['COMMIT_SHA'] = '0123456789abcdef'
     ENV['BUILD_DATE'] = '2026-08-11T12:34:56Z'
+    ENV['LOOP_FREQ'] = 'invalid'
+    ENV['PROTON_GATEWAY'] = ''
     response = api_get('/api/about')
     body = response_json(response)
 
@@ -455,6 +457,8 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(body.dig('about', 'commit_sha')).to eq('0123456789abcdef')
     expect(body.dig('about', 'build_date')).to eq('2026-08-11T12:34:56Z')
     expect(body.dig('about', 'schema_version')).to eq('unknown')
+    expect(body.dig('env_variables', 'loop_freq')).to eq(45)
+    expect(body.dig('env_variables', 'proton_gateway')).to eq('10.2.0.1')
     expect(body.dig('env_variables', 'opn_ssl_verify')).to eq(false)
     expect(body['env_variables'].keys).not_to include(
       'basic_auth_enabled', 'basic_auth_user', 'basic_auth_pass'

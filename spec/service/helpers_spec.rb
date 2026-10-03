@@ -1,6 +1,7 @@
 require 'bundler/setup'
 Bundler.require(:default)
 
+require 'tmpdir'
 require_relative '../../service/helpers'
 
 HELPERS_SPEC_ENV_KEYS = %w[
@@ -61,6 +62,21 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
         expect(Service::Helpers.new.env_variables[:loop_freq]).not_to eq(nil)
       end
     end
+    it 'uses one default for blank or invalid loop frequencies' do
+      helpers = Service::Helpers.new
+
+      ['', 'not-a-number', '-5'].each do |value|
+        ENV['LOOP_FREQ'] = value
+        expect(helpers.env_variables[:loop_freq]).to eq(45)
+        expect(helpers.connected_to_service?(Time.now - 1)).to be(true)
+      end
+    end
+
+    it 'preserves a valid explicit loop frequency' do
+      ENV['LOOP_FREQ'] = '120'
+
+      expect(Service::Helpers.new.env_variables[:loop_freq]).to eq(120)
+    end
     context 'when required_attempts is not set' do
       it 'returns the required attempts' do
         expect(Service::Helpers.new.env_variables[:required_attempts]).to eq(3)
@@ -76,6 +92,13 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
       it 'does not return nil' do
         expect(Service::Helpers.new.env_variables[:proton_gateway]).not_to eq(nil)
       end
+    end
+    it 'defaults a blank proton gateway and preserves an explicit gateway' do
+      ENV['PROTON_GATEWAY'] = ''
+      expect(Service::Helpers.new.env_variables[:proton_gateway]).to eq('10.2.0.1')
+
+      ENV['PROTON_GATEWAY'] = '10.20.0.1'
+      expect(Service::Helpers.new.env_variables[:proton_gateway]).to eq('10.20.0.1')
     end
     context 'when opnsense_skip is not set' do
       it 'returns nil' do
@@ -121,6 +144,11 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
       it 'returns nil' do
         expect(Service::Helpers.new.env_variables[:qbit_api_key]).to eq(nil)
       end
+    end
+    it 'treats a blank qBit API key as unset' do
+      ENV['QBIT_API_KEY'] = '  '
+
+      expect(Service::Helpers.new.env_variables[:qbit_api_key]).to be_nil
     end
     context 'when qbit_user is not set' do
       it 'returns nil' do
@@ -386,9 +414,57 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  describe 'log_lines_to_a' do
+  describe '#log_lines_to_a' do # rubocop:disable Metrics/BlockLength
+    def with_log(contents, &block)
+      Dir.mktmpdir do |directory|
+        log_directory = File.join(directory, 'log')
+        Dir.mkdir(log_directory)
+        File.write(File.join(log_directory, 'qbop.log'), contents)
+        Dir.chdir(directory, &block)
+      end
+    end
+
     it 'returns an empty array for nil input' do
       expect(Service::Helpers.new.log_lines_to_a(nil)).to eq([])
+    end
+
+    it 'returns the requested tail in chronological or reverse order' do
+      with_log((1..5).map { |line| "line #{line}\n" }.join) do
+        helpers = Service::Helpers.new
+
+        expect(helpers.log_lines_to_a(3, false)).to eq(["line 3\n", "line 4\n", 'line 5'])
+        expect(helpers.log_lines_to_a(3, true)).to eq(["line 5\n", "line 4\n", 'line 3'])
+      end
+    end
+
+    it 'uses the configured default direction' do
+      ENV['LOG_REVERSE'] = 'true'
+
+      with_log("older\nnewer\n") do
+        expect(Service::Helpers.new.log_lines_to_a(2)).to eq(%W[newer\n older])
+      end
+    end
+
+    it 'returns an empty array for empty or missing logs' do
+      with_log('') do
+        expect(Service::Helpers.new.log_lines_to_a(10)).to eq([])
+      end
+
+      Dir.mktmpdir do |directory|
+        Dir.chdir(directory) { expect(Service::Helpers.new.log_lines_to_a(10)).to eq([]) }
+      end
+    end
+
+    it 'caps large requests without loading the whole log into a line array' do
+      with_log((1..10_000).map { |line| "line #{line}\n" }.join) do
+        expect(File).not_to receive(:readlines)
+
+        output = Service::Helpers.new.log_lines_to_a(10_000, false)
+
+        expect(output.length).to eq(5000)
+        expect(output.first).to eq("line 5001\n")
+        expect(output.last).to eq('line 10000')
+      end
     end
   end
 
