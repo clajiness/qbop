@@ -1,3 +1,4 @@
+require_relative '../service/port_source'
 require_relative 'authentication_config'
 require_relative 'event_stream'
 require_relative '../service/opnsense'
@@ -212,11 +213,15 @@ module Framework
       @log_lines = ENV['LOG_LINES']
       @log_reverse = helpers.true?(ENV['LOG_REVERSE'])
       @log_to_stdout = helpers.true?(ENV['LOG_TO_STDOUT'])
+      @port_source_name = Service::PortSource.name(config)
+      @gluetun_addr = config[:gluetun_addr]
+      @gluetun_ssl_verify = config[:gluetun_ssl_verify]
       @proton_gateway = config[:proton_gateway]
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
       @opn_api_key = '***'
       @opn_api_secret = '***'
+      @opn_alias_name = config[:opnsense_alias_name]
       @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
       @opn_ssl_verify = helpers.true?(ENV['OPN_SSL_VERIFY'])
       @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
@@ -246,26 +251,28 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
-      @proton_stats = stats['proton']
+      @port_source_name = Service::PortSource.name(helpers.env_variables)
+      @port_stats = stats[@port_source_name]
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
 
-      @proton_connected = helpers.connected_to_service?(@proton_stats.last_checked)
+      @port_connected = helpers.connected_to_service?(@port_stats.last_checked)
       @opn_connected = helpers.connected_to_service?(@opn_stats.last_checked)
       @qbit_connected = helpers.connected_to_service?(@qbit_stats.last_checked)
 
-      @proton_delta = helpers.time_delta_to_s(@proton_stats.last_checked, @proton_stats.updated_at)
+      @port_delta = helpers.time_delta_to_s(@port_stats.last_checked, @port_stats.updated_at)
       @opn_delta = helpers.time_delta_to_s(@opn_stats.last_checked, @opn_stats.updated_at)
       @qbit_delta = helpers.time_delta_to_s(@qbit_stats.last_checked, @qbit_stats.updated_at)
 
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])
       @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
 
-      @proton_longest_time_on_same_port = helpers.seconds_to_s(@proton_stats.same_port)
+      @port_longest_time_on_same_port = helpers.seconds_to_s(@port_stats.same_port)
       @opn_longest_time_on_same_port = helpers.seconds_to_s(@opn_stats.same_port)
       @qbit_longest_time_on_same_port = helpers.seconds_to_s(@qbit_stats.same_port)
 
-      @transition = PortTransition.where(new_port: @proton_stats.current_port).order(Sequel.desc(:id)).first
+      @transition = PortTransition.where(new_port: @port_stats.current_port,
+                                         source_name: @port_source_name).order(Sequel.desc(:id)).first
     end
 
     def load_logs

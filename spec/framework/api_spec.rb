@@ -33,7 +33,8 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   around do |example|
-    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE LOOP_FREQ PROTON_GATEWAY]
+    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE LOOP_FREQ PROTON_GATEWAY PORT_SOURCE GLUETUN_API_KEY
+                  GLUETUN_USER GLUETUN_PASS OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
     original_env = env_keys.to_h { |key| [key, ENV[key]] }
 
     env_keys.each { |key| ENV.delete(key) }
@@ -101,6 +102,46 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response.status).to eq(200)
     expect(body.dig('stats', 'protonvpn', 'current_port')).to eq(12_345)
     expect(body.dig('records', 'longest_time_on_same_port', 'qbit')).to eq(60)
+  end
+
+  it 'reports the selected source through compatible stats and health fields' do
+    ENV['PORT_SOURCE'] = 'gluetun'
+    source = Source.create(name: 'gluetun')
+    Stat.create(source_id: source.id, current_port: 51_820, same_port: 120, last_checked: Time.now)
+
+    stats = response_json(api_get('/api/stats'))
+    expect(stats['port_source']).to eq('gluetun')
+    expect(stats.dig('stats', 'protonvpn', 'current_port')).to eq(51_820)
+    expect(stats.dig('records', 'longest_time_on_same_port', 'proton')).to eq(120)
+    expect(response_json(api_get('/api/health'))).to include(
+      'port_source' => 'gluetun', 'health' => include('protonvpn' => 200)
+    )
+
+    source.stat.update(last_checked: Time.now - 10_000)
+    response = api_get('/api/health')
+    expect(response.status).to eq(503)
+    expect(response_json(response).dig('health', 'protonvpn')).to eq(503)
+  end
+
+  it 'includes the source identity in history without changing existing fields' do
+    PortTransition.record_transition(
+      previous_port: 12_345, new_port: 51_820, source_name: 'gluetun',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+
+    expect(response_json(api_get('/api/history'))['history'].first).to include(
+      'source' => 'gluetun', 'previous_port' => 12_345, 'new_port' => 51_820
+    )
+  end
+
+  it 'masks Gluetun credentials in configuration responses' do
+    ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass')
+    response = api_get('/api/about')
+
+    expect(response_json(response)['env_variables']).to include(
+      'port_source' => 'proton', 'gluetun_api_key' => '***', 'gluetun_user' => '***', 'gluetun_pass' => '***'
+    )
+    expect(response.body).not_to include('secret-key', 'secret-user', 'secret-pass')
   end
 
   it 'returns healthy status when all services checked in recently' do
@@ -463,5 +504,17 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(body['env_variables'].keys).not_to include(
       'basic_auth_enabled', 'basic_auth_user', 'basic_auth_pass'
     )
+  end
+
+  [nil, 'preferred_alias', '  '].each do |preferred|
+    it "presents the effective alias and retains the legacy API field with preferred #{preferred.inspect}" do
+      ENV['OPN_ALIAS_NAME'] = preferred
+      ENV['OPN_PROTON_ALIAS_NAME'] = 'legacy_alias'
+      expected = preferred == 'preferred_alias' ? preferred : 'legacy_alias'
+
+      expect(response_json(api_get('/api/about'))['env_variables']).to include(
+        'opn_alias_name' => expected, 'opn_proton_alias_name' => 'legacy_alias'
+      )
+    end
   end
 end

@@ -24,9 +24,11 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
     end
   end
 
-  def self.record_transition(previous_port:, new_port:, opnsense_skipped:, qbit_skipped:, detected_at: Time.now)
+  def self.record_transition(previous_port:, new_port:, opnsense_skipped:, qbit_skipped:, detected_at: Time.now,
+                             source_name: 'proton') # rubocop:disable Metrics/ParameterLists
     db.transaction do
       create(
+        source_name: source_name,
         previous_port: normalize_previous_port(previous_port),
         new_port: new_port.to_i,
         detected_at: detected_at,
@@ -36,9 +38,9 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
     end
   end
 
-  def self.mark_synced(source, port, at: Time.now)
+  def self.mark_synced(source, port, at: Time.now, source_name: 'proton')
     columns = SYNC_COLUMNS.fetch(source.to_s)
-    transition = latest_for_port(port)
+    transition = latest_for_port(port, source_name)
     return unless transition
     return transition if transition.public_send(columns[:synced_at]) && !transition.public_send(columns[:error_at])
 
@@ -46,17 +48,17 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
     transition
   end
 
-  def self.mark_error(source, port, at: Time.now)
+  def self.mark_error(source, port, at: Time.now, source_name: 'proton')
     columns = SYNC_COLUMNS.fetch(source.to_s)
-    transition = latest_for_port(port)
+    transition = latest_for_port(port, source_name)
     return unless transition
 
     transition.update(columns[:synced_at] => nil, columns[:error_at] => at)
     transition
   end
 
-  def self.sync_error?(source, port)
-    latest_for_port(port)&.sync_status(source) == 'error'
+  def self.sync_error?(source, port, source_name: 'proton')
+    latest_for_port(port, source_name)&.sync_status(source) == 'error'
   end
 
   def self.paginate(page:, per_page:) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
@@ -86,8 +88,8 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
     'pending'
   end
 
-  def self.latest_for_port(port)
-    where(new_port: port.to_i).order(Sequel.desc(:id)).first
+  def self.latest_for_port(port, source_name)
+    where(new_port: port.to_i, source_name: source_name).order(Sequel.desc(:id)).first
   end
   private_class_method :latest_for_port
 

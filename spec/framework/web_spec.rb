@@ -25,7 +25,10 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     end)
   end
 
-  around do |example|
+  around do |example| # rubocop:disable Metrics/BlockLength
+    source_env_keys = %w[PORT_SOURCE GLUETUN_API_KEY GLUETUN_USER GLUETUN_PASS OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
+    source_env = source_env_keys.to_h { |key| [key, ENV[key]] }
+    source_env_keys.each { |key| ENV.delete(key) }
     version = ENV['VERSION']
     commit_sha = ENV['COMMIT_SHA']
     build_date = ENV['BUILD_DATE']
@@ -42,6 +45,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     ENV['WEB_AUTH_ENABLED'] = 'false'
     example.run
   ensure
+    source_env_keys.each { |key| source_env[key].nil? ? ENV.delete(key) : ENV[key] = source_env[key] }
     version.nil? ? ENV.delete('VERSION') : ENV['VERSION'] = version
     commit_sha.nil? ? ENV.delete('COMMIT_SHA') : ENV['COMMIT_SHA'] = commit_sha
     build_date.nil? ? ENV.delete('BUILD_DATE') : ENV['BUILD_DATE'] = build_date
@@ -65,6 +69,46 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.status).to eq(200)
     expect(response.body).to include('protonvpn')
     expect(response.body).to include('unknown')
+  end
+
+  it 'renders Gluetun status from its own state and synchronization history' do
+    ENV['PORT_SOURCE'] = 'gluetun'
+    source = Source.create(name: 'gluetun')
+    Stat.create(source_id: source.id, current_port: 51_820, same_port: 60, last_checked: Time.now)
+    PortTransition.record_transition(
+      previous_port: 12_345, new_port: 51_820, source_name: 'gluetun',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.record_transition(
+      previous_port: 12_345, new_port: 51_820, opnsense_skipped: true, qbit_skipped: true
+    )
+
+    response = web_request.get('/')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('<em>gluetun</em>', 'current port: 51820', 'sync: pending')
+    expect(response.body).not_to include('<em>protonvpn</em>', 'sync: skipped')
+    expect(web_request.get('/history').body).to include('<th>source</th>', '<td>gluetun</td>', '<td>proton</td>')
+  end
+
+  it 'masks Gluetun credentials on the about page' do
+    ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass')
+    response = web_request.get('/about')
+
+    expect(response.body).to include('PORT_SOURCE: proton', 'GLUETUN_API_KEY: ***', 'GLUETUN_SSL_VERIFY: false')
+    expect(response.body).not_to include('secret-key', 'secret-user', 'secret-pass')
+  end
+
+  ['preferred_alias', '  '].each do |preferred|
+    it "displays the effective alias with preferred #{preferred.inspect} while retaining legacy configuration" do
+      ENV['OPN_ALIAS_NAME'] = preferred
+      ENV['OPN_PROTON_ALIAS_NAME'] = 'legacy_alias'
+      expected = preferred == 'preferred_alias' ? preferred : 'legacy_alias'
+
+      expect(web_request.get('/about').body).to include(
+        "OPN_ALIAS_NAME: #{expected}", 'OPN_PROTON_ALIAS_NAME: legacy_alias'
+      )
+    end
   end
 
   it 'ignores legacy refresh parameters and enables live status updates' do

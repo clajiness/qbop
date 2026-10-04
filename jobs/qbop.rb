@@ -1,7 +1,7 @@
 require_relative '../service/port_source'
 
 # Qbop is a class responsible for managing the synchronization of port forwarding settings
-# between ProtonVPN, OPNsense firewall, and qBittorrent.
+# between the selected port source, OPNsense firewall, and qBittorrent.
 class Qbop # rubocop:disable Metrics/ClassLength
   include SuckerPunch::Job
   SuckerPunch.shutdown_timeout = 1
@@ -23,7 +23,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     @port_source = Service::PortSource.build(@helpers, @config)
     @opnsense = Service::Opnsense.new(@config)
     @qbit = Service::Qbit.new(@config)
-    @proton_data = Source[name: 'proton']
+    @port_data = Source[name: @port_source.name]
     @opnsense_data = Source[name: 'opnsense']
     @qbit_data = Source[name: 'qbit']
     @logger = @helpers.logger_instance
@@ -38,9 +38,8 @@ class Qbop # rubocop:disable Metrics/ClassLength
   def run_loop_iteration
     @logger.info("start of loop (#{@config[:script_version]})")
 
-    forwarded_port = handle_proton
-    handle_opnsense(forwarded_port)
-    handle_qbit(forwarded_port)
+    forwarded_port = handle_port_forwarding
+    synchronize_port(forwarded_port)
 
     # Failed checks can make the time-based connection indicators stale even
     # when no source row changed. Re-evaluate them after the completed checks.
@@ -52,26 +51,37 @@ class Qbop # rubocop:disable Metrics/ClassLength
     sleep @config[:loop_freq]
   end
 
-  def handle_proton # rubocop:disable Metrics/MethodLength
+  def synchronize_port(forwarded_port)
+    return if forwarded_port.nil?
+
+    handle_opnsense(forwarded_port)
+    handle_qbit(forwarded_port)
+  end
+
+  def port_source_label
+    @port_source.name.capitalize
+  end
+
+  def handle_port_forwarding # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
     forwarded_port = @port_source.current_port
-    @proton_data.set_last_checked if forwarded_port
+    @port_data.set_last_checked if forwarded_port
 
     if forwarded_port.nil?
-      @logger.error("Proton didn't return a forwarded port.")
-    elsif forwarded_port == @proton_data.get_current_port
-      @logger.info("Proton returned the forwarded port #{forwarded_port}")
-      @proton_data.set_updated_at unless @proton_data.updated?
-      @proton_data.set_same_port
+      @logger.error("#{port_source_label} didn't return a forwarded port.")
+    elsif forwarded_port == @port_data.get_current_port
+      @logger.info("#{port_source_label} returned the forwarded port #{forwarded_port}")
+      @port_data.set_updated_at unless @port_data.updated?
+      @port_data.set_same_port
     else
-      @logger.info("Proton returned the new forwarded port #{forwarded_port}")
-      record_port_transition(@proton_data.get_current_port, forwarded_port)
-      @proton_data.set_current_port(forwarded_port)
-      @proton_data.set_updated_at
+      @logger.info("#{port_source_label} returned the new forwarded port #{forwarded_port}")
+      record_port_transition(@port_data.get_current_port, forwarded_port)
+      @port_data.set_current_port(forwarded_port)
+      @port_data.set_updated_at
     end
 
     forwarded_port
   rescue StandardError => e
-    log_error('Proton', e)
+    log_error(port_source_label, e)
     nil
   end
 
@@ -119,24 +129,25 @@ class Qbop # rubocop:disable Metrics/ClassLength
     forwarded_port = forwarded_port.to_i
 
     unless valid_forwarded_port?(forwarded_port)
-      @logger.info("#{source_name} rejected Proton's forwarded port as it is not within a valid range of 1024-65535")
+      @logger.info("#{source_name} rejected #{port_source_label}'s forwarded port " \
+                   'as it is not within a valid range of 1-65535')
       return false
     end
 
     if current_port != forwarded_port
       source_data.increment_attempt
       source_data.change if source_data.attempt >= @config[:required_attempts]
-      @logger.info("#{source_name} port #{current_port} does not match Proton forwarded port #{forwarded_port}. Attempt #{source_data.attempt} of #{@config[:required_attempts]}.") # rubocop:disable Layout/LineLength
+      @logger.info("#{source_name} port #{current_port} does not match #{port_source_label} forwarded port #{forwarded_port}. Attempt #{source_data.attempt} of #{@config[:required_attempts]}.") # rubocop:disable Layout/LineLength
       return source_data.change?
     end
 
     source_data.reset_change if source_data.change?
     source_data.reset_attempt if source_data.attempt != 0
-    @logger.info("#{source_name} port #{current_port} matches Proton forwarded port #{forwarded_port}")
+    @logger.info("#{source_name} port #{current_port} matches #{port_source_label} forwarded port #{forwarded_port}")
     source_data.set_current_port(forwarded_port) if forwarded_port != source_data.get_current_port
     source_data.set_updated_at unless source_data.updated?
     source_data.set_same_port
-    PortTransition.mark_synced(history_source, forwarded_port) if history_source
+    PortTransition.mark_synced(history_source, forwarded_port, source_name: @port_source.name) if history_source
     false
   end
 
@@ -151,7 +162,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     changes_status = perform_sync_write('opnsense', forwarded_port) { @opnsense.apply_changes.status }
 
     if changes_status != 200
-      PortTransition.mark_error('opnsense', forwarded_port)
+      PortTransition.mark_error('opnsense', forwarded_port, source_name: @port_source.name)
       @logger.error("OPNsense's change was not applied - response code: #{changes_status}")
       return
     end
@@ -161,7 +172,8 @@ class Qbop # rubocop:disable Metrics/ClassLength
   end
 
   def opnsense_apply_retry?(alias_port, forwarded_port)
-    alias_port.to_i == forwarded_port.to_i && PortTransition.sync_error?('opnsense', forwarded_port)
+    alias_port.to_i == forwarded_port.to_i && PortTransition.sync_error?('opnsense', forwarded_port,
+                                                                         source_name: @port_source.name)
   end
 
   def update_qbit_port(forwarded_port)
@@ -170,7 +182,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     end
 
     if response_status != 200
-      PortTransition.mark_error('qbit', forwarded_port)
+      PortTransition.mark_error('qbit', forwarded_port, source_name: @port_source.name)
       @logger.error("qBit port was not updated - response code: #{response_status}")
       return
     end
@@ -184,18 +196,19 @@ class Qbop # rubocop:disable Metrics/ClassLength
     source_data.reset_attempt
     source_data.set_current_port(forwarded_port)
     source_data.set_updated_at
-    PortTransition.mark_synced(history_source, forwarded_port)
+    PortTransition.mark_synced(history_source, forwarded_port, source_name: @port_source.name)
   end
 
   def perform_sync_write(history_source, forwarded_port)
     yield
   rescue StandardError
-    PortTransition.mark_error(history_source, forwarded_port)
+    PortTransition.mark_error(history_source, forwarded_port, source_name: @port_source.name)
     raise
   end
 
   def record_port_transition(previous_port, new_port)
     PortTransition.record_transition(
+      source_name: @port_source.name,
       previous_port: previous_port,
       new_port: new_port,
       opnsense_skipped: @helpers.true?(@config[:opnsense_skip]),
@@ -204,7 +217,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
   end
 
   def valid_forwarded_port?(forwarded_port)
-    (1024..65_535).include?(forwarded_port.to_i)
+    (1..65_535).include?(forwarded_port.to_i)
   end
 
   def log_error(source_name, error)

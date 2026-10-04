@@ -26,6 +26,7 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
   let(:job) do
     described_class.allocate.tap do |instance|
       instance.instance_variable_set(:@logger, logger)
+      instance.instance_variable_set(:@port_source, instance_double(Service::Proton, name: 'proton'))
       instance.instance_variable_set(:@config, { required_attempts: 2 })
     end
   end
@@ -121,13 +122,13 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     source = Source.create(name: 'proton')
     source.seed_tables
     helpers = Service::Helpers.new
-    port_source = instance_double(Service::Proton, current_port: 23_456)
+    port_source = instance_double(Service::Proton, name: 'proton', current_port: 23_456)
     job.instance_variable_set(:@helpers, helpers)
     job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1', opnsense_skip: 'false', qbit_skip: 'false' })
     job.instance_variable_set(:@port_source, port_source)
-    job.instance_variable_set(:@proton_data, source)
+    job.instance_variable_set(:@port_data, source)
 
-    2.times { job.send(:handle_proton) }
+    2.times { job.send(:handle_port_forwarding) }
 
     expect(PortTransition.count).to eq(1)
     expect(PortTransition.first.previous_port).to be_nil
@@ -137,14 +138,14 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
   it 'does not update Proton state when either NAT-PMP mapping is invalid' do
     source = Source.create(name: 'proton').tap(&:seed_tables)
     source.set_current_port(12_345)
-    port_source = instance_double(Service::Proton)
+    port_source = instance_double(Service::Proton, name: 'proton')
     allow(port_source).to receive(:current_port)
       .and_raise(Service::Proton::MappingError, 'TCP NAT-PMP command failed')
     job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1' })
     job.instance_variable_set(:@port_source, port_source)
-    job.instance_variable_set(:@proton_data, source)
+    job.instance_variable_set(:@port_data, source)
 
-    expect(job.send(:handle_proton)).to be_nil
+    expect(job.send(:handle_port_forwarding)).to be_nil
     expect(source.get_current_port).to eq(12_345)
     expect(source.get_last_checked).to be_nil
     expect(PortTransition.count).to eq(0)
@@ -155,10 +156,10 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
   it 'preserves missing-port logging and state when the source returns nil' do
     source = Source.create(name: 'proton').tap(&:seed_tables)
     source.set_current_port(12_345)
-    job.instance_variable_set(:@port_source, instance_double(Service::Proton, current_port: nil))
-    job.instance_variable_set(:@proton_data, source)
+    job.instance_variable_set(:@port_source, instance_double(Service::Proton, name: 'proton', current_port: nil))
+    job.instance_variable_set(:@port_data, source)
 
-    expect(job.send(:handle_proton)).to be_nil
+    expect(job.send(:handle_port_forwarding)).to be_nil
     expect(source.get_current_port).to eq(12_345)
     expect(source.get_last_checked).to be_nil
     expect(PortTransition.count).to eq(0)
@@ -169,16 +170,16 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     %w[proton opnsense qbit].each do |name|
       source = Source.create(name: name)
       source.seed_tables
-      job.instance_variable_set(:"@#{name}_data", source)
+      job.instance_variable_set(name == 'proton' ? :@port_data : :"@#{name}_data", source)
     end
     job.instance_variable_set(:@helpers, Service::Helpers.new)
-    job.instance_variable_set(:@port_source, instance_double(Service::Proton, current_port: 23_456))
+    job.instance_variable_set(:@port_source, instance_double(Service::Proton, name: 'proton', current_port: 23_456))
     opnsense = double(set_alias_value: nil, apply_changes: double(status: 200))
     job.instance_variable_set(:@opnsense, opnsense)
     job.instance_variable_set(:@qbit, double(qbt_app_set_preferences: double(status: 200)))
     subscriber = Framework::Events.subscribe
 
-    job.send(:handle_proton)
+    job.send(:handle_port_forwarding)
     expect(subscriber.take(timeout: 0)).to contain_exactly(:status_changed, :history_changed)
     expect(PortTransition.first.sync_status('opnsense')).to eq('pending')
     expect(PortTransition.first.sync_status('qbit')).to eq('pending')
@@ -221,26 +222,26 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     source.seed_tables
     source.set_current_port(12_345)
     helpers = Service::Helpers.new
-    port_source = instance_double(Service::Proton)
+    port_source = instance_double(Service::Proton, name: 'proton')
     allow(port_source).to receive(:current_port).and_return(12_345, 23_456, 23_456)
     job.instance_variable_set(:@helpers, helpers)
     job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1', opnsense_skip: 'false', qbit_skip: 'false' })
     job.instance_variable_set(:@port_source, port_source)
-    job.instance_variable_set(:@proton_data, source)
+    job.instance_variable_set(:@port_data, source)
 
-    job.send(:handle_proton)
+    job.send(:handle_port_forwarding)
 
     expect(PortTransition.count).to eq(0)
     expect(source.get_current_port).to eq(12_345)
 
-    job.send(:handle_proton)
+    job.send(:handle_port_forwarding)
 
     expect(PortTransition.count).to eq(1)
     expect(PortTransition.first.previous_port).to eq(12_345)
     expect(PortTransition.first.new_port).to eq(23_456)
     expect(source.get_current_port).to eq(23_456)
 
-    job.send(:handle_proton)
+    job.send(:handle_port_forwarding)
 
     expect(PortTransition.count).to eq(1)
     expect(source.get_current_port).to eq(23_456)

@@ -80,6 +80,7 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
 
     DB.create_table(:port_transitions) do
       primary_key :id
+      String :source_name, null: false, default: 'proton'
       Integer :previous_port
       Integer :new_port, null: false
       DateTime :detected_at, null: false

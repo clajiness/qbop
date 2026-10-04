@@ -11,11 +11,18 @@ HELPERS_SPEC_ENV_KEYS = %w[
   BUILD_DATE
   LOOP_FREQ
   REQUIRED_ATTEMPTS
+  PORT_SOURCE
+  GLUETUN_ADDR
+  GLUETUN_API_KEY
+  GLUETUN_USER
+  GLUETUN_PASS
+  GLUETUN_SSL_VERIFY
   PROTON_GATEWAY
   OPN_SKIP
   OPN_INTERFACE_ADDR
   OPN_API_KEY
   OPN_API_SECRET
+  OPN_ALIAS_NAME
   OPN_PROTON_ALIAS_NAME
   OPN_SSL_VERIFY
   QBIT_SKIP
@@ -41,6 +48,32 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
   end
 
   describe '#env_variables' do # rubocop:disable Metrics/BlockLength
+    it 'defaults to Proton and loads Gluetun defaults without requiring new settings' do
+      expect(described_class.new.env_variables).to include(
+        port_source: 'proton', gluetun_addr: 'http://gluetun:8000', gluetun_api_key: nil,
+        gluetun_user: nil, gluetun_pass: nil, gluetun_ssl_verify: false
+      )
+    end
+
+    it 'loads the explicit Gluetun settings and existing boolean conventions' do
+      ENV.update('PORT_SOURCE' => 'gluetun', 'GLUETUN_ADDR' => 'https://vpn.example:8000',
+                 'GLUETUN_API_KEY' => 'key', 'GLUETUN_USER' => 'user', 'GLUETUN_PASS' => 'pass',
+                 'GLUETUN_SSL_VERIFY' => 'TRUE')
+
+      expect(described_class.new.env_variables).to include(
+        port_source: 'gluetun', gluetun_addr: 'https://vpn.example:8000', gluetun_api_key: 'key',
+        gluetun_user: 'user', gluetun_pass: 'pass', gluetun_ssl_verify: true
+      )
+    end
+
+    it 'treats blank Gluetun credentials as absent while retaining invalid source selections' do
+      ENV.update('PORT_SOURCE' => '', 'GLUETUN_API_KEY' => ' ', 'GLUETUN_USER' => '', 'GLUETUN_PASS' => ' ')
+
+      expect(described_class.new.env_variables).to include(
+        port_source: '', gluetun_api_key: nil, gluetun_user: nil, gluetun_pass: nil
+      )
+    end
+
     context 'when ui_mode is not set' do
       it 'returns dark' do
         expect(Service::Helpers.new.env_variables[:ui_mode]).to eq('dark')
@@ -123,6 +156,23 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     context 'when opnsense_alias_name is not set' do
       it 'returns nil' do
         expect(Service::Helpers.new.env_variables[:opnsense_alias_name]).to eq(nil)
+      end
+    end
+    [
+      [nil, 'legacy_alias', 'legacy_alias'],
+      ['preferred_alias', nil, 'preferred_alias'],
+      ['preferred_alias', 'legacy_alias', 'preferred_alias'],
+      ['', 'legacy_alias', 'legacy_alias'],
+      ['  ', 'legacy_alias', 'legacy_alias'],
+      ['preferred_alias', '', 'preferred_alias'],
+      [nil, '  ', nil],
+      ['', '', nil]
+    ].each do |preferred, legacy, expected|
+      it "resolves the alias from preferred #{preferred.inspect} and legacy #{legacy.inspect}" do
+        ENV['OPN_ALIAS_NAME'] = preferred
+        ENV['OPN_PROTON_ALIAS_NAME'] = legacy
+
+        expect(described_class.new.env_variables[:opnsense_alias_name]).to eq(expected)
       end
     end
     context 'when opnsense_ssl_verify is not set' do

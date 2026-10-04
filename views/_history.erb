@@ -11,6 +11,7 @@
     <thead>
       <tr>
         <th>detected</th>
+        <th>source</th>
         <th>port</th>
         <th>opnsense</th>
         <th>qbittorrent</th>
@@ -20,6 +21,7 @@
       <% @pagination.records.each do |transition| %>
       <tr>
         <td><%= transition.detected_at %></td>
+        <td><%= transition.source_name %></td>
         <td><%= transition.previous_port || 'initial' %> &rarr; <%= transition.new_port %></td>
         <td><%= transition.opnsense_synced_at || transition.sync_status('opnsense') %></td>
         <td><%= transition.qbit_synced_at || transition.sync_status('qbit') %></td>

@@ -20,9 +20,27 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
 
     expect(transition.previous_port).to be_nil
     expect(transition.new_port).to eq(12_345)
+    expect(transition.source_name).to eq('proton')
     expect(transition.detected_at).to be_a(Time)
     expect(transition.sync_status('opnsense')).to eq('pending')
     expect(transition.sync_status('qbit')).to eq('skipped')
+  end
+
+  it 'isolates synchronization errors and recovery for identical ports from different sources' do
+    attributes = { previous_port: 12_345, new_port: 23_456, opnsense_skipped: false, qbit_skipped: false }
+    proton = described_class.record_transition(**attributes)
+    gluetun = described_class.record_transition(**attributes, source_name: 'gluetun')
+
+    described_class.mark_error('opnsense', 23_456)
+    expect(described_class.sync_error?('opnsense', 23_456)).to eq(true)
+    expect(described_class.sync_error?('opnsense', 23_456, source_name: 'gluetun')).to eq(false)
+    expect(gluetun.refresh.sync_status('opnsense')).to eq('pending')
+
+    described_class.mark_synced('opnsense', 23_456, source_name: 'gluetun')
+    expect(gluetun.refresh.sync_status('opnsense')).to eq('synced')
+    expect(proton.refresh.sync_status('opnsense')).to eq('error')
+    described_class.mark_error('qbit', 23_456, source_name: 'gluetun')
+    expect(proton.refresh.sync_status('qbit')).to eq('pending')
   end
 
   it 'marks the newest matching transition as synchronized' do

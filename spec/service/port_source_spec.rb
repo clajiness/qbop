@@ -19,6 +19,28 @@ RSpec.describe Service::PortSource do # rubocop:disable Metrics/BlockLength
       .and_return([stdout, stderr, status])
   end
 
+  it 'selects Proton explicitly with its existing identity' do
+    config[:port_source] = 'proton'
+
+    expect(source).to be_a(Service::Proton)
+    expect(source.name).to eq('proton')
+  end
+
+  it 'selects Gluetun with its separate identity' do
+    config.merge!(port_source: 'gluetun', gluetun_addr: 'http://gluetun:8000')
+
+    expect(source).to be_a(Service::Gluetun)
+    expect(source.name).to eq('gluetun')
+  end
+
+  ['', 'invalid', 'PROTON', nil].each do |name|
+    it "fails clearly for an invalid source #{name.inspect}" do
+      config[:port_source] = name
+
+      expect { source }.to raise_error(described_class::ConfigurationError, 'PORT_SOURCE must be proton or gluetun')
+    end
+  end
+
   it 'builds Proton without a source selection setting' do
     expect(source).to be_a(Service::Proton)
   end

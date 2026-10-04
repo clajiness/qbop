@@ -13,6 +13,10 @@ module Service
       forwarded_port(natpmpc(@gateway))
     end
 
+    def name
+      'proton'
+    end
+
     def natpmpc(proton_gateway)
       loop_freq = @helpers.env_variables[:loop_freq]
       timeout = (loop_freq - 5) >= 5 ? loop_freq - 5 : 5

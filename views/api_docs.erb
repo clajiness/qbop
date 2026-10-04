@@ -25,12 +25,13 @@
 
   <fieldset class="api-endpoint">
     <legend><strong>GET</strong> <code>/api/stats</code></legend>
-    <p>returns current port, connection state, check/change times, and longest time on the same port for protonvpn, opnsense, and qbittorrent.</p>
+    <p>returns current port, connection state, check/change times, and longest time on the same port for the selected port source, opnsense, and qbittorrent. <code>port_source</code> identifies the active source. legacy <code>protonvpn</code> and record <code>proton</code> keys represent that selected source for compatibility.</p>
     <p><strong>parameters:</strong> none</p>
     <pre><code>curl --fail-with-body \
   -H "Authorization: Bearer $QBOP_API_KEY" \
   "$QBOP_URL/api/stats"</code></pre>
     <pre><code>{
+  "port_source": "proton",
   "stats": {
     "protonvpn": {
       "current_port": 51820,
@@ -53,7 +54,8 @@
     <pre><code>curl --fail-with-body \
   -H "Authorization: Bearer $QBOP_API_KEY" \
   "$QBOP_URL/api/health"</code></pre>
-    <pre><code>{"health":{"protonvpn":200,"opnsense":200,"qbit":"skipped"}}</code></pre>
+    <pre><code>{"port_source":"proton","health":{"protonvpn":200,"opnsense":200,"qbit":"skipped"}}</code></pre>
+    <p>the legacy <code>protonvpn</code> key reports the selected port source, identified by <code>port_source</code>.</p>
     <p><strong>status:</strong> <code>200</code> when all enabled services are healthy, <code>503</code> when any enabled service is stale, <code>401</code></p>
   </fieldset>
   <br>
@@ -73,6 +75,7 @@
   <fieldset class="api-endpoint">
     <legend><strong>GET</strong> <code>/api/about</code></legend>
     <p>returns build, schema, ruby, uptime, and non-secret configuration information. configured credentials are masked.</p>
+    <p><code>opn_alias_name</code> reports the effective opnsense alias: a populated <code>OPN_ALIAS_NAME</code> takes precedence, otherwise <code>OPN_PROTON_ALIAS_NAME</code> is used. the legacy <code>opn_proton_alias_name</code> field remains available with its configured value.</p>
     <p><strong>parameters:</strong> none</p>
     <pre><code>curl --fail-with-body \
   -H "Authorization: Bearer $QBOP_API_KEY" \
@@ -107,7 +110,7 @@
 
   <fieldset class="api-endpoint">
     <legend><strong>GET</strong> <code>/api/history</code></legend>
-    <p>returns port transitions in reverse chronological order with opnsense and qbittorrent synchronization status.</p>
+    <p>returns port transitions in reverse chronological order with their <code>source</code> identity and opnsense and qbittorrent synchronization status. existing transitions remain associated with proton.</p>
     <ul>
       <li><code>page</code> — optional positive integer; defaults to <code>1</code>.</li>
       <li><code>per_page</code> — optional <code>25</code>, <code>50</code>, or <code>100</code>; defaults to <code>25</code>.</li>
@@ -118,6 +121,7 @@
     <pre><code>{
   "history": [{
     "id": 42,
+    "source": "proton",
     "previous_port": 51820,
     "new_port": 51821,
     "detected_at": "2026-08-31 12:00:00 +0000",

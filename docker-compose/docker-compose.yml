@@ -15,11 +15,20 @@ services:
       - UI_MODE=
       - LOOP_FREQ=
       - REQUIRED_ATTEMPTS=
+      - PORT_SOURCE=proton
       - PROTON_GATEWAY=
+      # Used only with PORT_SOURCE=gluetun; Gluetun manages its own VPN and lease.
+      - GLUETUN_ADDR=http://gluetun:8000
+      - GLUETUN_API_KEY=
+      - GLUETUN_USER=
+      - GLUETUN_PASS=
+      - GLUETUN_SSL_VERIFY=false
       - OPN_SKIP=
       - OPN_INTERFACE_ADDR=
       - OPN_API_KEY=
       - OPN_API_SECRET=
+      - OPN_ALIAS_NAME=
+      # Backwards-compatible fallback when OPN_ALIAS_NAME is unset or blank.
       - OPN_PROTON_ALIAS_NAME=
       - OPN_SSL_VERIFY=false
       - QBIT_SKIP=

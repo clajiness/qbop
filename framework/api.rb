@@ -1,3 +1,4 @@
+require_relative '../service/port_source'
 require 'base64'
 
 require_relative '../service/opnsense'
@@ -59,17 +60,19 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
-      @proton_stats = stats['proton']
+      port_source = Service::PortSource.name(helpers.env_variables)
+      @port_stats = stats[port_source]
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
 
-      { 'stats' => {
+      { 'port_source' => port_source,
+        'stats' => {
           'protonvpn' => {
-            'current_port': @proton_stats.current_port,
-            'last_changed': @proton_stats.updated_at,
-            'last_checked': @proton_stats.last_checked,
-            'delta': helpers.time_delta(@proton_stats.last_checked, @proton_stats.updated_at),
-            'connected': helpers.connected_to_service?(@proton_stats.last_checked)
+            'current_port': @port_stats.current_port,
+            'last_changed': @port_stats.updated_at,
+            'last_checked': @port_stats.last_checked,
+            'delta': helpers.time_delta(@port_stats.last_checked, @port_stats.updated_at),
+            'connected': helpers.connected_to_service?(@port_stats.last_checked)
           },
           'opnsense' => {
             'current_port': @opn_stats.current_port,
@@ -88,7 +91,7 @@ module Framework
         },
         'records' => {
           'longest_time_on_same_port' => {
-            'proton': @proton_stats.same_port,
+            'proton': @port_stats.same_port,
             'opnsense': @opn_stats.same_port,
             'qbit': @qbit_stats.same_port
           }
@@ -182,6 +185,7 @@ module Framework
       history = pagination.records.map do |transition|
         {
           'id' => transition.id,
+          'source' => transition.source_name,
           'previous_port' => transition.previous_port,
           'new_port' => transition.new_port,
           'detected_at' => transition.detected_at,
@@ -227,11 +231,18 @@ module Framework
           'log_lines': ENV['LOG_LINES'],
           'log_reverse': helpers.true?(ENV['LOG_REVERSE']),
           'log_to_stdout': helpers.true?(ENV['LOG_TO_STDOUT']),
+          'port_source': Service::PortSource.name(config),
+          'gluetun_addr': config[:gluetun_addr],
+          'gluetun_api_key': '***',
+          'gluetun_user': '***',
+          'gluetun_pass': '***',
+          'gluetun_ssl_verify': config[:gluetun_ssl_verify],
           'proton_gateway': config[:proton_gateway],
           'opn_skip': helpers.true?(ENV['OPN_SKIP']),
           'opn_interface_addr': ENV['OPN_INTERFACE_ADDR'],
           'opn_api_key': '***',
           'opn_api_secret': '***',
+          'opn_alias_name': config[:opnsense_alias_name],
           'opn_proton_alias_name': ENV['OPN_PROTON_ALIAS_NAME'],
           'opn_ssl_verify': helpers.true?(ENV['OPN_SSL_VERIFY']),
           'qbit_skip': helpers.true?(ENV['QBIT_SKIP']),
@@ -247,20 +258,21 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
-      @proton_stats = stats['proton']
+      port_source = Service::PortSource.name(helpers.env_variables)
+      @port_stats = stats[port_source]
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
       service_status = ->(source_stats) { helpers.connected_to_service?(source_stats.last_checked) ? 200 : 503 }
 
       health = {
-        'protonvpn' => service_status.call(@proton_stats),
+        'protonvpn' => service_status.call(@port_stats),
         'opnsense' => helpers.true?(ENV['OPN_SKIP']) ? 'skipped' : service_status.call(@opn_stats),
         'qbit' => helpers.true?(ENV['QBIT_SKIP']) ? 'skipped' : service_status.call(@qbit_stats)
       }
 
       status health.value?(503) ? 503 : 200
 
-      { 'health' => health }
+      { 'port_source' => port_source, 'health' => health }
     end
 
     get '/notifications' do

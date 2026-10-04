@@ -29,6 +29,7 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     expect(unique_source_id_index?(db, :counters)).to eq(true)
     expect(db.table_exists?(:port_transitions)).to eq(true)
     expect(db.schema(:port_transitions).to_h).to include(
+      source_name: include(type: :string, allow_null: false, ruby_default: 'proton'),
       detected_at: include(type: :datetime, allow_null: false),
       opnsense_error_at: include(type: :datetime, allow_null: true),
       qbit_error_at: include(type: :datetime, allow_null: true)
@@ -37,6 +38,25 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     expect(db.table_exists?(:account_password_hashes)).to eq(true)
     expect(db.table_exists?(:account_oidc_identities)).to eq(true)
     expect(db.table_exists?(:api_keys)).to eq(true)
+  end
+
+  it 'labels legacy history as Proton and preserves it across migration rollback and reapplication' do
+    db = Sequel.sqlite
+    Sequel.extension :migration
+    Sequel::Migrator.run(db, 'db/migrate', target: 7)
+    attributes = {
+      previous_port: 12_345, new_port: 23_456, detected_at: Time.at(100),
+      opnsense_synced_at: Time.at(200), qbit_error_at: Time.at(300)
+    }
+    id = db[:port_transitions].insert(attributes)
+
+    run_migrations(db)
+
+    expect(db[:port_transitions][id: id]).to include(attributes.merge(source_name: 'proton'))
+    Sequel::Migrator.run(db, 'db/migrate', target: 7)
+    expect(db[:port_transitions][id: id]).to include(attributes)
+    run_migrations(db)
+    expect(db[:port_transitions][id: id][:source_name]).to eq('proton')
   end
 
   it 'adds nullable error timestamps without inferring errors for existing transitions' do
