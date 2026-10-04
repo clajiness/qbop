@@ -3,6 +3,8 @@ Bundler.require(:default)
 
 require_relative '../support/database_helper'
 require_relative '../../service/helpers'
+require_relative '../../service/opnsense'
+require_relative '../../service/qbit'
 require_relative '../../jobs/qbop'
 
 QbopSourceData = Struct.new(:current_port, :attempt_count, :changed, keyword_init: true) do
@@ -24,6 +26,7 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
   let(:job) do
     described_class.allocate.tap do |instance|
       instance.instance_variable_set(:@logger, logger)
+      instance.instance_variable_set(:@port_source, instance_double(Service::Proton, name: 'proton'))
       instance.instance_variable_set(:@config, { required_attempts: 2 })
     end
   end
@@ -44,6 +47,35 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
   def expect_opnsense_state(transition, source, status:, current_port:)
     actual = [transition.refresh.sync_status('opnsense'), source.get_current_port]
     expect(actual).to eq([status, current_port])
+  end
+
+  it 'acquires Proton mappings through the default port source during a complete job iteration' do
+    %w[proton opnsense qbit].each { |name| Source.create(name: name).seed_tables }
+    helpers = Service::Helpers.new
+    config = helpers.env_variables.merge(opnsense_skip: 'true', qbit_skip: 'true')
+    allow(helpers).to receive_messages(env_variables: config, logger_instance: logger)
+    allow(Service::Helpers).to receive(:new).and_return(helpers)
+    status = instance_double(Process::Status, success?: true)
+    %w[udp tcp].each do |protocol|
+      allow(Open3).to receive(:capture3)
+        .with('timeout', [config[:loop_freq] - 5, 5].max.to_s,
+              'natpmpc', '-a', '1', '0', protocol, '60', '-g', config[:proton_gateway])
+        .and_return(["Mapped public port 23456 protocol #{protocol.upcase}", '', status])
+    end
+    allow(job).to receive(:sleep)
+
+    job.send(:initialize_dependencies)
+    job.send(:run_loop_iteration)
+
+    expect(Source[name: 'proton'].get_current_port).to eq(23_456)
+    expect(Source[name: 'proton'].get_last_checked).not_to be_nil
+    expect(PortTransition.first.new_port).to eq(23_456)
+    expect(PortTransition.first.opnsense_skipped).to eq(true)
+    expect(PortTransition.first.qbit_skipped).to eq(true)
+    expect(logger).to have_received(:info).with('Proton returned the new forwarded port 23456')
+    expect(logger).to have_received(:info).with('OPNsense check skipped')
+    expect(logger).to have_received(:info).with('qBit check skipped')
+    expect(job).to have_received(:sleep).with(config[:loop_freq])
   end
 
   it 'rejects invalid forwarded ports' do
@@ -90,16 +122,13 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     source = Source.create(name: 'proton')
     source.seed_tables
     helpers = Service::Helpers.new
-    proton = double(
-      natpmpc: :mapping,
-      forwarded_port: 23_456
-    )
+    port_source = instance_double(Service::Proton, name: 'proton', current_port: 23_456)
     job.instance_variable_set(:@helpers, helpers)
     job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1', opnsense_skip: 'false', qbit_skip: 'false' })
-    job.instance_variable_set(:@proton, proton)
-    job.instance_variable_set(:@proton_data, source)
+    job.instance_variable_set(:@port_source, port_source)
+    job.instance_variable_set(:@port_data, source)
 
-    2.times { job.send(:handle_proton) }
+    2.times { job.send(:handle_port_forwarding) }
 
     expect(PortTransition.count).to eq(1)
     expect(PortTransition.first.previous_port).to be_nil
@@ -109,34 +138,48 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
   it 'does not update Proton state when either NAT-PMP mapping is invalid' do
     source = Source.create(name: 'proton').tap(&:seed_tables)
     source.set_current_port(12_345)
-    proton = double(natpmpc: :invalid_mapping)
-    allow(proton).to receive(:forwarded_port)
+    port_source = instance_double(Service::Proton, name: 'proton')
+    allow(port_source).to receive(:current_port)
       .and_raise(Service::Proton::MappingError, 'TCP NAT-PMP command failed')
     job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1' })
-    job.instance_variable_set(:@proton, proton)
-    job.instance_variable_set(:@proton_data, source)
+    job.instance_variable_set(:@port_source, port_source)
+    job.instance_variable_set(:@port_data, source)
 
-    expect(job.send(:handle_proton)).to be_nil
+    expect(job.send(:handle_port_forwarding)).to be_nil
     expect(source.get_current_port).to eq(12_345)
     expect(source.get_last_checked).to be_nil
     expect(PortTransition.count).to eq(0)
+    expect(logger).to have_received(:error).with('Proton has returned an error:')
     expect(logger).to have_received(:error).with(instance_of(Service::Proton::MappingError))
+  end
+
+  it 'preserves missing-port logging and state when the source returns nil' do
+    source = Source.create(name: 'proton').tap(&:seed_tables)
+    source.set_current_port(12_345)
+    job.instance_variable_set(:@port_source, instance_double(Service::Proton, name: 'proton', current_port: nil))
+    job.instance_variable_set(:@port_data, source)
+
+    expect(job.send(:handle_port_forwarding)).to be_nil
+    expect(source.get_current_port).to eq(12_345)
+    expect(source.get_last_checked).to be_nil
+    expect(PortTransition.count).to eq(0)
+    expect(logger).to have_received(:error).with("Proton didn't return a forwarded port.")
   end
 
   it 'publishes each committed stage of a Proton to downstream synchronization' do
     %w[proton opnsense qbit].each do |name|
       source = Source.create(name: name)
       source.seed_tables
-      job.instance_variable_set(:"@#{name}_data", source)
+      job.instance_variable_set(name == 'proton' ? :@port_data : :"@#{name}_data", source)
     end
     job.instance_variable_set(:@helpers, Service::Helpers.new)
-    job.instance_variable_set(:@proton, double(natpmpc: :mapping, forwarded_port: 23_456))
+    job.instance_variable_set(:@port_source, instance_double(Service::Proton, name: 'proton', current_port: 23_456))
     opnsense = double(set_alias_value: nil, apply_changes: double(status: 200))
     job.instance_variable_set(:@opnsense, opnsense)
     job.instance_variable_set(:@qbit, double(qbt_app_set_preferences: double(status: 200)))
     subscriber = Framework::Events.subscribe
 
-    job.send(:handle_proton)
+    job.send(:handle_port_forwarding)
     expect(subscriber.take(timeout: 0)).to contain_exactly(:status_changed, :history_changed)
     expect(PortTransition.first.sync_status('opnsense')).to eq('pending')
     expect(PortTransition.first.sync_status('qbit')).to eq('pending')
@@ -179,26 +222,26 @@ RSpec.describe Qbop do # rubocop:disable Metrics/BlockLength
     source.seed_tables
     source.set_current_port(12_345)
     helpers = Service::Helpers.new
-    proton = double(natpmpc: :mapping)
-    allow(proton).to receive(:forwarded_port).and_return(12_345, 23_456, 23_456)
+    port_source = instance_double(Service::Proton, name: 'proton')
+    allow(port_source).to receive(:current_port).and_return(12_345, 23_456, 23_456)
     job.instance_variable_set(:@helpers, helpers)
     job.instance_variable_set(:@config, { proton_gateway: '10.2.0.1', opnsense_skip: 'false', qbit_skip: 'false' })
-    job.instance_variable_set(:@proton, proton)
-    job.instance_variable_set(:@proton_data, source)
+    job.instance_variable_set(:@port_source, port_source)
+    job.instance_variable_set(:@port_data, source)
 
-    job.send(:handle_proton)
+    job.send(:handle_port_forwarding)
 
     expect(PortTransition.count).to eq(0)
     expect(source.get_current_port).to eq(12_345)
 
-    job.send(:handle_proton)
+    job.send(:handle_port_forwarding)
 
     expect(PortTransition.count).to eq(1)
     expect(PortTransition.first.previous_port).to eq(12_345)
     expect(PortTransition.first.new_port).to eq(23_456)
     expect(source.get_current_port).to eq(23_456)
 
-    job.send(:handle_proton)
+    job.send(:handle_port_forwarding)
 
     expect(PortTransition.count).to eq(1)
     expect(source.get_current_port).to eq(23_456)

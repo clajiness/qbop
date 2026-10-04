@@ -1,9 +1,9 @@
-<h4><em>protonvpn</em> <%= @proton_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
+<h4><em><%= @port_source_name == 'proton' ? 'protonvpn' : @port_source_name %></em> <%= @port_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
-  current port: <%= @proton_stats.current_port %><br>
-  last changed: <%= @proton_stats.updated_at || 'unknown' %><br>
-  last checked: <%= @proton_stats.last_checked || 'unknown' %><br>
-  &#916;: <%= @proton_delta %>
+  current port: <%= @port_stats.current_port %><br>
+  last changed: <%= @port_stats.updated_at || 'unknown' %><br>
+  last checked: <%= @port_stats.last_checked || 'unknown' %><br>
+  &#916;: <%= @port_delta %>
 </blockquote>
 
 <h4><em>opnsense</em> <%= @opn_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
@@ -12,7 +12,7 @@
   skipped per the OPN_SKIP env variable
   <% else %>
   current port: <%= @opn_stats.current_port %><br>
-  <% if @transition %>sync: <%= @transition.sync_status('opnsense') %><br><% end %>
+  <% if @opn_sync_status %>sync: <%= @opn_sync_status %><br><% end %>
   last changed: <%= @opn_stats.updated_at || 'unknown' %><br>
   last checked: <%= @opn_stats.last_checked || 'unknown' %><br>
   &#916;: <%= @opn_delta %>
@@ -35,7 +35,7 @@
 
 <h4><em>longest time on same port</em></h4>
 <blockquote>
-  proton: <%= @proton_longest_time_on_same_port %><br>
+  <%= @port_source_name %>: <%= @port_longest_time_on_same_port %><br>
   opnsense: <%= @opn_longest_time_on_same_port %><br>
   qbittorrent: <%= @qbit_longest_time_on_same_port %>
 </blockquote>

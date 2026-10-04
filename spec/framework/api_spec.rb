@@ -33,7 +33,8 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   around do |example|
-    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE LOOP_FREQ PROTON_GATEWAY]
+    env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE LOOP_FREQ PROTON_GATEWAY PORT_SOURCE GLUETUN_API_KEY
+                  GLUETUN_ADDR GLUETUN_USER GLUETUN_PASS OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
     original_env = env_keys.to_h { |key| [key, ENV[key]] }
 
     env_keys.each { |key| ENV.delete(key) }
@@ -101,6 +102,105 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(response.status).to eq(200)
     expect(body.dig('stats', 'protonvpn', 'current_port')).to eq(12_345)
     expect(body.dig('records', 'longest_time_on_same_port', 'qbit')).to eq(60)
+  end
+
+  it 'reports the selected source through compatible stats and health fields' do
+    ENV['PORT_SOURCE'] = 'gluetun'
+    source = Source.create(name: 'gluetun')
+    Stat.create(source_id: source.id, current_port: 51_820, same_port: 120, last_checked: Time.now)
+
+    stats = response_json(api_get('/api/stats'))
+    expect(stats['port_source']).to eq('gluetun')
+    expect(stats.dig('stats', 'protonvpn', 'current_port')).to eq(51_820)
+    expect(stats.dig('records', 'longest_time_on_same_port', 'proton')).to eq(120)
+    expect(response_json(api_get('/api/health'))).to include(
+      'port_source' => 'gluetun', 'health' => include('protonvpn' => 200)
+    )
+
+    source.stat.update(last_checked: Time.now - 10_000)
+    response = api_get('/api/health')
+    expect(response.status).to eq(503)
+    expect(response_json(response).dig('health', 'protonvpn')).to eq(503)
+  end
+
+  it 'includes the source identity in history without changing existing fields' do
+    PortTransition.record_transition(
+      previous_port: 12_345, new_port: 51_820, source_name: 'gluetun',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+
+    expect(response_json(api_get('/api/history'))['history'].first).to include(
+      'source' => 'gluetun', 'previous_port' => 12_345, 'new_port' => 51_820
+    )
+  end
+
+  it 'keeps API history historical while stats report the live port during a pending target apply' do
+    ENV['PORT_SOURCE'] = 'gluetun'
+    Source.create(name: 'gluetun').tap(&:seed_tables).set_current_port(23_456)
+    old_history = PortTransition.record_transition(
+      previous_port: 12_345, new_port: 23_456, source_name: 'gluetun',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.mark_synced('opnsense', 23_456, source_name: 'gluetun')
+    pending = PortTransition.record_transition(
+      previous_port: 34_567, new_port: 23_456, source_name: 'proton',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.mark_error('opnsense', 23_456, source_name: 'proton')
+    target = Source[name: 'opnsense'].tap(&:seed_tables)
+    target.set_current_port(34_567)
+    target.set_pending_apply(23_456, [pending.id])
+
+    histories = response_json(api_get('/api/history'))['history'].to_h { |row| [row['id'], row] }
+    expect(histories[old_history.id].dig('opnsense', 'status')).to eq('synced')
+    expect(histories[pending.id].dig('opnsense', 'status')).to eq('error')
+    expect(response_json(api_get('/api/stats')).dig('stats', 'opnsense', 'current_port')).to eq(34_567)
+    expect(Source[name: 'opnsense'].pending_apply_port).to eq(23_456)
+  end
+
+  it 'masks Gluetun credentials in configuration responses' do
+    ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass',
+               'GLUETUN_ADDR' => 'http://secret-user:secret-pass@gluetun:8000/control')
+    response = api_get('/api/about')
+
+    expect(response_json(response)['env_variables']).to include(
+      'port_source' => 'proton', 'gluetun_api_key' => '***', 'gluetun_user' => '***', 'gluetun_pass' => '***',
+      'gluetun_addr' => 'http://***@gluetun:8000/control'
+    )
+    expect(response.body).not_to include(ENV['GLUETUN_ADDR'], 'secret-key', 'secret-user', 'secret-pass')
+  end
+
+  [
+    'http://secret-user:secret-pass word@gluetun:8000/control',
+    'http:/secret-user:secret-pass@gluetun:8000/control',
+    'http:///secret-user:secret-pass@/control',
+    'ftp://secret-user:secret-pass@gluetun:8000/control',
+    'secret-user:secret-pass@gluetun:8000/control',
+    'http://secret-user:secret-pass@gluetun:0/control',
+    'http://secret-user:secret-pass@gluetun:65536/control',
+    'http://secret-user:secret-pass@gluetun:999999/control',
+    'http://secret-user:secret-pass@gluetun:8000/control?api_key=query-secret',
+    'http://secret-user:secret-pass@gluetun:8000/control#fragment-secret',
+    'http://gluetun:8000/control?',
+    'http://gluetun:8000/control#'
+  ].each do |address|
+    it "hides rejected Gluetun addresses in configuration responses: #{address}" do
+      ENV['GLUETUN_ADDR'] = address
+      response = api_get('/api/about')
+
+      expect(response.status).to eq(200)
+      expect(response_json(response)['env_variables']['gluetun_addr']).to eq('[invalid URL]')
+      expect(response.body).not_to include(address, 'secret-user', 'secret-pass', 'query-secret', 'fragment-secret')
+    end
+  end
+
+  %w[http://gluetun:8000 http://gluetun https://gluetun https://gluetun:8000/control/
+     http://gluetun:1/control/ https://gluetun:65535/control/].each do |address|
+    it "preserves supported Gluetun addresses in configuration responses: #{address}" do
+      ENV['GLUETUN_ADDR'] = address
+
+      expect(response_json(api_get('/api/about'))['env_variables']['gluetun_addr']).to eq(address)
+    end
   end
 
   it 'returns healthy status when all services checked in recently' do
@@ -463,5 +563,17 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     expect(body['env_variables'].keys).not_to include(
       'basic_auth_enabled', 'basic_auth_user', 'basic_auth_pass'
     )
+  end
+
+  [nil, 'preferred_alias', '  '].each do |preferred|
+    it "presents the effective alias and retains the legacy API field with preferred #{preferred.inspect}" do
+      ENV['OPN_ALIAS_NAME'] = preferred
+      ENV['OPN_PROTON_ALIAS_NAME'] = 'legacy_alias'
+      expected = preferred == 'preferred_alias' ? preferred : 'legacy_alias'
+
+      expect(response_json(api_get('/api/about'))['env_variables']).to include(
+        'opn_alias_name' => expected, 'opn_proton_alias_name' => 'legacy_alias'
+      )
+    end
   end
 end

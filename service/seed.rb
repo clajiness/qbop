@@ -1,3 +1,6 @@
+require_relative 'helpers'
+require_relative 'port_source'
+
 module Service
   class Seed # rubocop:disable Style/Documentation
     def initialize
@@ -7,8 +10,8 @@ module Service
     private
 
     def seed
-      proton_data = Source.find_or_create(name: 'proton')
-      proton_data.seed_tables
+      port_data = Source.find_or_create(name: PortSource.name(Helpers.new.env_variables))
+      port_data.seed_tables
 
       opnsense_data = Source.find_or_create(name: 'opnsense')
       opnsense_data.seed_tables

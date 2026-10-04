@@ -2,15 +2,15 @@
 
 # qbop
 
-A tool for maintaining a ProtonVPN forwarded port, with optional integration for OPNsense and qBittorrent. qbop provides a web UI and API at `http://<host_ip>:4567/`.
+A tool for synchronizing a forwarded port from ProtonVPN/NAT-PMP or Gluetun, with optional integration for OPNsense and qBittorrent. qbop provides a web UI and API at `http://<host_ip>:4567/`.
 
-qbop is built with Ruby and available as a Docker image. **The container must be routed through ProtonVPN** (via a VPN container or network namespace) for port forwarding to work.
+qbop is built with Ruby and available as a Docker image. **Proton mode remains the default and requires the container to be routed through ProtonVPN** (via a VPN container or network namespace). In Gluetun mode, qbop observes the control API; Gluetun owns the VPN connection and forwarded-port lease.
 
 Upgrading an existing installation? Read [Upgrading from qbop 2.x to 3.0](#upgrading-from-qbop-2x-to-30) before replacing the image; browser and API authentication have changed.
 
 ## What qbop does
 
-- Maintains an active ProtonVPN forwarded port
+- Maintains an active ProtonVPN forwarded port or observes Gluetun's current assignment
 - Automatically updates OPNsense firewall aliases
 - Keeps qBittorrent in sync with the active port
 - Imports new ProtonVPN WireGuard configuration values into an existing OPNsense instance and peer
@@ -35,7 +35,7 @@ Upgrading an existing installation? Read [Upgrading from qbop 2.x to 3.0](#upgra
 
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
 * [Docker Engine](https://docs.docker.com/engine/install/)
-* [ProtonVPN](https://protonvpn.com/support/port-forwarding)
+* [ProtonVPN](https://protonvpn.com/support/port-forwarding) for the default NAT-PMP source, or an existing [Gluetun](https://github.com/qdm12/gluetun) deployment with port forwarding enabled
 * Optional: [OPNsense](https://docs.opnsense.org/). Set `OPN_SKIP=true` to run without this integration.
     * [Selective routing](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html)
     * [API](https://docs.opnsense.org/development/how-tos/api.html)
@@ -50,7 +50,7 @@ Upgrading an existing installation? Read [Upgrading from qbop 2.x to 3.0](#upgra
    cd qbop/docker-compose
    ```
 
-2. Edit `docker-compose.yml` using the [configuration reference](#env-variables). Set the credentials and addresses for the integrations you use, or set `OPN_SKIP=true` and/or `QBIT_SKIP=true` to skip them. Configure your VPN container or network namespace so qbop's traffic goes through ProtonVPN; the sample Compose file does not set up VPN routing.
+2. Edit `docker-compose.yml` using the [configuration reference](#env-variables). Set the credentials and addresses for the integrations you use, or set `OPN_SKIP=true` and/or `QBIT_SKIP=true` to skip them. For the default Proton source, configure your VPN container or network namespace so qbop's traffic goes through ProtonVPN; the sample Compose file does not set up VPN routing. Alternatively, select `PORT_SOURCE=gluetun` and configure access to Gluetun's control API.
 3. Start qbop:
 
    ```bash
@@ -87,7 +87,7 @@ Set environment variables in your Compose configuration. OPNsense and qBittorren
 
 ### ENV Variables
 
-A blank default means no default value is provided. Integration credentials are required unless that integration is skipped; OIDC requirements apply only when OIDC and browser authentication are enabled.
+A blank default means no default value is provided. OPNsense and qBittorrent credentials are required unless those integrations are skipped. Gluetun authentication depends on the control-server role; API key, HTTP Basic, and explicitly permitted unauthenticated access are supported. OIDC requirements apply only when OIDC and browser authentication are enabled.
 
 #### Core application settings
 
@@ -95,13 +95,26 @@ A blank default means no default value is provided. Integration credentials are 
 | :--- | :--- | :--- |
 | `UI_MODE` | `dark` | Web UI mode: `dark` or `light`. |
 | `LOOP_FREQ` | `45` | Seconds between job loops. Must be a positive integer; the default is recommended by ProtonVPN. |
-| `REQUIRED_ATTEMPTS` | `3` | Number of loops in which a downstream port differs from Proton's forwarded port before updating that integration. Range: 1–10. |
+| `REQUIRED_ATTEMPTS` | `3` | Number of loops in which a downstream port differs from the selected source's forwarded port before updating that integration. Range: 1–10; shared by both sources. |
+| `PORT_SOURCE` | `proton` | Forwarded-port source: `proton` or `gluetun`. Unset selects Proton; blank or unsupported values fail startup. |
 
 #### ProtonVPN settings
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `PROTON_GATEWAY` | `10.2.0.1` | ProtonVPN provided gateway IP address. Do not use `http(s)://` or a trailing slash. |
+
+#### Gluetun settings
+
+These settings apply only when `PORT_SOURCE=gluetun`.
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `GLUETUN_ADDR` | `http://gluetun:8000` | Gluetun control server base URL, including `http(s)://`. An optional reverse proxy path prefix is preserved. Query strings and fragments are rejected. Must be reachable from qbop. Use the dedicated authentication variables; URL userinfo is ignored and masked in configuration displays. |
+| `GLUETUN_API_KEY` | | Control API key sent as `X-API-Key`. Takes precedence over Basic credentials. |
+| `GLUETUN_USER` | | HTTP Basic username; requires `GLUETUN_PASS` when no API key is configured. |
+| `GLUETUN_PASS` | | HTTP Basic password; requires `GLUETUN_USER` when no API key is configured. If neither authentication method is configured, requests are unauthenticated. |
+| `GLUETUN_SSL_VERIFY` | `false` | [`true`/`false`] Verify certificates for the Gluetun client only. |
 
 #### OPNsense settings
 
@@ -111,8 +124,11 @@ A blank default means no default value is provided. Integration credentials are 
 | `OPN_INTERFACE_ADDR` | | OPNsense Interface Address. Requires `http(s)://` and no trailing slash. |
 | `OPN_API_KEY` | | OPNsense API Key |
 | `OPN_API_SECRET` | | OPNsense API Secret |
-| `OPN_PROTON_ALIAS_NAME` | | The firewall alias that you use for ProtonVPN's forwarded port. For example, `proton_vpn_forwarded_port`. |
+| `OPN_ALIAS_NAME` | | Preferred firewall alias used for the selected source's forwarded port. A populated value takes precedence over `OPN_PROTON_ALIAS_NAME`. For example, `vpn_forwarded_port`. |
+| `OPN_PROTON_ALIAS_NAME` | | Supported backwards-compatible fallback when `OPN_ALIAS_NAME` is unset, empty, or whitespace-only. Existing configurations continue working. |
 | `OPN_SSL_VERIFY` | `false` | [`true`/`false`] Verify OPNsense TLS certificates. Defaults to `false` for self-signed/private deployments. |
+
+The About page displays the effective alias under `OPN_ALIAS_NAME`, and `/api/about` returns it as `opn_alias_name`. The existing `opn_proton_alias_name` API field continues showing the configured legacy value.
 
 #### qBittorrent settings
 
@@ -152,13 +168,37 @@ A blank default means no default value is provided. Integration credentials are 
 
 Route qbop through ProtonVPN so it can reach `PROTON_GATEWAY` and request a forwarded port. Generate ProtonVPN WireGuard configurations with NAT-PMP (Port Forwarding) enabled and Moderate NAT disabled.
 
-For OPNsense, follow its [WireGuard selective-routing guide](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html) and [API setup guide](https://docs.opnsense.org/development/how-tos/api.html). Set the OPNsense address and API credentials, and set `OPN_PROTON_ALIAS_NAME` to the firewall alias used for ProtonVPN's forwarded port. qbop updates that alias as the forwarded port changes.
+For OPNsense, follow its [WireGuard selective-routing guide](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html) and [API setup guide](https://docs.opnsense.org/development/how-tos/api.html). Set the OPNsense address and API credentials, and set `OPN_ALIAS_NAME` to the firewall alias used for the forwarded port. Existing `OPN_PROTON_ALIAS_NAME` configurations remain supported as a fallback. qbop updates that alias as the forwarded port changes.
 
 To rotate an existing tunnel using a new ProtonVPN configuration, see the [WireGuard importer](#protonvpn-wireguard-importer).
 
+### Gluetun
+
+With qBittorrent enabled, qbop reads Gluetun's current forwarded port and keeps qBittorrent's listening port synchronized with it.
+
+Use an existing Gluetun deployment with VPN port forwarding enabled and exactly one forwarded port. Set qbop's `PORT_SOURCE=gluetun` and `GLUETUN_ADDR` to the reachable control server URL. For example:
+
+```yaml
+environment:
+  - PORT_SOURCE=gluetun
+  - GLUETUN_ADDR=http://gluetun:8000
+  - GLUETUN_API_KEY=your-control-api-key
+  - GLUETUN_SSL_VERIFY=false
+```
+
+Configure Gluetun's authentication role to allow `GET /v1/portforward`, following its [control server documentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md#authentication). A populated `GLUETUN_API_KEY` takes precedence and is sent as `X-API-Key`, regardless of Basic settings. Without an API key, HTTP Basic requires both `GLUETUN_USER` and `GLUETUN_PASS`; supplying only one is invalid configuration and prevents startup. Unset, empty, and whitespace-only values count as absent. If neither authentication method is configured, requests are unauthenticated; Gluetun must explicitly permit unauthenticated access for that to work.
+
+`GLUETUN_ADDR` accepts a path prefix such as `https://vpn.example/control/`, but no query string or fragment; query-based authentication is unsupported. Explicit endpoint ports must be within `1..65535`; omitted ports use the HTTP/HTTPS defaults. Active API-key or Basic credentials must be valid strings without control characters, including newlines. Invalid configuration fails initialization with a secret-free error. Configuration displays show `[invalid URL]` for malformed URLs, invalid endpoint ports, or URLs containing a query string or fragment.
+
+qbop does not perform NAT-PMP in this mode and does not manage Gluetun's VPN. It only needs network access to the control API and enabled qBittorrent/OPNsense integrations. No Gluetun volume mounts, Docker socket, or shell hooks are required. The torrent client's VPN routing remains your deployment's responsibility.
+
+The supported response is a JSON object containing an integer `port` in `1..65535`, for example `{"port":51820}`. A supplementary `ports` array must contain exactly that one integer. Multiple ports, missing values, strings, `0`, and malformed responses are rejected. API or transport failures leave the last valid source and downstream state intact, skip downstream checks for that loop, and retry on the next scheduled loop. The same configured confirmation attempts apply to both sources; Gluetun continues owning negotiation and lease maintenance.
+
+To synchronize OPNsense in this mode, set `OPN_ALIAS_NAME` for the target firewall alias. `OPN_PROTON_ALIAS_NAME` remains supported when the preferred variable is unset or blank.
+
 ### qBittorrent
 
-Set the connection and authentication variables listed under [qBittorrent settings](#qbittorrent-settings). qbop updates qBittorrent's listening port to match ProtonVPN's forwarded port.
+Set the connection and authentication variables listed under [qBittorrent settings](#qbittorrent-settings). qbop updates qBittorrent's listening port to match the selected source's forwarded port.
 
 ## Authentication
 
@@ -311,6 +351,8 @@ qbop exposes a JSON API for status, history, logs, and tools. Open `/api-docs` t
 
 The log and history endpoints share the web UI's [query parameters](#query-parameters). Monitoring checks of `/api/health` also require Bearer authentication; skipped integrations are excluded from health failures.
 
+`/api/stats` and `/api/health` include a `port_source` field identifying `proton` or `gluetun`. For compatibility, the existing `protonvpn` status key and `records.longest_time_on_same_port.proton` key continue representing the selected port source. History entries include a `source` identity. Proton-specific WireGuard tools retain their existing names and behavior.
+
 ## Upgrading from qbop 2.x to 3.0
 
 qbop 3.0 changes both browser and API authentication. Review these breaking changes before upgrading:
@@ -333,9 +375,11 @@ Recommended upgrade sequence:
 
 ## Operational details and troubleshooting
 
+Migration 008 adds port-source attribution to transition history; migration 009 adds persisted OPNsense pending-apply metadata. Downgrading across these migrations removes that metadata, and re-upgrading cannot reconstruct all of it accurately. If a downgrade is required, restore a pre-upgrade database backup as the safe rollback path.
+
 ### History and synchronization status
 
-History records Proton port assignments and retains the 500 most recent transitions. Fresh installations include the initial assignment; upgraded installations begin with the next port change. Existing logs are not backfilled, and the oldest record is removed when a 501st transition is added.
+History records forwarded-port assignments with their source identity and retains the 500 most recent transitions across sources. Existing history is labeled `proton` during migration; existing Proton source records and state are preserved. Gluetun uses a separate `gluetun` source record. Fresh installations include the initial assignment; upgraded installations begin with the next port change. Existing logs are not backfilled, and the oldest record is removed when a 501st transition is added.
 
 Stats and history show downstream synchronization status for OPNsense and qBittorrent:
 
@@ -345,6 +389,8 @@ Stats and history show downstream synchronization status for OPNsense and qBitto
 | `synced` | The integration is synchronized with the forwarded port. |
 | `error` | The most recent synchronization write failed; check the logs for the detailed reason. |
 | `skipped` | The integration was skipped. |
+
+The status panel shows OPNsense as `pending` whenever persisted apply work remains, including during port-source outages. History continues to show each transition's recorded result.
 
 ### Live web updates
 

@@ -25,7 +25,11 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     end)
   end
 
-  around do |example|
+  around do |example| # rubocop:disable Metrics/BlockLength
+    source_env_keys = %w[PORT_SOURCE GLUETUN_ADDR GLUETUN_API_KEY GLUETUN_USER GLUETUN_PASS
+                         OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME QBIT_SKIP]
+    source_env = source_env_keys.to_h { |key| [key, ENV[key]] }
+    source_env_keys.each { |key| ENV.delete(key) }
     version = ENV['VERSION']
     commit_sha = ENV['COMMIT_SHA']
     build_date = ENV['BUILD_DATE']
@@ -42,6 +46,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     ENV['WEB_AUTH_ENABLED'] = 'false'
     example.run
   ensure
+    source_env_keys.each { |key| source_env[key].nil? ? ENV.delete(key) : ENV[key] = source_env[key] }
     version.nil? ? ENV.delete('VERSION') : ENV['VERSION'] = version
     commit_sha.nil? ? ENV.delete('COMMIT_SHA') : ENV['COMMIT_SHA'] = commit_sha
     build_date.nil? ? ENV.delete('BUILD_DATE') : ENV['BUILD_DATE'] = build_date
@@ -65,6 +70,149 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(response.status).to eq(200)
     expect(response.body).to include('protonvpn')
     expect(response.body).to include('unknown')
+  end
+
+  it 'renders Gluetun status from its own state and synchronization history' do
+    ENV['PORT_SOURCE'] = 'gluetun'
+    source = Source.create(name: 'gluetun')
+    Stat.create(source_id: source.id, current_port: 51_820, same_port: 60, last_checked: Time.now)
+    PortTransition.record_transition(
+      previous_port: 12_345, new_port: 51_820, source_name: 'gluetun',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.record_transition(
+      previous_port: 12_345, new_port: 51_820, opnsense_skipped: true, qbit_skipped: true
+    )
+
+    response = web_request.get('/')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('<em>gluetun</em>', 'current port: 51820', 'sync: pending')
+    expect(response.body).not_to include('<em>protonvpn</em>', 'sync: skipped')
+    expect(web_request.get('/history').body).to include('<th>source</th>', '<td>gluetun</td>', '<td>proton</td>')
+  end
+
+  [%w[proton gluetun], %w[gluetun proton]].each do |selected, other| # rubocop:disable Metrics/BlockLength
+    it "shows pending target work over old synced #{selected} history across outages and completion" do # rubocop:disable Metrics/BlockLength
+      ENV['PORT_SOURCE'] = selected
+      Source.find_or_create(name: 'gluetun').tap(&:seed_tables)
+      source = Source[name: selected]
+      source.set_current_port(23_456)
+      old_history = PortTransition.record_transition(
+        previous_port: 12_345, new_port: 23_456, source_name: selected,
+        opnsense_skipped: false, qbit_skipped: false
+      )
+      PortTransition.mark_synced('opnsense', 23_456, source_name: selected)
+      PortTransition.mark_synced('qbit', 23_456, source_name: selected)
+      old_values = old_history.refresh.values.dup
+      pending_history = PortTransition.record_transition(
+        previous_port: 34_567, new_port: 23_456, source_name: other,
+        opnsense_skipped: false, qbit_skipped: false
+      )
+      PortTransition.mark_error('opnsense', 23_456, source_name: other)
+      target = Source[name: 'opnsense'].tap(&:seed_tables)
+      target.set_current_port(34_567)
+      target.set_pending_apply(23_456, [pending_history.id])
+
+      response = web_request.get('/partials/status')
+      expect(response.status).to eq(200)
+      expect(response.body.split('<em>opnsense</em>').last.split('<em>qbittorrent</em>').first)
+        .to include('current port: 34567', 'sync: pending')
+      expect(response.body.split('<em>qbittorrent</em>').last).to include('sync: synced')
+      expect(old_history.refresh.values).to eq(old_values)
+
+      # Acquisition outages leave the last assignment and pending target intact.
+      source.stat.update(last_checked: Time.now - 10_000)
+      expect(web_request.get('/partials/status').body).to include('sync: pending')
+      expect(Source[name: 'opnsense'].pending_apply_port).to eq(23_456)
+
+      PortTransition.mark_opnsense_applied(23_456, transition_ids: target.pending_apply_transition_ids)
+      target.set_current_port(23_456)
+      target.clear_pending_apply
+      response = web_request.get('/partials/status')
+      expect(response.body).to include('sync: synced')
+      expect(response.body).not_to include('sync: pending')
+      expect(old_history.refresh.values).to eq(old_values)
+    end
+  end
+
+  it 'shows pending apply work even when the selected source has no transition history' do
+    target = Source[name: 'opnsense'].tap(&:seed_tables)
+    target.set_pending_apply(23_456, [])
+
+    expect(web_request.get('/partials/status').body).to include('sync: pending')
+  end
+
+  it 'stops showing pending after clearing a marker for a replaced port' do
+    history = PortTransition.record_transition(
+      previous_port: 23_456, new_port: 12_345, opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.mark_synced('opnsense', 12_345)
+    target = Source[name: 'opnsense'].tap(&:seed_tables)
+    target.set_pending_apply(23_456, [history.id])
+    expect(web_request.get('/partials/status').body).to include('sync: pending')
+
+    target.clear_pending_apply
+
+    response = web_request.get('/partials/status')
+    expect(response.body).to include('sync: synced')
+    expect(response.body.split('<em>opnsense</em>').last.split('<em>qbittorrent</em>').first)
+      .not_to include('sync: pending')
+  end
+
+  it 'masks Gluetun credentials on the about page' do
+    ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass',
+               'GLUETUN_ADDR' => 'http://secret-user:secret-pass@gluetun:8000/control')
+    response = web_request.get('/about')
+
+    expect(response.body).to include('PORT_SOURCE: proton', 'GLUETUN_API_KEY: ***', 'GLUETUN_SSL_VERIFY: false',
+                                     'GLUETUN_ADDR: http://***@gluetun:8000/control')
+    expect(response.body).not_to include(ENV['GLUETUN_ADDR'], 'secret-key', 'secret-user', 'secret-pass')
+  end
+
+  [
+    'http://secret-user:secret-pass word@gluetun:8000/control',
+    'http:/secret-user:secret-pass@gluetun:8000/control',
+    'http:///secret-user:secret-pass@/control',
+    'ftp://secret-user:secret-pass@gluetun:8000/control',
+    'secret-user:secret-pass@gluetun:8000/control',
+    'http://secret-user:secret-pass@gluetun:0/control',
+    'http://secret-user:secret-pass@gluetun:65536/control',
+    'http://secret-user:secret-pass@gluetun:999999/control',
+    'http://secret-user:secret-pass@gluetun:8000/control?api_key=query-secret',
+    'http://secret-user:secret-pass@gluetun:8000/control#fragment-secret',
+    'http://gluetun:8000/control?',
+    'http://gluetun:8000/control#'
+  ].each do |address|
+    it "hides rejected Gluetun addresses on the about page: #{address}" do
+      ENV['GLUETUN_ADDR'] = address
+      response = web_request.get('/about')
+
+      expect(response.status).to eq(200)
+      expect(response.body).to include('GLUETUN_ADDR: [invalid URL]')
+      expect(response.body).not_to include(address, 'secret-user', 'secret-pass', 'query-secret', 'fragment-secret')
+    end
+  end
+
+  %w[http://gluetun:8000 http://gluetun https://gluetun https://gluetun:8000/control/
+     http://gluetun:1/control/ https://gluetun:65535/control/].each do |address|
+    it "preserves supported Gluetun addresses on the about page: #{address}" do
+      ENV['GLUETUN_ADDR'] = address
+
+      expect(web_request.get('/about').body).to include("GLUETUN_ADDR: #{address}")
+    end
+  end
+
+  ['preferred_alias', '  '].each do |preferred|
+    it "displays the effective alias with preferred #{preferred.inspect} while retaining legacy configuration" do
+      ENV['OPN_ALIAS_NAME'] = preferred
+      ENV['OPN_PROTON_ALIAS_NAME'] = 'legacy_alias'
+      expected = preferred == 'preferred_alias' ? preferred : 'legacy_alias'
+
+      expect(web_request.get('/about').body).to include(
+        "OPN_ALIAS_NAME: #{expected}", 'OPN_PROTON_ALIAS_NAME: legacy_alias'
+      )
+    end
   end
 
   it 'ignores legacy refresh parameters and enables live status updates' do

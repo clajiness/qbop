@@ -67,6 +67,8 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
       foreign_key :source_id, :sources, null: false
       Integer :attempt, default: 0, null: false
       Boolean :change, default: false, null: false
+      Integer :pending_apply_port
+      String :pending_apply_transition_ids, text: true
 
       index :source_id, unique: true
     end
@@ -80,6 +82,7 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
 
     DB.create_table(:port_transitions) do
       primary_key :id
+      String :source_name, null: false, default: 'proton'
       Integer :previous_port
       Integer :new_port, null: false
       DateTime :detected_at, null: false

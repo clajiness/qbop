@@ -67,11 +67,18 @@
   LOG_LINES: <%= @log_lines %><br>
   LOG_REVERSE: <%= @log_reverse %><br>
   LOG_TO_STDOUT: <%= @log_to_stdout %><br>
+  PORT_SOURCE: <%= @port_source_name %><br>
+  GLUETUN_ADDR: <%= Rack::Utils.escape_html(@gluetun_addr) %><br>
+  GLUETUN_API_KEY: ***<br>
+  GLUETUN_USER: ***<br>
+  GLUETUN_PASS: ***<br>
+  GLUETUN_SSL_VERIFY: <%= @gluetun_ssl_verify %><br>
   PROTON_GATEWAY: <%= @proton_gateway %><br>
   OPN_SKIP: <%= @opn_skip %><br>
   OPN_INTERFACE_ADDR: <%= @opn_interface_addr %><br>
   OPN_API_KEY: <%= @opn_api_key %><br>
   OPN_API_SECRET: <%= @opn_api_secret %><br>
+  OPN_ALIAS_NAME: <%= Rack::Utils.escape_html(@opn_alias_name) %><br>
   OPN_PROTON_ALIAS_NAME: <%= @opn_proton_alias_name %><br>
   OPN_SSL_VERIFY: <%= @opn_ssl_verify %><br>
   QBIT_SKIP: <%= @qbit_skip %><br>

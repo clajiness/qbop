@@ -1,5 +1,6 @@
 require 'time'
 require_relative 'event_logger'
+require_relative 'gluetun_url'
 
 module Service
   # The Helpers class provides utility methods for accessing environment variables
@@ -15,12 +16,18 @@ module Service
         commit_sha: commit_sha,
         loop_freq: loop_frequency,
         required_attempts: validate_required_attempts(ENV['REQUIRED_ATTEMPTS'] || 3),
+        port_source: ENV.fetch('PORT_SOURCE', 'proton'),
         proton_gateway: environment_value('PROTON_GATEWAY', '10.2.0.1'),
+        gluetun_addr: environment_value('GLUETUN_ADDR', 'http://gluetun:8000'),
+        gluetun_api_key: environment_value('GLUETUN_API_KEY'),
+        gluetun_user: environment_value('GLUETUN_USER'),
+        gluetun_pass: environment_value('GLUETUN_PASS'),
+        gluetun_ssl_verify: true?(ENV['GLUETUN_SSL_VERIFY'] || 'false'),
         opnsense_skip: ENV['OPN_SKIP'] || 'false',
         opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
         opnsense_api_key: ENV['OPN_API_KEY'],
         opnsense_api_secret: ENV['OPN_API_SECRET'],
-        opnsense_alias_name: ENV['OPN_PROTON_ALIAS_NAME'],
+        opnsense_alias_name: environment_value('OPN_ALIAS_NAME', environment_value('OPN_PROTON_ALIAS_NAME')),
         opnsense_ssl_verify: true?(ENV['OPN_SSL_VERIFY'] || 'false'),
         qbit_skip: ENV['QBIT_SKIP'] || 'false',
         qbit_addr: ENV['QBIT_ADDR'],
@@ -113,6 +120,14 @@ module Service
 
     def true?(obj)
       obj&.to_s&.downcase == 'true'
+    end
+
+    def redact_url_credentials(url)
+      uri = GluetunUrl.parse(url)
+      uri.userinfo = '***' if uri.userinfo
+      uri.to_s
+    rescue URI::InvalidURIError, GluetunUrl::InvalidBaseUrl
+      '[invalid URL]'
     end
 
     def get_db_version
