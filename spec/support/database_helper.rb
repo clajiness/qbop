@@ -67,6 +67,8 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
       foreign_key :source_id, :sources, null: false
       Integer :attempt, default: 0, null: false
       Boolean :change, default: false, null: false
+      Integer :pending_apply_port
+      Integer :pending_apply_transition_id
 
       index :source_id, unique: true
     end

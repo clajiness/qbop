@@ -64,6 +64,47 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
     expect(newer.sync_status('opnsense')).to eq('synced')
   end
 
+  it 'resolves only histories participating in the pending OPNsense apply' do
+    attributes = { previous_port: 12_345, new_port: 23_456, opnsense_skipped: false, qbit_skipped: false }
+    older = described_class.record_transition(**attributes)
+    described_class.mark_error('opnsense', 23_456)
+    origin = described_class.record_transition(**attributes)
+    described_class.mark_error('opnsense', 23_456)
+    gluetun = described_class.record_transition(**attributes, source_name: 'gluetun')
+    described_class.mark_error('opnsense', 23_456, source_name: 'gluetun')
+    different_port = described_class.record_transition(**attributes.merge(new_port: 34_567))
+    skipped = described_class.record_transition(**attributes.merge(opnsense_skipped: true))
+    synced = described_class.record_transition(**attributes)
+    described_class.mark_synced('opnsense', 23_456, at: Time.at(10))
+    before = [older, different_port, skipped, synced].map { |record| record.refresh.values.dup }
+
+    described_class.mark_opnsense_applied(23_456, from_transition_id: origin.id, at: Time.at(20))
+
+    expect([older, different_port, skipped, synced].map { |record| record.refresh.values }).to eq(before)
+    [origin, gluetun].each do |record|
+      expect(record.refresh.opnsense_synced_at).to eq(Time.at(20))
+      expect(record.opnsense_error_at).to be_nil
+      expect(record.sync_status('qbit')).to eq('pending')
+    end
+    expect(origin.source_name).to eq('proton')
+    expect(gluetun.source_name).to eq('gluetun')
+    expect(described_class.latest_for_port(23_456, 'proton').id).to eq(synced.id)
+    expect(described_class.latest_for_port(23_456, 'gluetun').id).to eq(gluetun.id)
+  end
+
+  it 'uses only the last settled result for the requested port when recovering legacy apply errors' do
+    attributes = { previous_port: 12_345, new_port: 23_456, opnsense_skipped: false, qbit_skipped: false }
+    error = described_class.record_transition(**attributes)
+    described_class.mark_error('opnsense', 23_456)
+    described_class.record_transition(**attributes, source_name: 'gluetun')
+
+    expect(described_class.pending_opnsense_error(23_456).id).to eq(error.id)
+    expect(described_class.pending_opnsense_error(34_567)).to be_nil
+
+    described_class.mark_synced('opnsense', 23_456, source_name: 'gluetun')
+    expect(described_class.pending_opnsense_error(23_456)).to be_nil
+  end
+
   { 'opnsense' => 20_000, 'qbit' => 20_001 }.each do |source, port|
     it "records the latest #{source} error and clears an earlier success" do
       transition = described_class.record_transition(

@@ -1,6 +1,6 @@
 require_relative '../framework/events'
 
-class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
+class PortTransition < Sequel::Model # rubocop:disable Style/Documentation,Metrics/ClassLength
   RETENTION_LIMIT = 500
   Page = Data.define(:records, :total_records, :current_page, :per_page, :total_pages, :from, :to)
   SYNC_COLUMNS = {
@@ -61,6 +61,25 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
     latest_for_port(port, source_name)&.sync_status(source) == 'error'
   end
 
+  # Used only to recover outstanding target work recorded before migration 009.
+  def self.pending_opnsense_error(port)
+    transition = where(new_port: port.to_i, opnsense_skipped: false)
+                 .exclude(opnsense_error_at: nil, opnsense_synced_at: nil)
+                 .order(Sequel.desc(:id)).first
+    transition if transition&.sync_status('opnsense') == 'error'
+  end
+
+  # An applied target configuration resolves participating histories without changing their source attribution.
+  def self.mark_opnsense_applied(port, from_transition_id:, at: Time.now)
+    return unless from_transition_id
+
+    where(new_port: port.to_i, opnsense_skipped: false).where { id >= from_transition_id }.each do |transition|
+      next if transition.sync_status('opnsense') == 'synced'
+
+      transition.update(opnsense_synced_at: at, opnsense_error_at: nil)
+    end
+  end
+
   def self.paginate(page:, per_page:) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
     total_records = count
     total_pages = [((total_records + per_page - 1) / per_page), 1].max
@@ -91,7 +110,6 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation
   def self.latest_for_port(port, source_name)
     where(new_port: port.to_i, source_name: source_name).order(Sequel.desc(:id)).first
   end
-  private_class_method :latest_for_port
 
   def self.normalize_previous_port(port)
     port = port.to_i

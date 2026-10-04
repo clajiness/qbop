@@ -247,10 +247,10 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
   end
 
   describe '#redact_url_credentials' do
-    it 'preserves addresses without credentials, including reverse proxy paths' do
-      url = 'https://gluetun:8000/control/'
-
-      expect(described_class.new.redact_url_credentials(url)).to eq(url)
+    ['http://gluetun:8000', 'https://gluetun', 'https://gluetun:8000/control/'].each do |url|
+      it "preserves valid addresses: #{url}" do
+        expect(described_class.new.redact_url_credentials(url)).to eq(url)
+      end
     end
 
     it 'masks percent-encoded URL credentials while preserving the endpoint' do
@@ -258,15 +258,18 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
         .to eq('https://***@gluetun:8000/control')
     end
 
-    it 'does not echo malformed URLs that may contain credentials' do
-      expect(described_class.new.redact_url_credentials('http://user:secret password@gluetun:8000'))
-        .to eq('[invalid URL]')
-    end
-
-    ['?api_key=query-secret', '#fragment-secret'].each do |suffix|
-      it "does not display rejected query or fragment tokens: #{suffix}" do
-        url = "http://user:secret@gluetun:8000/control#{suffix}"
-
+    [
+      'http://user:secret password@gluetun:8000',
+      'http:/user:secret@gluetun:8000/control',
+      'http:///user:secret@/control',
+      'ftp://user:secret@gluetun:8000/control',
+      'user:secret@gluetun:8000/control',
+      'http://user:secret@gluetun:8000/control?api_key=query-secret',
+      'http://user:secret@gluetun:8000/control#fragment-secret',
+      'http://gluetun:8000/control?',
+      'http://gluetun:8000/control#'
+    ].each do |url|
+      it "does not echo addresses rejected by Gluetun: #{url}" do
         expect(described_class.new.redact_url_credentials(url)).to eq('[invalid URL]')
       end
     end

@@ -70,6 +70,23 @@ class Source < Sequel::Model # rubocop:disable Style/Documentation
     counter.attempt
   end
 
+  # Target apply state, currently used only by OPNsense.
+  def pending_apply_port
+    counter.pending_apply_port
+  end
+
+  def pending_apply_transition_id
+    counter.pending_apply_transition_id
+  end
+
+  def set_pending_apply(port, transition_id)
+    counter.update(pending_apply_port: port, pending_apply_transition_id: transition_id)
+  end
+
+  def clear_pending_apply
+    set_pending_apply(nil, nil)
+  end
+
   # initialize methods
 
   def seed_tables

@@ -1,4 +1,4 @@
-require 'uri'
+require_relative 'gluetun_url'
 
 module Service
   # Observes a single forwarded port through Gluetun's control API.
@@ -42,12 +42,11 @@ module Service
     end
 
     def base_url(address)
-      uri = URI.parse(address)
-      raise PortError, 'GLUETUN_ADDR must be an HTTP(S) base URL' unless uri.is_a?(URI::HTTP) && !uri.host.to_s.empty?
-      raise PortError, 'GLUETUN_ADDR must not contain a query string or fragment' if uri.query || uri.fragment
-
+      uri = GluetunUrl.parse(address)
       uri.user = nil
       uri.to_s
+    rescue GluetunUrl::InvalidBaseUrl => e
+      raise PortError, e.message, cause: nil
     end
 
     def authenticate(faraday, config)

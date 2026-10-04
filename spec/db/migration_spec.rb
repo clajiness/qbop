@@ -27,6 +27,10 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     expect(stats_schema[:source_id][:allow_null]).to eq(false)
     expect(unique_source_id_index?(db, :stats)).to eq(true)
     expect(unique_source_id_index?(db, :counters)).to eq(true)
+    expect(db.schema(:counters).to_h).to include(
+      pending_apply_port: include(type: :integer, allow_null: true, ruby_default: nil),
+      pending_apply_transition_id: include(type: :integer, allow_null: true, ruby_default: nil)
+    )
     expect(db.table_exists?(:port_transitions)).to eq(true)
     expect(db.schema(:port_transitions).to_h).to include(
       source_name: include(type: :string, allow_null: false, ruby_default: 'proton'),
@@ -76,6 +80,56 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     transition = db[:port_transitions][id: transition_id]
     expect(transition[:opnsense_error_at]).to be_nil
     expect(transition[:qbit_error_at]).to be_nil
+  end
+
+  it 'adds and rolls back pending apply state without changing existing counters or history' do
+    db = Sequel.sqlite
+    Sequel.extension :migration
+    Sequel::Migrator.run(db, 'db/migrate', target: 8)
+    source_id = db[:sources].insert(name: 'opnsense')
+    counter_id = db[:counters].insert(source_id: source_id, attempt: 3, change: true)
+    transition_id = db[:port_transitions].insert(
+      new_port: 23_456, detected_at: Time.at(100), source_name: 'gluetun', opnsense_error_at: Time.at(200)
+    )
+    counter_before = db[:counters][id: counter_id]
+    history_before = db[:port_transitions].all
+
+    run_migrations(db)
+    expect(db[:counters][id: counter_id]).to eq(
+      counter_before.merge(pending_apply_port: nil, pending_apply_transition_id: nil)
+    )
+    db[:counters].where(id: counter_id).update(
+      pending_apply_port: 23_456, pending_apply_transition_id: transition_id
+    )
+    run_migrations(db)
+    expect(db[:counters][id: counter_id][:pending_apply_port]).to eq(23_456)
+
+    Sequel::Migrator.run(db, 'db/migrate', target: 8)
+    expect(db[:counters][id: counter_id]).to eq(counter_before)
+    expect(db[:port_transitions].all).to eq(history_before)
+    expect(unique_source_id_index?(db, :counters)).to eq(true)
+    run_migrations(db)
+    expect(db[:counters][id: counter_id][:pending_apply_port]).to be_nil
+  end
+
+  it 'retains pending apply work across database restart and history deletion' do
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, 'qbop.sqlite3')
+      db = Sequel.sqlite(path)
+      run_migrations(db)
+      source_id = db[:sources].insert(name: 'opnsense')
+      transition_id = db[:port_transitions].insert(new_port: 23_456, detected_at: Time.at(100))
+      db[:counters].insert(source_id: source_id, pending_apply_port: 23_456,
+                           pending_apply_transition_id: transition_id)
+      db[:port_transitions].delete
+      db.disconnect
+
+      db = Sequel.sqlite(path)
+      expect(db[:counters][source_id: source_id]).to include(
+        pending_apply_port: 23_456, pending_apply_transition_id: transition_id
+      )
+      db.disconnect
+    end
   end
 
   it 'creates standalone API keys with unique digests and optional last use' do

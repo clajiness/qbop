@@ -1,6 +1,6 @@
 require 'time'
-require 'uri'
 require_relative 'event_logger'
+require_relative 'gluetun_url'
 
 module Service
   # The Helpers class provides utility methods for accessing environment variables
@@ -123,12 +123,10 @@ module Service
     end
 
     def redact_url_credentials(url)
-      uri = URI.parse(url)
-      return '[invalid URL]' if uri.query || uri.fragment
-
+      uri = GluetunUrl.parse(url)
       uri.userinfo = '***' if uri.userinfo
       uri.to_s
-    rescue URI::InvalidURIError
+    rescue URI::InvalidURIError, GluetunUrl::InvalidBaseUrl
       '[invalid URL]'
     end
 

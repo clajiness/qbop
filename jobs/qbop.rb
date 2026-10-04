@@ -153,12 +153,13 @@ class Qbop # rubocop:disable Metrics/ClassLength
 
   def update_opnsense_alias(forwarded_port, uuid)
     perform_sync_write('opnsense', forwarded_port) { @opnsense.set_alias_value(forwarded_port, uuid) }
+    remember_opnsense_apply(forwarded_port)
 
     @logger.info("OPNsense alias has been updated to #{forwarded_port}")
     apply_opnsense_changes(forwarded_port)
   end
 
-  def apply_opnsense_changes(forwarded_port)
+  def apply_opnsense_changes(forwarded_port) # rubocop:disable Metrics/MethodLength
     changes_status = perform_sync_write('opnsense', forwarded_port) { @opnsense.apply_changes.status }
 
     if changes_status != 200
@@ -168,12 +169,41 @@ class Qbop # rubocop:disable Metrics/ClassLength
     end
 
     @logger.info('OPNsense alias applied successfully')
-    mark_source_updated(@opnsense_data, forwarded_port, 'opnsense')
+    Source.db.transaction do
+      mark_source_updated(@opnsense_data, forwarded_port, 'opnsense')
+      PortTransition.mark_opnsense_applied(forwarded_port,
+                                           from_transition_id: @opnsense_data.pending_apply_transition_id)
+      @opnsense_data.clear_pending_apply
+    end
   end
 
-  def opnsense_apply_retry?(alias_port, forwarded_port)
-    alias_port.to_i == forwarded_port.to_i && PortTransition.sync_error?('opnsense', forwarded_port,
-                                                                         source_name: @port_source.name)
+  def opnsense_apply_retry?(alias_port, forwarded_port) # rubocop:disable Metrics/MethodLength
+    return false unless alias_port.to_i == forwarded_port.to_i
+
+    if @opnsense_data.pending_apply_port
+      if @opnsense_data.pending_apply_port != forwarded_port.to_i
+        @opnsense_data.clear_pending_apply
+        return false
+      end
+
+      remember_opnsense_apply(forwarded_port)
+      return true
+    end
+
+    return false unless @opnsense_data.change?
+
+    transition = PortTransition.pending_opnsense_error(forwarded_port)
+    return false unless transition
+
+    @opnsense_data.set_pending_apply(forwarded_port.to_i, transition.id)
+    true
+  end
+
+  def remember_opnsense_apply(forwarded_port)
+    return if @opnsense_data.pending_apply_port == forwarded_port.to_i && @opnsense_data.pending_apply_transition_id
+
+    transition = PortTransition.latest_for_port(forwarded_port, @port_source.name)
+    @opnsense_data.set_pending_apply(forwarded_port.to_i, transition&.id)
   end
 
   def update_qbit_port(forwarded_port)

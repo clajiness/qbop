@@ -55,11 +55,22 @@ RSpec.describe Service::Gluetun do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  %w[gluetun:8000 ftp://gluetun:8000 http:///control].each do |address|
+  %w[
+    gluetun:8000 ftp://gluetun:8000 http:///control
+    http:/url-user:url-secret@gluetun:8000/control
+    http:///url-user:url-secret@/control
+    ftp://url-user:url-secret@gluetun:8000/control
+    url-user:url-secret@gluetun:8000/control
+  ].each do |address|
     it "requires an HTTP(S) base URL with a host: #{address}" do
       config[:gluetun_addr] = address
 
-      expect { source }.to raise_error(described_class::PortError, 'GLUETUN_ADDR must be an HTTP(S) base URL')
+      expect { source }.to raise_error(
+        described_class::PortError, 'GLUETUN_ADDR must be an HTTP(S) base URL'
+      ) do |error|
+        expect(error.cause).to be_nil
+        expect(error.full_message).not_to include(address, 'url-user', 'url-secret')
+      end
     end
   end
 

@@ -99,16 +99,35 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
     expect(response.body).to include('PORT_SOURCE: proton', 'GLUETUN_API_KEY: ***', 'GLUETUN_SSL_VERIFY: false',
                                      'GLUETUN_ADDR: http://***@gluetun:8000/control')
-    expect(response.body).not_to include('secret-key', 'secret-user', 'secret-pass')
+    expect(response.body).not_to include(ENV['GLUETUN_ADDR'], 'secret-key', 'secret-user', 'secret-pass')
   end
 
-  ['?api_key=query-secret', '#fragment-secret'].each do |suffix|
-    it "hides rejected Gluetun URL tokens on the about page: #{suffix}" do
-      ENV['GLUETUN_ADDR'] = "http://secret-user:secret-pass@gluetun:8000/control#{suffix}"
+  [
+    'http://secret-user:secret-pass word@gluetun:8000/control',
+    'http:/secret-user:secret-pass@gluetun:8000/control',
+    'http:///secret-user:secret-pass@/control',
+    'ftp://secret-user:secret-pass@gluetun:8000/control',
+    'secret-user:secret-pass@gluetun:8000/control',
+    'http://secret-user:secret-pass@gluetun:8000/control?api_key=query-secret',
+    'http://secret-user:secret-pass@gluetun:8000/control#fragment-secret',
+    'http://gluetun:8000/control?',
+    'http://gluetun:8000/control#'
+  ].each do |address|
+    it "hides rejected Gluetun addresses on the about page: #{address}" do
+      ENV['GLUETUN_ADDR'] = address
       response = web_request.get('/about')
 
+      expect(response.status).to eq(200)
       expect(response.body).to include('GLUETUN_ADDR: [invalid URL]')
-      expect(response.body).not_to include('secret-user', 'secret-pass', 'query-secret', 'fragment-secret')
+      expect(response.body).not_to include(address, 'secret-user', 'secret-pass', 'query-secret', 'fragment-secret')
+    end
+  end
+
+  ['http://gluetun:8000', 'https://gluetun', 'https://gluetun:8000/control/'].each do |address|
+    it "preserves supported Gluetun addresses on the about page: #{address}" do
+      ENV['GLUETUN_ADDR'] = address
+
+      expect(web_request.get('/about').body).to include("GLUETUN_ADDR: #{address}")
     end
   end
 
