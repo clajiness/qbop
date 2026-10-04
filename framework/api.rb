@@ -232,7 +232,7 @@ module Framework
           'log_reverse': helpers.true?(ENV['LOG_REVERSE']),
           'log_to_stdout': helpers.true?(ENV['LOG_TO_STDOUT']),
           'port_source': Service::PortSource.name(config),
-          'gluetun_addr': config[:gluetun_addr],
+          'gluetun_addr': helpers.redact_url_credentials(config[:gluetun_addr]),
           'gluetun_api_key': '***',
           'gluetun_user': '***',
           'gluetun_pass': '***',

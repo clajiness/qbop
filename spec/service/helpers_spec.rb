@@ -246,6 +246,32 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  describe '#redact_url_credentials' do
+    it 'preserves addresses without credentials, including reverse proxy paths' do
+      url = 'https://gluetun:8000/control/'
+
+      expect(described_class.new.redact_url_credentials(url)).to eq(url)
+    end
+
+    it 'masks percent-encoded URL credentials while preserving the endpoint' do
+      expect(described_class.new.redact_url_credentials('https://user:secret%20pass@gluetun:8000/control'))
+        .to eq('https://***@gluetun:8000/control')
+    end
+
+    it 'does not echo malformed URLs that may contain credentials' do
+      expect(described_class.new.redact_url_credentials('http://user:secret password@gluetun:8000'))
+        .to eq('[invalid URL]')
+    end
+
+    ['?api_key=query-secret', '#fragment-secret'].each do |suffix|
+      it "does not display rejected query or fragment tokens: #{suffix}" do
+        url = "http://user:secret@gluetun:8000/control#{suffix}"
+
+        expect(described_class.new.redact_url_credentials(url)).to eq('[invalid URL]')
+      end
+    end
+  end
+
   describe '#format_ui_mode' do
     it 'returns the ui_mode when properly formatted' do
       expect(Service::Helpers.new.format_ui_mode('light')).to eq('light')

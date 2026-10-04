@@ -1,4 +1,5 @@
 require 'time'
+require 'uri'
 require_relative 'event_logger'
 
 module Service
@@ -119,6 +120,16 @@ module Service
 
     def true?(obj)
       obj&.to_s&.downcase == 'true'
+    end
+
+    def redact_url_credentials(url)
+      uri = URI.parse(url)
+      return '[invalid URL]' if uri.query || uri.fragment
+
+      uri.userinfo = '***' if uri.userinfo
+      uri.to_s
+    rescue URI::InvalidURIError
+      '[invalid URL]'
     end
 
     def get_db_version

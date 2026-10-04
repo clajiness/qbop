@@ -1,6 +1,7 @@
 require 'bundler/setup'
 Bundler.require(:default)
 require 'webmock/rspec'
+require 'stringio'
 
 require_relative '../support/database_helper'
 require_relative '../../service/seed'
@@ -112,5 +113,46 @@ RSpec.describe 'Gluetun job synchronization' do # rubocop:disable Metrics/BlockL
     expect(Source[name: 'gluetun'].get_current_port).to eq(51_820)
     expect(qbit).to have_received(:qbt_app_set_preferences).with(51_820).once
     expect(opnsense).to have_received(:set_alias_value).with(51_820, 'alias-uuid').once
+  end
+
+  [Faraday::ConnectionFailed, ArgumentError].each do |error|
+    it "keeps #{error} credentials out of the actual formatted job log" do
+      output = StringIO.new
+      job.instance_variable_set(:@logger, Logger.new(output))
+      stub_request(:get, 'http://gluetun:8000/v1/portforward')
+        .to_raise(error.new('api-secret user-secret pass-secret http://url-user:url-secret@gluetun:8000'))
+
+      job.send(:run_loop_iteration)
+
+      expect(output.string).to include("Gluetun control API request failed (#{error})")
+      expect(output.string).not_to include('api-secret', 'user-secret', 'pass-secret', 'url-user', 'url-secret')
+      expect(qbit).not_to have_received(:qbt_app_set_preferences)
+      expect(opnsense).not_to have_received(:set_alias_value)
+    end
+  end
+
+  [
+    [{ gluetun_api_key: "api-secret\nsuffix" }, 'GLUETUN_API_KEY'],
+    [{ gluetun_user: "user-secret\u0001", gluetun_pass: 'pass-secret' }, 'GLUETUN_USER'],
+    [{ gluetun_user: 'user-secret', gluetun_pass: "pass-secret\r\nsuffix" }, 'GLUETUN_PASS'],
+    [{ gluetun_addr: 'http://url-user:url-secret@gluetun:8000/bad path' }, 'URI::InvalidURIError'],
+    [{ gluetun_addr: 'http://url-user:url-secret@gluetun:8000?api_key=query-secret' }, 'query string or fragment'],
+    [{ gluetun_addr: 'http://url-user:url-secret@gluetun:8000#fragment-secret' }, 'query string or fragment']
+  ].each do |invalid_settings, diagnostic|
+    it "keeps invalid #{invalid_settings.keys.first} secrets out of SuckerPunch startup logs: #{diagnostic}" do
+      output = StringIO.new
+      config.merge!(invalid_settings)
+      allow(Qbop).to receive(:new).and_return(job)
+      allow(SuckerPunch).to receive(:logger).and_return(Logger.new(output))
+      expect(job).not_to receive(:run_loop_iteration)
+
+      Qbop.__run_perform
+
+      expect(output.string).to include('Service::Gluetun::PortError', diagnostic)
+      expect(output.string).not_to include('api-secret', 'user-secret', 'pass-secret', 'url-user', 'url-secret',
+                                           'query-secret', 'fragment-secret')
+      expect(qbit).not_to have_received(:qbt_app_preferences)
+      expect(opnsense).not_to have_received(:get_alias_uuid)
+    end
   end
 end

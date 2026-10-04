@@ -26,7 +26,8 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   around do |example| # rubocop:disable Metrics/BlockLength
-    source_env_keys = %w[PORT_SOURCE GLUETUN_API_KEY GLUETUN_USER GLUETUN_PASS OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
+    source_env_keys = %w[PORT_SOURCE GLUETUN_ADDR GLUETUN_API_KEY GLUETUN_USER GLUETUN_PASS
+                         OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
     source_env = source_env_keys.to_h { |key| [key, ENV[key]] }
     source_env_keys.each { |key| ENV.delete(key) }
     version = ENV['VERSION']
@@ -92,11 +93,23 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
   end
 
   it 'masks Gluetun credentials on the about page' do
-    ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass')
+    ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass',
+               'GLUETUN_ADDR' => 'http://secret-user:secret-pass@gluetun:8000/control')
     response = web_request.get('/about')
 
-    expect(response.body).to include('PORT_SOURCE: proton', 'GLUETUN_API_KEY: ***', 'GLUETUN_SSL_VERIFY: false')
+    expect(response.body).to include('PORT_SOURCE: proton', 'GLUETUN_API_KEY: ***', 'GLUETUN_SSL_VERIFY: false',
+                                     'GLUETUN_ADDR: http://***@gluetun:8000/control')
     expect(response.body).not_to include('secret-key', 'secret-user', 'secret-pass')
+  end
+
+  ['?api_key=query-secret', '#fragment-secret'].each do |suffix|
+    it "hides rejected Gluetun URL tokens on the about page: #{suffix}" do
+      ENV['GLUETUN_ADDR'] = "http://secret-user:secret-pass@gluetun:8000/control#{suffix}"
+      response = web_request.get('/about')
+
+      expect(response.body).to include('GLUETUN_ADDR: [invalid URL]')
+      expect(response.body).not_to include('secret-user', 'secret-pass', 'query-secret', 'fragment-secret')
+    end
   end
 
   ['preferred_alias', '  '].each do |preferred|

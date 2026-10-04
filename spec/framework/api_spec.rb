@@ -34,7 +34,7 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
 
   around do |example|
     env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE LOOP_FREQ PROTON_GATEWAY PORT_SOURCE GLUETUN_API_KEY
-                  GLUETUN_USER GLUETUN_PASS OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
+                  GLUETUN_ADDR GLUETUN_USER GLUETUN_PASS OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
     original_env = env_keys.to_h { |key| [key, ENV[key]] }
 
     env_keys.each { |key| ENV.delete(key) }
@@ -135,13 +135,25 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   end
 
   it 'masks Gluetun credentials in configuration responses' do
-    ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass')
+    ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass',
+               'GLUETUN_ADDR' => 'http://secret-user:secret-pass@gluetun:8000/control')
     response = api_get('/api/about')
 
     expect(response_json(response)['env_variables']).to include(
-      'port_source' => 'proton', 'gluetun_api_key' => '***', 'gluetun_user' => '***', 'gluetun_pass' => '***'
+      'port_source' => 'proton', 'gluetun_api_key' => '***', 'gluetun_user' => '***', 'gluetun_pass' => '***',
+      'gluetun_addr' => 'http://***@gluetun:8000/control'
     )
     expect(response.body).not_to include('secret-key', 'secret-user', 'secret-pass')
+  end
+
+  ['?api_key=query-secret', '#fragment-secret'].each do |suffix|
+    it "hides rejected Gluetun URL tokens in configuration responses: #{suffix}" do
+      ENV['GLUETUN_ADDR'] = "http://secret-user:secret-pass@gluetun:8000/control#{suffix}"
+      response = api_get('/api/about')
+
+      expect(response_json(response)['env_variables']['gluetun_addr']).to eq('[invalid URL]')
+      expect(response.body).not_to include('secret-user', 'secret-pass', 'query-secret', 'fragment-secret')
+    end
   end
 
   it 'returns healthy status when all services checked in recently' do

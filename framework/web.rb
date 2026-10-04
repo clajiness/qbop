@@ -214,7 +214,7 @@ module Framework
       @log_reverse = helpers.true?(ENV['LOG_REVERSE'])
       @log_to_stdout = helpers.true?(ENV['LOG_TO_STDOUT'])
       @port_source_name = Service::PortSource.name(config)
-      @gluetun_addr = config[:gluetun_addr]
+      @gluetun_addr = helpers.redact_url_credentials(config[:gluetun_addr])
       @gluetun_ssl_verify = config[:gluetun_ssl_verify]
       @proton_gateway = config[:proton_gateway]
       @opn_skip = helpers.true?(ENV['OPN_SKIP'])

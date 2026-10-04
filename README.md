@@ -110,7 +110,7 @@ These settings apply only when `PORT_SOURCE=gluetun`.
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `GLUETUN_ADDR` | `http://gluetun:8000` | Gluetun control server base URL, including `http(s)://`. Must be reachable from qbop. |
+| `GLUETUN_ADDR` | `http://gluetun:8000` | Gluetun control server base URL, including `http(s)://`. An optional reverse proxy path prefix is preserved. Query strings and fragments are rejected. Must be reachable from qbop. Use the dedicated authentication variables; URL userinfo is ignored and masked in configuration displays. |
 | `GLUETUN_API_KEY` | | Control API key sent as `X-API-Key`. Takes precedence over Basic credentials. |
 | `GLUETUN_USER` | | HTTP Basic username; used with `GLUETUN_PASS` when no API key is configured. |
 | `GLUETUN_PASS` | | HTTP Basic password. If neither authentication method is configured, requests are unauthenticated. |
@@ -185,6 +185,8 @@ environment:
 ```
 
 Configure Gluetun's authentication role to allow `GET /v1/portforward`, following its [control server documentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md#authentication). qbop uses the documented `X-API-Key` header, falls back to HTTP Basic with both configured credentials, or makes an unauthenticated request when neither is configured. Gluetun must explicitly permit unauthenticated access for that last option to work.
+
+`GLUETUN_ADDR` accepts a path prefix such as `https://vpn.example/control/`, but no query string or fragment; query-based authentication is unsupported. Active API-key or Basic credentials must be valid strings without control characters, including newlines. Invalid configuration fails initialization with a secret-free error. Configuration displays show `[invalid URL]` for malformed URLs or URLs containing a query string or fragment.
 
 qbop does not perform NAT-PMP in this mode and does not manage Gluetun's VPN. It only needs network access to the control API and enabled qBittorrent/OPNsense integrations. No Gluetun volume mounts, Docker socket, or shell hooks are required. The torrent client's VPN routing remains your deployment's responsibility.
 

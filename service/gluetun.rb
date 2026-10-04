@@ -1,3 +1,5 @@
+require 'uri'
+
 module Service
   # Observes a single forwarded port through Gluetun's control API.
   class Gluetun
@@ -7,6 +9,10 @@ module Service
 
     def initialize(config)
       @conn = faraday_conn(config)
+    rescue PortError
+      raise
+    rescue StandardError => e
+      raise PortError, "Gluetun configuration failed (#{e.class})", cause: nil
     end
 
     def name
@@ -14,34 +20,54 @@ module Service
     end
 
     def current_port
-      response = @conn.get('/v1/portforward')
+      response = @conn.get('v1/portforward')
       raise PortError, "Gluetun control API returned HTTP #{response.status}" unless response.status.between?(200, 299)
 
       parse_port(response.body)
-    rescue Faraday::Error => e
-      # Transport messages may contain credentials or request details.
-      raise PortError, "Gluetun control API request failed (#{e.class})"
+    rescue PortError
+      raise
+    rescue StandardError => e
+      # Client errors and their causes may contain credentials or request details.
+      raise PortError, "Gluetun control API request failed (#{e.class})", cause: nil
     end
 
     private
 
     def faraday_conn(config)
       Faraday.new(
-        url: config[:gluetun_addr],
+        url: base_url(config[:gluetun_addr]),
         ssl: { verify: config[:gluetun_ssl_verify] },
         request: REQUEST_TIMEOUT
       ) { |faraday| authenticate(faraday, config) }
     end
 
+    def base_url(address)
+      uri = URI.parse(address)
+      raise PortError, 'GLUETUN_ADDR must be an HTTP(S) base URL' unless uri.is_a?(URI::HTTP) && !uri.host.to_s.empty?
+      raise PortError, 'GLUETUN_ADDR must not contain a query string or fragment' if uri.query || uri.fragment
+
+      uri.user = nil
+      uri.to_s
+    end
+
     def authenticate(faraday, config)
-      api_key = config[:gluetun_api_key]
-      user = config[:gluetun_user]
-      password = config[:gluetun_pass]
+      # Use only the explicit authentication settings.
+      faraday.headers.delete('Authorization')
+      api_key, user, password = config.values_at(:gluetun_api_key, :gluetun_user, :gluetun_pass)
       if !api_key.to_s.strip.empty?
+        validate_credential(api_key, 'GLUETUN_API_KEY')
         faraday.headers['X-API-Key'] = api_key
       elsif user && password
+        validate_credential(user, 'GLUETUN_USER')
+        validate_credential(password, 'GLUETUN_PASS')
         faraday.request :authorization, :basic, user, password
       end
+    end
+
+    def validate_credential(value, setting)
+      return if value.is_a?(String) && value.valid_encoding? && !value.match?(/[[:cntrl:]]/)
+
+      raise PortError, "#{setting} must be a string without control characters"
     end
 
     def single_port_list?(ports, port)
@@ -59,7 +85,7 @@ module Service
 
       result['port']
     rescue JSON::ParserError
-      raise PortError, 'Gluetun control API returned malformed JSON'
+      raise PortError, 'Gluetun control API returned malformed JSON', cause: nil
     end
   end
 end
