@@ -4,8 +4,13 @@ module Service
   class Proton
     class MappingError < StandardError; end
 
-    def initialize(helpers)
+    def initialize(helpers, gateway: helpers.env_variables[:proton_gateway])
       @helpers = helpers
+      @gateway = gateway
+    end
+
+    def current_port
+      forwarded_port(natpmpc(@gateway))
     end
 
     def natpmpc(proton_gateway)

@@ -1,3 +1,5 @@
+require_relative '../service/port_source'
+
 # Qbop is a class responsible for managing the synchronization of port forwarding settings
 # between ProtonVPN, OPNsense firewall, and qBittorrent.
 class Qbop # rubocop:disable Metrics/ClassLength
@@ -18,7 +20,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
   def initialize_dependencies
     @helpers = Service::Helpers.new
     @config = @helpers.env_variables
-    @proton = Service::Proton.new(@helpers)
+    @port_source = Service::PortSource.build(@helpers, @config)
     @opnsense = Service::Opnsense.new(@config)
     @qbit = Service::Qbit.new(@config)
     @proton_data = Source[name: 'proton']
@@ -50,9 +52,8 @@ class Qbop # rubocop:disable Metrics/ClassLength
     sleep @config[:loop_freq]
   end
 
-  def handle_proton # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
-    response = @proton.natpmpc(@config[:proton_gateway])
-    forwarded_port = @proton.forwarded_port(response)
+  def handle_proton # rubocop:disable Metrics/MethodLength
+    forwarded_port = @port_source.current_port
     @proton_data.set_last_checked if forwarded_port
 
     if forwarded_port.nil?
