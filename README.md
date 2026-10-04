@@ -87,7 +87,7 @@ Set environment variables in your Compose configuration. OPNsense and qBittorren
 
 ### ENV Variables
 
-A blank default means no default value is provided. Integration credentials are required unless that integration is skipped; OIDC requirements apply only when OIDC and browser authentication are enabled.
+A blank default means no default value is provided. OPNsense and qBittorrent credentials are required unless those integrations are skipped. Gluetun authentication depends on the control-server role; API key, HTTP Basic, and explicitly permitted unauthenticated access are supported. OIDC requirements apply only when OIDC and browser authentication are enabled.
 
 #### Core application settings
 
@@ -173,6 +173,8 @@ For OPNsense, follow its [WireGuard selective-routing guide](https://docs.opnsen
 To rotate an existing tunnel using a new ProtonVPN configuration, see the [WireGuard importer](#protonvpn-wireguard-importer).
 
 ### Gluetun
+
+With qBittorrent enabled, qbop reads Gluetun's current forwarded port and keeps qBittorrent's listening port synchronized with it.
 
 Use an existing Gluetun deployment with VPN port forwarding enabled and exactly one forwarded port. Set qbop's `PORT_SOURCE=gluetun` and `GLUETUN_ADDR` to the reachable control server URL. For example:
 
