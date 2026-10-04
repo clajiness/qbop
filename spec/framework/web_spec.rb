@@ -27,7 +27,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
   around do |example| # rubocop:disable Metrics/BlockLength
     source_env_keys = %w[PORT_SOURCE GLUETUN_ADDR GLUETUN_API_KEY GLUETUN_USER GLUETUN_PASS
-                         OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
+                         OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME QBIT_SKIP]
     source_env = source_env_keys.to_h { |key| [key, ENV[key]] }
     source_env_keys.each { |key| ENV.delete(key) }
     version = ENV['VERSION']
@@ -92,6 +92,74 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     expect(web_request.get('/history').body).to include('<th>source</th>', '<td>gluetun</td>', '<td>proton</td>')
   end
 
+  [%w[proton gluetun], %w[gluetun proton]].each do |selected, other| # rubocop:disable Metrics/BlockLength
+    it "shows pending target work over old synced #{selected} history across outages and completion" do # rubocop:disable Metrics/BlockLength
+      ENV['PORT_SOURCE'] = selected
+      Source.find_or_create(name: 'gluetun').tap(&:seed_tables)
+      source = Source[name: selected]
+      source.set_current_port(23_456)
+      old_history = PortTransition.record_transition(
+        previous_port: 12_345, new_port: 23_456, source_name: selected,
+        opnsense_skipped: false, qbit_skipped: false
+      )
+      PortTransition.mark_synced('opnsense', 23_456, source_name: selected)
+      PortTransition.mark_synced('qbit', 23_456, source_name: selected)
+      old_values = old_history.refresh.values.dup
+      pending_history = PortTransition.record_transition(
+        previous_port: 34_567, new_port: 23_456, source_name: other,
+        opnsense_skipped: false, qbit_skipped: false
+      )
+      PortTransition.mark_error('opnsense', 23_456, source_name: other)
+      target = Source[name: 'opnsense'].tap(&:seed_tables)
+      target.set_current_port(34_567)
+      target.set_pending_apply(23_456, [pending_history.id])
+
+      response = web_request.get('/partials/status')
+      expect(response.status).to eq(200)
+      expect(response.body.split('<em>opnsense</em>').last.split('<em>qbittorrent</em>').first)
+        .to include('current port: 34567', 'sync: pending')
+      expect(response.body.split('<em>qbittorrent</em>').last).to include('sync: synced')
+      expect(old_history.refresh.values).to eq(old_values)
+
+      # Acquisition outages leave the last assignment and pending target intact.
+      source.stat.update(last_checked: Time.now - 10_000)
+      expect(web_request.get('/partials/status').body).to include('sync: pending')
+      expect(Source[name: 'opnsense'].pending_apply_port).to eq(23_456)
+
+      PortTransition.mark_opnsense_applied(23_456, transition_ids: target.pending_apply_transition_ids)
+      target.set_current_port(23_456)
+      target.clear_pending_apply
+      response = web_request.get('/partials/status')
+      expect(response.body).to include('sync: synced')
+      expect(response.body).not_to include('sync: pending')
+      expect(old_history.refresh.values).to eq(old_values)
+    end
+  end
+
+  it 'shows pending apply work even when the selected source has no transition history' do
+    target = Source[name: 'opnsense'].tap(&:seed_tables)
+    target.set_pending_apply(23_456, [])
+
+    expect(web_request.get('/partials/status').body).to include('sync: pending')
+  end
+
+  it 'stops showing pending after clearing a marker for a replaced port' do
+    history = PortTransition.record_transition(
+      previous_port: 23_456, new_port: 12_345, opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.mark_synced('opnsense', 12_345)
+    target = Source[name: 'opnsense'].tap(&:seed_tables)
+    target.set_pending_apply(23_456, [history.id])
+    expect(web_request.get('/partials/status').body).to include('sync: pending')
+
+    target.clear_pending_apply
+
+    response = web_request.get('/partials/status')
+    expect(response.body).to include('sync: synced')
+    expect(response.body.split('<em>opnsense</em>').last.split('<em>qbittorrent</em>').first)
+      .not_to include('sync: pending')
+  end
+
   it 'masks Gluetun credentials on the about page' do
     ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass',
                'GLUETUN_ADDR' => 'http://secret-user:secret-pass@gluetun:8000/control')
@@ -108,6 +176,9 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     'http:///secret-user:secret-pass@/control',
     'ftp://secret-user:secret-pass@gluetun:8000/control',
     'secret-user:secret-pass@gluetun:8000/control',
+    'http://secret-user:secret-pass@gluetun:0/control',
+    'http://secret-user:secret-pass@gluetun:65536/control',
+    'http://secret-user:secret-pass@gluetun:999999/control',
     'http://secret-user:secret-pass@gluetun:8000/control?api_key=query-secret',
     'http://secret-user:secret-pass@gluetun:8000/control#fragment-secret',
     'http://gluetun:8000/control?',
@@ -123,7 +194,8 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  ['http://gluetun:8000', 'https://gluetun', 'https://gluetun:8000/control/'].each do |address|
+  %w[http://gluetun:8000 http://gluetun https://gluetun https://gluetun:8000/control/
+     http://gluetun:1/control/ https://gluetun:65535/control/].each do |address|
     it "preserves supported Gluetun addresses on the about page: #{address}" do
       ENV['GLUETUN_ADDR'] = address
 

@@ -70,10 +70,8 @@ class PortTransition < Sequel::Model # rubocop:disable Style/Documentation,Metri
   end
 
   # An applied target configuration resolves participating histories without changing their source attribution.
-  def self.mark_opnsense_applied(port, from_transition_id:, at: Time.now)
-    return unless from_transition_id
-
-    where(new_port: port.to_i, opnsense_skipped: false).where { id >= from_transition_id }.each do |transition|
+  def self.mark_opnsense_applied(port, transition_ids:, at: Time.now)
+    where(id: transition_ids, new_port: port.to_i, opnsense_skipped: false).each do |transition|
       next if transition.sync_status('opnsense') == 'synced'
 
       transition.update(opnsense_synced_at: at, opnsense_error_at: nil)

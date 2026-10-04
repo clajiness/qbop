@@ -186,7 +186,7 @@ environment:
 
 Configure Gluetun's authentication role to allow `GET /v1/portforward`, following its [control server documentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md#authentication). qbop uses the documented `X-API-Key` header, falls back to HTTP Basic with both configured credentials, or makes an unauthenticated request when neither is configured. Gluetun must explicitly permit unauthenticated access for that last option to work.
 
-`GLUETUN_ADDR` accepts a path prefix such as `https://vpn.example/control/`, but no query string or fragment; query-based authentication is unsupported. Active API-key or Basic credentials must be valid strings without control characters, including newlines. Invalid configuration fails initialization with a secret-free error. Configuration displays show `[invalid URL]` for malformed URLs or URLs containing a query string or fragment.
+`GLUETUN_ADDR` accepts a path prefix such as `https://vpn.example/control/`, but no query string or fragment; query-based authentication is unsupported. Explicit endpoint ports must be within `1..65535`; omitted ports use the HTTP/HTTPS defaults. Active API-key or Basic credentials must be valid strings without control characters, including newlines. Invalid configuration fails initialization with a secret-free error. Configuration displays show `[invalid URL]` for malformed URLs, invalid endpoint ports, or URLs containing a query string or fragment.
 
 qbop does not perform NAT-PMP in this mode and does not manage Gluetun's VPN. It only needs network access to the control API and enabled qBittorrent/OPNsense integrations. No Gluetun volume mounts, Docker socket, or shell hooks are required. The torrent client's VPN routing remains your deployment's responsibility.
 
@@ -369,6 +369,8 @@ Recommended upgrade sequence:
 7. Update every API client and monitoring check to send `Authorization: Bearer qbop_...`, including checks of `/api/health`.
 8. Restart qbop and verify the web UI, history, integrations, and authenticated API requests.
 
+Migration 008 adds port-source attribution to transition history; migration 009 adds persisted OPNsense pending-apply metadata. Downgrading across these migrations removes that metadata, and re-upgrading cannot reconstruct all of it accurately. If a downgrade is required, restore a pre-upgrade database backup as the safe rollback path.
+
 <a id="usage"></a>
 
 ## Operational details and troubleshooting
@@ -385,6 +387,8 @@ Stats and history show downstream synchronization status for OPNsense and qBitto
 | `synced` | The integration is synchronized with the forwarded port. |
 | `error` | The most recent synchronization write failed; check the logs for the detailed reason. |
 | `skipped` | The integration was skipped. |
+
+The status panel shows OPNsense as `pending` whenever persisted apply work remains, including during port-source outages. History continues to show each transition's recorded result.
 
 ### Live web updates
 

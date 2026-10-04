@@ -33,19 +33,19 @@ RSpec.describe Source do # rubocop:disable Metrics/BlockLength
 
   it 'preserves pending apply work when the target is reloaded and reseeded' do
     source = Source.create(name: 'opnsense').tap(&:seed_tables)
-    source.set_pending_apply(23_456, 17)
+    source.set_pending_apply(23_456, [17, 19])
 
     reloaded = Source[source.id]
     reloaded.seed_tables
 
     expect(reloaded.pending_apply_port).to eq(23_456)
-    expect(reloaded.pending_apply_transition_id).to eq(17)
+    expect(reloaded.pending_apply_transition_ids).to eq([17, 19])
   end
 
   it 'clears only the target pending apply state' do
     source = Source.create(name: 'opnsense').tap(&:seed_tables)
     other = Source.create(name: 'qbit').tap(&:seed_tables)
-    source.set_pending_apply(23_456, 17)
+    source.set_pending_apply(23_456, [17])
     source.change
     source.increment_attempt
     other_before = other.counter.values.dup
@@ -53,7 +53,8 @@ RSpec.describe Source do # rubocop:disable Metrics/BlockLength
     source.clear_pending_apply
 
     expect(source.pending_apply_port).to be_nil
-    expect(source.pending_apply_transition_id).to be_nil
+    expect(source.pending_apply_transition_ids).to eq([])
+    expect(source.counter.pending_apply_transition_ids).to be_nil
     expect(source.change?).to eq(true)
     expect(source.attempt).to eq(1)
     expect(other.counter.refresh.values).to eq(other_before)

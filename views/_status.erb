@@ -12,7 +12,7 @@
   skipped per the OPN_SKIP env variable
   <% else %>
   current port: <%= @opn_stats.current_port %><br>
-  <% if @transition %>sync: <%= @transition.sync_status('opnsense') %><br><% end %>
+  <% if @opn_sync_status %>sync: <%= @opn_sync_status %><br><% end %>
   last changed: <%= @opn_stats.updated_at || 'unknown' %><br>
   last checked: <%= @opn_stats.last_checked || 'unknown' %><br>
   &#916;: <%= @opn_delta %>

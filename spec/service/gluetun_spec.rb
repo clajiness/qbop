@@ -86,6 +86,29 @@ RSpec.describe Service::Gluetun do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  [0, 65_536, 999_999].each do |port|
+    ["http://gluetun:#{port}", "http://url-user:url-secret@gluetun:#{port}/control"].each do |address|
+      it "rejects invalid endpoint ports without exposing credentials: #{address}" do
+        config[:gluetun_addr] = address
+
+        expect { source }.to raise_error(described_class::PortError, 'GLUETUN_ADDR port must be in 1-65535') do |error|
+          expect(error.cause).to be_nil
+          expect(error.full_message).not_to include(address, 'url-user', 'url-secret')
+        end
+      end
+    end
+  end
+
+  ['http://gluetun', 'https://gluetun', 'http://gluetun:1', 'https://gluetun:65535'].each do |address|
+    it "accepts scheme defaults or valid boundary endpoint ports with a proxy path: #{address}" do
+      config[:gluetun_addr] = "#{address}/control/"
+      request = stub_request(:get, "#{address}/control/v1/portforward").to_return(body: '{"port":51820}')
+
+      expect(source.current_port).to eq(51_820)
+      expect(request).to have_been_requested.once
+    end
+  end
+
   it 'sanitizes unexpected client initialization errors and removes their causes' do
     allow(Faraday).to receive(:new).and_raise(ArgumentError, 'url-secret api-secret user-secret pass-secret')
 

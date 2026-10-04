@@ -51,13 +51,13 @@ RSpec.describe 'OPNsense pending apply persistence' do
     Source[name: 'opnsense']
   end
 
-  [%w[proton proton], %w[proton gluetun], %w[gluetun proton]].each do |original, selected|
+  [%w[proton proton], %w[gluetun gluetun], %w[proton gluetun], %w[gluetun proton]].each do |original, selected|
     it "retries #{original} -> #{selected} after restart, with no false success or continued retries" do
       check(new_job(original))
       original_history = PortTransition.latest_for_port(23_456, original)
       expect(original_history.sync_status('opnsense')).to eq('error')
       expect(target.pending_apply_port).to eq(23_456)
-      expect(target.pending_apply_transition_id).to eq(original_history.id)
+      expect(target.pending_apply_transition_ids).to eq([original_history.id])
       expect(target.get_current_port).to eq(12_345)
       expect(target.get_updated_at).to be_nil
 
@@ -70,7 +70,7 @@ RSpec.describe 'OPNsense pending apply persistence' do
       expect(selected_history.refresh.sync_status('opnsense')).to eq('error')
       expect(target.get_current_port).to eq(12_345)
       expect(target.get_updated_at).to be_nil
-      expect(target.pending_apply_transition_id).to eq(original_history.id)
+      expect(target.pending_apply_transition_ids).to eq([original_history.id, selected_history.id].uniq)
 
       check(restarted)
       [original_history, selected_history].each do |history|
@@ -83,7 +83,7 @@ RSpec.describe 'OPNsense pending apply persistence' do
       expect(target.get_current_port).to eq(23_456)
       expect(target.get_updated_at).to be_a(Time)
       expect(target.pending_apply_port).to be_nil
-      expect(target.pending_apply_transition_id).to be_nil
+      expect(target.pending_apply_transition_ids).to eq([])
       expect(target.change?).to eq(false)
       expect(target.attempt).to eq(0)
 
@@ -92,6 +92,75 @@ RSpec.describe 'OPNsense pending apply persistence' do
       expect(selected_history.refresh.opnsense_synced_at).to eq(completed_at)
       expect(opnsense).to have_received(:set_alias_value).with(23_456, 'alias-uuid').once
       expect(opnsense).to have_received(:apply_changes).exactly(3).times
+    end
+  end
+
+  [%w[proton gluetun], %w[gluetun proton]].each do |original, other|
+    it "leaves abandoned #{other} errors intact when #{original} repeatedly reuses its old port history" do
+      @apply_statuses = [200]
+      check(new_job(original))
+      original_history = PortTransition.latest_for_port(23_456, original)
+      check(new_job(other))
+      abandoned = []
+
+      3.times do
+        @apply_statuses = [500]
+        check(new_job(other, 34_567))
+        @apply_statuses = [500]
+        check(new_job(other))
+        history = PortTransition.latest_for_port(23_456, other)
+        expect(history.sync_status('opnsense')).to eq('error')
+        abandoned << history.values.dup
+        @apply_statuses = [200]
+        check(new_job(other, 34_567))
+
+        @apply_statuses = [500, 200]
+        check(new_job(original))
+        expect(target.pending_apply_transition_ids).to eq([original_history.id])
+        check(new_job(original))
+
+        expect(target.pending_apply_port).to be_nil
+        expect(target.get_current_port).to eq(23_456)
+        expect(abandoned.map { |row| PortTransition[row[:id]].values }).to eq(abandoned)
+      end
+      expect(PortTransition.where(source_name: original).count).to eq(1)
+      expect(original_history.refresh.sync_status('opnsense')).to eq('synced')
+    end
+
+    it "registers older #{other} history explicitly when it participates in a #{original} retry" do
+      @apply_statuses = [200]
+      check(new_job(original))
+      check(new_job(other))
+      older_history = PortTransition.latest_for_port(23_456, other)
+      check(new_job(original, 34_567))
+      @apply_statuses = [500, 500, 200]
+
+      check(new_job(original))
+      origin = PortTransition.latest_for_port(23_456, original)
+      check(new_job(other))
+      expect(target.pending_apply_transition_ids).to eq([origin.id, older_history.id])
+      expect(older_history.refresh.sync_status('opnsense')).to eq('error')
+      check(new_job(original))
+
+      expect([origin, older_history].map { |row| row.refresh.sync_status('opnsense') }).to eq(%w[synced synced])
+      expect(target.pending_apply_port).to be_nil
+      expect(older_history.source_name).to eq(other)
+      expect(older_history.sync_status('qbit')).to eq('skipped')
+    end
+
+    it "preserves pending work during a #{other} acquisition outage and clears it after recovery" do
+      check(new_job(original))
+      pending_before = target.counter.values.dup
+      stats_before = target.stat.values.dup
+      check(new_job(other, nil))
+
+      expect(target.counter.values).to eq(pending_before)
+      expect(target.stat.values).to eq(stats_before)
+      expect(opnsense).to have_received(:apply_changes).once
+      @apply_statuses = [200]
+      check(new_job(other))
+      expect(target.pending_apply_port).to be_nil
+      expect(PortTransition.all.map { |row| row.sync_status('opnsense') }).to eq(%w[synced synced])
     end
   end
 
@@ -147,7 +216,7 @@ RSpec.describe 'OPNsense pending apply persistence' do
     check(new_job('gluetun', 34_567))
 
     expect(target.pending_apply_port).to be_nil
-    expect(target.pending_apply_transition_id).to be_nil
+    expect(target.pending_apply_transition_ids).to eq([])
     expect(PortTransition.latest_for_port(23_456, 'proton').sync_status('opnsense')).to eq('error')
     expect(PortTransition.latest_for_port(34_567, 'gluetun').sync_status('opnsense')).to eq('synced')
     expect(opnsense).to have_received(:apply_changes).once
@@ -172,14 +241,24 @@ RSpec.describe 'OPNsense pending apply persistence' do
 
   it 'retries even if the originating history has been pruned' do
     check(new_job('proton'))
-    origin_id = target.pending_apply_transition_id
-    PortTransition.where(id: origin_id).delete
+    origin_id = target.pending_apply_transition_ids.first
+    PortTransition[origin_id].update(detected_at: Time.at(-1))
+    500.times do |index|
+      PortTransition.record_transition(
+        previous_port: 12_345, new_port: 30_000 + index,
+        opnsense_skipped: false, qbit_skipped: false, detected_at: Time.at(index)
+      )
+    end
+    expect(PortTransition[origin_id]).to be_nil
+    expect(target.pending_apply_transition_ids).to eq([origin_id])
     @apply_statuses = [200]
 
     check(new_job('gluetun'))
 
-    expect(PortTransition.first.source_name).to eq('gluetun')
-    expect(PortTransition.first.sync_status('opnsense')).to eq('synced')
+    expect(PortTransition.latest_for_port(23_456, 'gluetun').sync_status('opnsense')).to eq('synced')
+    expect(PortTransition.where(new_port: 30_000..40_000).all.map { |row| row.sync_status('opnsense') })
+      .to all(eq('pending'))
+    expect(PortTransition.count).to eq(500)
     expect(target.pending_apply_port).to be_nil
     expect(opnsense).to have_received(:set_alias_value).once
     expect(opnsense).to have_received(:apply_changes).twice
@@ -190,7 +269,7 @@ RSpec.describe 'OPNsense pending apply persistence' do
     check(new_job('proton'))
     expect(PortTransition.count).to eq(0)
     expect(target.pending_apply_port).to eq(23_456)
-    expect(target.pending_apply_transition_id).to be_nil
+    expect(target.pending_apply_transition_ids).to eq([])
     @apply_statuses = [200]
 
     check(new_job('gluetun'))

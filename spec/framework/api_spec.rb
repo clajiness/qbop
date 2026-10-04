@@ -134,6 +134,30 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     )
   end
 
+  it 'keeps API history historical while stats report the live port during a pending target apply' do
+    ENV['PORT_SOURCE'] = 'gluetun'
+    Source.create(name: 'gluetun').tap(&:seed_tables).set_current_port(23_456)
+    old_history = PortTransition.record_transition(
+      previous_port: 12_345, new_port: 23_456, source_name: 'gluetun',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.mark_synced('opnsense', 23_456, source_name: 'gluetun')
+    pending = PortTransition.record_transition(
+      previous_port: 34_567, new_port: 23_456, source_name: 'proton',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.mark_error('opnsense', 23_456, source_name: 'proton')
+    target = Source[name: 'opnsense'].tap(&:seed_tables)
+    target.set_current_port(34_567)
+    target.set_pending_apply(23_456, [pending.id])
+
+    histories = response_json(api_get('/api/history'))['history'].to_h { |row| [row['id'], row] }
+    expect(histories[old_history.id].dig('opnsense', 'status')).to eq('synced')
+    expect(histories[pending.id].dig('opnsense', 'status')).to eq('error')
+    expect(response_json(api_get('/api/stats')).dig('stats', 'opnsense', 'current_port')).to eq(34_567)
+    expect(Source[name: 'opnsense'].pending_apply_port).to eq(23_456)
+  end
+
   it 'masks Gluetun credentials in configuration responses' do
     ENV.update('GLUETUN_API_KEY' => 'secret-key', 'GLUETUN_USER' => 'secret-user', 'GLUETUN_PASS' => 'secret-pass',
                'GLUETUN_ADDR' => 'http://secret-user:secret-pass@gluetun:8000/control')
@@ -152,6 +176,9 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     'http:///secret-user:secret-pass@/control',
     'ftp://secret-user:secret-pass@gluetun:8000/control',
     'secret-user:secret-pass@gluetun:8000/control',
+    'http://secret-user:secret-pass@gluetun:0/control',
+    'http://secret-user:secret-pass@gluetun:65536/control',
+    'http://secret-user:secret-pass@gluetun:999999/control',
     'http://secret-user:secret-pass@gluetun:8000/control?api_key=query-secret',
     'http://secret-user:secret-pass@gluetun:8000/control#fragment-secret',
     'http://gluetun:8000/control?',
@@ -167,7 +194,8 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  ['http://gluetun:8000', 'https://gluetun', 'https://gluetun:8000/control/'].each do |address|
+  %w[http://gluetun:8000 http://gluetun https://gluetun https://gluetun:8000/control/
+     http://gluetun:1/control/ https://gluetun:65535/control/].each do |address|
     it "preserves supported Gluetun addresses in configuration responses: #{address}" do
       ENV['GLUETUN_ADDR'] = address
 

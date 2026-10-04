@@ -68,7 +68,7 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
       Integer :attempt, default: 0, null: false
       Boolean :change, default: false, null: false
       Integer :pending_apply_port
-      Integer :pending_apply_transition_id
+      String :pending_apply_transition_ids, text: true
 
       index :source_id, unique: true
     end

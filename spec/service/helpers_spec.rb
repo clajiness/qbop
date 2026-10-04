@@ -246,8 +246,9 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  describe '#redact_url_credentials' do
-    ['http://gluetun:8000', 'https://gluetun', 'https://gluetun:8000/control/'].each do |url|
+  describe '#redact_url_credentials' do # rubocop:disable Metrics/BlockLength
+    %w[http://gluetun:8000 http://gluetun https://gluetun https://gluetun:8000/control/
+       http://gluetun:1/control/ https://gluetun:65535/control/].each do |url|
       it "preserves valid addresses: #{url}" do
         expect(described_class.new.redact_url_credentials(url)).to eq(url)
       end
@@ -264,6 +265,9 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
       'http:///user:secret@/control',
       'ftp://user:secret@gluetun:8000/control',
       'user:secret@gluetun:8000/control',
+      'http://user:secret@gluetun:0/control',
+      'http://user:secret@gluetun:65536/control',
+      'http://user:secret@gluetun:999999/control',
       'http://user:secret@gluetun:8000/control?api_key=query-secret',
       'http://user:secret@gluetun:8000/control#fragment-secret',
       'http://gluetun:8000/control?',

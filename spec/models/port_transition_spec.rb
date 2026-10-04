@@ -64,7 +64,7 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
     expect(newer.sync_status('opnsense')).to eq('synced')
   end
 
-  it 'resolves only histories participating in the pending OPNsense apply' do
+  it 'resolves only histories participating in the pending OPNsense apply' do # rubocop:disable Metrics/BlockLength
     attributes = { previous_port: 12_345, new_port: 23_456, opnsense_skipped: false, qbit_skipped: false }
     older = described_class.record_transition(**attributes)
     described_class.mark_error('opnsense', 23_456)
@@ -72,15 +72,20 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
     described_class.mark_error('opnsense', 23_456)
     gluetun = described_class.record_transition(**attributes, source_name: 'gluetun')
     described_class.mark_error('opnsense', 23_456, source_name: 'gluetun')
+    unrelated = described_class.record_transition(**attributes, source_name: 'gluetun')
+    described_class.mark_error('opnsense', 23_456, source_name: 'gluetun')
     different_port = described_class.record_transition(**attributes.merge(new_port: 34_567))
     skipped = described_class.record_transition(**attributes.merge(opnsense_skipped: true))
     synced = described_class.record_transition(**attributes)
     described_class.mark_synced('opnsense', 23_456, at: Time.at(10))
-    before = [older, different_port, skipped, synced].map { |record| record.refresh.values.dup }
+    unchanged = [older, unrelated, different_port, skipped, synced]
+    before = unchanged.map { |record| record.refresh.values.dup }
 
-    described_class.mark_opnsense_applied(23_456, from_transition_id: origin.id, at: Time.at(20))
+    described_class.mark_opnsense_applied(
+      23_456, transition_ids: [origin, gluetun, different_port, skipped, synced].map(&:id), at: Time.at(20)
+    )
 
-    expect([older, different_port, skipped, synced].map { |record| record.refresh.values }).to eq(before)
+    expect(unchanged.map { |record| record.refresh.values }).to eq(before)
     [origin, gluetun].each do |record|
       expect(record.refresh.opnsense_synced_at).to eq(Time.at(20))
       expect(record.opnsense_error_at).to be_nil
@@ -89,7 +94,7 @@ RSpec.describe PortTransition do # rubocop:disable Metrics/BlockLength
     expect(origin.source_name).to eq('proton')
     expect(gluetun.source_name).to eq('gluetun')
     expect(described_class.latest_for_port(23_456, 'proton').id).to eq(synced.id)
-    expect(described_class.latest_for_port(23_456, 'gluetun').id).to eq(gluetun.id)
+    expect(described_class.latest_for_port(23_456, 'gluetun').id).to eq(unrelated.id)
   end
 
   it 'uses only the last settled result for the requested port when recovering legacy apply errors' do

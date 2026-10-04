@@ -1,3 +1,5 @@
+require 'json'
+
 class Source < Sequel::Model # rubocop:disable Style/Documentation
   one_to_one :counter
   one_to_one :stat
@@ -75,12 +77,13 @@ class Source < Sequel::Model # rubocop:disable Style/Documentation
     counter.pending_apply_port
   end
 
-  def pending_apply_transition_id
-    counter.pending_apply_transition_id
+  def pending_apply_transition_ids
+    JSON.parse(counter.pending_apply_transition_ids || '[]')
   end
 
-  def set_pending_apply(port, transition_id)
-    counter.update(pending_apply_port: port, pending_apply_transition_id: transition_id)
+  def set_pending_apply(port, transition_ids)
+    counter.update(pending_apply_port: port,
+                   pending_apply_transition_ids: port.nil? ? nil : JSON.generate(transition_ids))
   end
 
   def clear_pending_apply

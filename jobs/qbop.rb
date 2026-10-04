@@ -172,7 +172,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     Source.db.transaction do
       mark_source_updated(@opnsense_data, forwarded_port, 'opnsense')
       PortTransition.mark_opnsense_applied(forwarded_port,
-                                           from_transition_id: @opnsense_data.pending_apply_transition_id)
+                                           transition_ids: @opnsense_data.pending_apply_transition_ids)
       @opnsense_data.clear_pending_apply
     end
   end
@@ -195,15 +195,16 @@ class Qbop # rubocop:disable Metrics/ClassLength
     transition = PortTransition.pending_opnsense_error(forwarded_port)
     return false unless transition
 
-    @opnsense_data.set_pending_apply(forwarded_port.to_i, transition.id)
+    @opnsense_data.set_pending_apply(forwarded_port.to_i, [transition.id])
+    remember_opnsense_apply(forwarded_port)
     true
   end
 
   def remember_opnsense_apply(forwarded_port)
-    return if @opnsense_data.pending_apply_port == forwarded_port.to_i && @opnsense_data.pending_apply_transition_id
-
+    ids = @opnsense_data.pending_apply_port == forwarded_port.to_i ? @opnsense_data.pending_apply_transition_ids : []
     transition = PortTransition.latest_for_port(forwarded_port, @port_source.name)
-    @opnsense_data.set_pending_apply(forwarded_port.to_i, transition&.id)
+    # Register only history observed while writing or retrying this target, never an ID range.
+    @opnsense_data.set_pending_apply(forwarded_port.to_i, (ids + [transition&.id]).compact.uniq)
   end
 
   def update_qbit_port(forwarded_port)

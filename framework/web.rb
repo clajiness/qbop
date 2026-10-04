@@ -273,6 +273,11 @@ module Framework
 
       @transition = PortTransition.where(new_port: @port_stats.current_port,
                                          source_name: @port_source_name).order(Sequel.desc(:id)).first
+      @opn_sync_status = if Source[name: 'opnsense'].counter&.pending_apply_port
+                           'pending'
+                         else
+                           @transition&.sync_status('opnsense')
+                         end
     end
 
     def load_logs

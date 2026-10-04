@@ -115,6 +115,33 @@ RSpec.describe 'Gluetun job synchronization' do # rubocop:disable Metrics/BlockL
     expect(opnsense).to have_received(:set_alias_value).with(51_820, 'alias-uuid').once
   end
 
+  it 'preserves pending target work and old synced history throughout a control server outage' do
+    old_history = PortTransition.record_transition(
+      previous_port: 12_345, new_port: 22_222, source_name: 'gluetun',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.mark_synced('opnsense', 22_222, source_name: 'gluetun')
+    pending = PortTransition.record_transition(
+      previous_port: 34_567, new_port: 22_222, source_name: 'proton',
+      opnsense_skipped: false, qbit_skipped: false
+    )
+    PortTransition.mark_error('opnsense', 22_222, source_name: 'proton')
+    target = Source[name: 'opnsense']
+    target.set_current_port(34_567)
+    target.set_pending_apply(22_222, [pending.id])
+    state_before = target.counter.values.dup
+    history_before = old_history.refresh.values.dup
+    stub_request(:get, 'http://gluetun:8000/v1/portforward').to_return(status: 500)
+
+    job.send(:run_loop_iteration)
+
+    expect(target.counter.refresh.values).to eq(state_before)
+    expect(old_history.refresh.values).to eq(history_before)
+    expect(target.get_current_port).to eq(34_567)
+    expect(opnsense).not_to have_received(:apply_changes)
+    expect(qbit).not_to have_received(:qbt_app_preferences)
+  end
+
   [Faraday::ConnectionFailed, ArgumentError].each do |error|
     it "keeps #{error} credentials out of the actual formatted job log" do
       output = StringIO.new
@@ -136,6 +163,8 @@ RSpec.describe 'Gluetun job synchronization' do # rubocop:disable Metrics/BlockL
     [{ gluetun_user: "user-secret\u0001", gluetun_pass: 'pass-secret' }, 'GLUETUN_USER'],
     [{ gluetun_user: 'user-secret', gluetun_pass: "pass-secret\r\nsuffix" }, 'GLUETUN_PASS'],
     [{ gluetun_addr: 'http://url-user:url-secret@gluetun:8000/bad path' }, 'URI::InvalidURIError'],
+    [{ gluetun_addr: 'http://url-user:url-secret@gluetun:0/control' }, 'port must be in 1-65535'],
+    [{ gluetun_addr: 'http://url-user:url-secret@gluetun:65536/control' }, 'port must be in 1-65535'],
     [{ gluetun_addr: 'http://url-user:url-secret@gluetun:8000?api_key=query-secret' }, 'query string or fragment'],
     [{ gluetun_addr: 'http://url-user:url-secret@gluetun:8000#fragment-secret' }, 'query string or fragment']
   ].each do |invalid_settings, diagnostic|
