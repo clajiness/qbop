@@ -112,8 +112,8 @@ These settings apply only when `PORT_SOURCE=gluetun`.
 | :--- | :--- | :--- |
 | `GLUETUN_ADDR` | `http://gluetun:8000` | Gluetun control server base URL, including `http(s)://`. An optional reverse proxy path prefix is preserved. Query strings and fragments are rejected. Must be reachable from qbop. Use the dedicated authentication variables; URL userinfo is ignored and masked in configuration displays. |
 | `GLUETUN_API_KEY` | | Control API key sent as `X-API-Key`. Takes precedence over Basic credentials. |
-| `GLUETUN_USER` | | HTTP Basic username; used with `GLUETUN_PASS` when no API key is configured. |
-| `GLUETUN_PASS` | | HTTP Basic password. If neither authentication method is configured, requests are unauthenticated. |
+| `GLUETUN_USER` | | HTTP Basic username; requires `GLUETUN_PASS` when no API key is configured. |
+| `GLUETUN_PASS` | | HTTP Basic password; requires `GLUETUN_USER` when no API key is configured. If neither authentication method is configured, requests are unauthenticated. |
 | `GLUETUN_SSL_VERIFY` | `false` | [`true`/`false`] Verify certificates for the Gluetun client only. |
 
 #### OPNsense settings
@@ -184,7 +184,7 @@ environment:
   - GLUETUN_SSL_VERIFY=false
 ```
 
-Configure Gluetun's authentication role to allow `GET /v1/portforward`, following its [control server documentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md#authentication). qbop uses the documented `X-API-Key` header, falls back to HTTP Basic with both configured credentials, or makes an unauthenticated request when neither is configured. Gluetun must explicitly permit unauthenticated access for that last option to work.
+Configure Gluetun's authentication role to allow `GET /v1/portforward`, following its [control server documentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md#authentication). A populated `GLUETUN_API_KEY` takes precedence and is sent as `X-API-Key`, regardless of Basic settings. Without an API key, HTTP Basic requires both `GLUETUN_USER` and `GLUETUN_PASS`; supplying only one is invalid configuration and prevents startup. Unset, empty, and whitespace-only values count as absent. If neither authentication method is configured, requests are unauthenticated; Gluetun must explicitly permit unauthenticated access for that to work.
 
 `GLUETUN_ADDR` accepts a path prefix such as `https://vpn.example/control/`, but no query string or fragment; query-based authentication is unsupported. Explicit endpoint ports must be within `1..65535`; omitted ports use the HTTP/HTTPS defaults. Active API-key or Basic credentials must be valid strings without control characters, including newlines. Invalid configuration fails initialization with a secret-free error. Configuration displays show `[invalid URL]` for malformed URLs, invalid endpoint ports, or URLs containing a query string or fragment.
 
@@ -369,11 +369,11 @@ Recommended upgrade sequence:
 7. Update every API client and monitoring check to send `Authorization: Bearer qbop_...`, including checks of `/api/health`.
 8. Restart qbop and verify the web UI, history, integrations, and authenticated API requests.
 
-Migration 008 adds port-source attribution to transition history; migration 009 adds persisted OPNsense pending-apply metadata. Downgrading across these migrations removes that metadata, and re-upgrading cannot reconstruct all of it accurately. If a downgrade is required, restore a pre-upgrade database backup as the safe rollback path.
-
 <a id="usage"></a>
 
 ## Operational details and troubleshooting
+
+Migration 008 adds port-source attribution to transition history; migration 009 adds persisted OPNsense pending-apply metadata. Downgrading across these migrations removes that metadata, and re-upgrading cannot reconstruct all of it accurately. If a downgrade is required, restore a pre-upgrade database backup as the safe rollback path.
 
 ### History and synchronization status
 

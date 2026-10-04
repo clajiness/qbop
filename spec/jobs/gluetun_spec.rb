@@ -162,6 +162,8 @@ RSpec.describe 'Gluetun job synchronization' do # rubocop:disable Metrics/BlockL
     [{ gluetun_api_key: "api-secret\nsuffix" }, 'GLUETUN_API_KEY'],
     [{ gluetun_user: "user-secret\u0001", gluetun_pass: 'pass-secret' }, 'GLUETUN_USER'],
     [{ gluetun_user: 'user-secret', gluetun_pass: "pass-secret\r\nsuffix" }, 'GLUETUN_PASS'],
+    [{ gluetun_user: "user-secret\nsuffix", gluetun_pass: nil }, 'must both be configured for Basic authentication'],
+    [{ gluetun_user: nil, gluetun_pass: "pass-secret\0suffix" }, 'must both be configured for Basic authentication'],
     [{ gluetun_addr: 'http://url-user:url-secret@gluetun:8000/bad path' }, 'URI::InvalidURIError'],
     [{ gluetun_addr: 'http://url-user:url-secret@gluetun:0/control' }, 'port must be in 1-65535'],
     [{ gluetun_addr: 'http://url-user:url-secret@gluetun:65536/control' }, 'port must be in 1-65535'],

@@ -56,11 +56,27 @@ module Service
       if !api_key.to_s.strip.empty?
         validate_credential(api_key, 'GLUETUN_API_KEY')
         faraday.headers['X-API-Key'] = api_key
-      elsif user && password
-        validate_credential(user, 'GLUETUN_USER')
-        validate_credential(password, 'GLUETUN_PASS')
-        faraday.request :authorization, :basic, user, password
+      else
+        authenticate_basic(faraday, user, password)
       end
+    end
+
+    def authenticate_basic(faraday, user, password)
+      user_blank = blank_credential?(user)
+      password_blank = blank_credential?(password)
+      return if user_blank && password_blank
+
+      if user_blank || password_blank
+        raise PortError, 'GLUETUN_USER and GLUETUN_PASS must both be configured for Basic authentication', cause: nil
+      end
+
+      validate_credential(user, 'GLUETUN_USER')
+      validate_credential(password, 'GLUETUN_PASS')
+      faraday.request :authorization, :basic, user, password
+    end
+
+    def blank_credential?(value)
+      value.nil? || (value.is_a?(String) && value.valid_encoding? && value.strip.empty?)
     end
 
     def validate_credential(value, setting)

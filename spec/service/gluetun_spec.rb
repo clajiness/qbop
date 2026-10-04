@@ -197,6 +197,65 @@ RSpec.describe Service::Gluetun do # rubocop:disable Metrics/BlockLength
     expect(request).to have_been_requested.once
   end
 
+  it 'uses X-API-Key when only an API key is configured' do
+    config[:gluetun_api_key] = 'api-secret'
+    request = stub_request(:get, endpoint)
+              .with(headers: { 'X-API-Key' => 'api-secret' }) { |req| !req.headers.key?('Authorization') }
+              .to_return(body: '{"port":51820}')
+
+    expect(source.current_port).to eq(51_820)
+    expect(request).to have_been_requested.once
+  end
+
+  %i[gluetun_user gluetun_pass].each do |setting| # rubocop:disable Metrics/BlockLength
+    ['credential-secret', "credential-secret\r\nsuffix", "credential-secret\xFF".force_encoding(Encoding::UTF_8)]
+      .each_with_index do |value, index|
+      it "preserves API-key precedence over partial #{setting} configuration (variant #{index})" do
+        config.merge!(gluetun_api_key: 'api-secret', setting => value)
+        request = stub_request(:get, endpoint)
+                  .with(headers: { 'X-API-Key' => 'api-secret' }) { |req| !req.headers.key?('Authorization') }
+                  .to_return(body: '{"port":51820}')
+
+        expect(source.current_port).to eq(51_820)
+        expect(request).to have_been_requested.once
+      end
+    end
+
+    [nil, '', " \t "].each do |absent|
+      it "rejects partial #{setting} configuration when the other credential is #{absent.inspect}" do
+        other = setting == :gluetun_user ? :gluetun_pass : :gluetun_user
+        config.merge!(setting => 'credential-secret', other => absent, gluetun_api_key: ' ')
+        request = stub_request(:get, endpoint).to_return(body: '{"port":51820}')
+
+        expect { source }.to raise_error(
+          described_class::PortError,
+          'GLUETUN_USER and GLUETUN_PASS must both be configured for Basic authentication'
+        ) do |error|
+          expect(error.cause).to be_nil
+          expect(error.full_message).not_to include('credential-secret')
+        end
+        expect(request).not_to have_been_requested
+      end
+    end
+
+    ["credential-secret\nsuffix", "credential-secret\0suffix", "credential-secret\xFF".force_encoding(Encoding::UTF_8)]
+      .each_with_index do |value, index|
+      it "rejects sensitive partial #{setting} configuration safely (variant #{index})" do
+        config[setting] = value
+        request = stub_request(:get, endpoint).to_return(body: '{"port":51820}')
+
+        expect { source }.to raise_error(
+          described_class::PortError,
+          'GLUETUN_USER and GLUETUN_PASS must both be configured for Basic authentication'
+        ) do |error|
+          expect(error.cause).to be_nil
+          expect(error.full_message).not_to include('credential-secret')
+        end
+        expect(request).not_to have_been_requested
+      end
+    end
+  end
+
   it 'preserves API-key precedence when unused Basic credentials contain control characters' do
     config.merge!(gluetun_api_key: 'api-secret', gluetun_user: "user-secret\n", gluetun_pass: "pass-secret\0")
     request = stub_request(:get, endpoint)
@@ -224,6 +283,18 @@ RSpec.describe Service::Gluetun do # rubocop:disable Metrics/BlockLength
 
     expect(source.current_port).to eq(51_820)
     expect(request).to have_been_requested.once
+  end
+
+  [[nil, ''], ['', nil], ['', ''], ['  ', "\t\r\n"]].each do |user, password|
+    it "treats blank Basic credentials as absent: #{[user, password].inspect}" do
+      config.merge!(gluetun_user: user, gluetun_pass: password)
+      request = stub_request(:get, endpoint).with do |req|
+        !req.headers.key?('Authorization') && !req.headers.key?('X-Api-Key')
+      end.to_return(body: '{"port":51820}')
+
+      expect(source.current_port).to eq(51_820)
+      expect(request).to have_been_requested.once
+    end
   end
 
   [true, false].each do |verify|
