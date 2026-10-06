@@ -42,6 +42,74 @@ RSpec.describe 'database migrations' do # rubocop:disable Metrics/BlockLength
     expect(db.table_exists?(:account_password_hashes)).to eq(true)
     expect(db.table_exists?(:account_oidc_identities)).to eq(true)
     expect(db.table_exists?(:api_keys)).to eq(true)
+    expect(db[:settings].count).to eq(0)
+  end
+
+  it 'stores one non-null text value per unique setting name' do
+    db = Sequel.sqlite
+    run_migrations(db)
+
+    expect(db.schema(:settings).to_h).to include(
+      id: include(type: :integer, primary_key: true),
+      name: include(type: :string, allow_null: false),
+      value: include(type: :string, allow_null: false, db_type: 'TEXT')
+    )
+    expect(db.schema(:settings).map(&:first)).to eq(%i[id name value])
+    expect(unique_index?(db, :settings, [:name])).to eq(true)
+    db[:settings].insert(name: 'loop_freq', value: '60')
+
+    expect { db[:settings].insert(name: 'loop_freq', value: '120') }
+      .to raise_error(Sequel::UniqueConstraintViolation)
+    expect { db[:settings].insert(name: nil, value: '60') }.to raise_error(Sequel::NotNullConstraintViolation)
+    expect { db[:settings].insert(name: 'required_attempts', value: nil) }
+      .to raise_error(Sequel::NotNullConstraintViolation)
+  end
+
+  it 'upgrades, rolls back, and reapplies settings without changing unrelated application data' do # rubocop:disable Metrics/BlockLength
+    db = Sequel.sqlite
+    Sequel.extension :migration
+    Sequel::Migrator.run(db, 'db/migrate', target: 9)
+    source_id = db[:sources].insert(name: 'opnsense')
+    db[:stats].insert(source_id: source_id, current_port: 23_456, last_checked: Time.at(100))
+    db[:counters].insert(source_id: source_id, attempt: 3, change: true,
+                         pending_apply_port: 23_456, pending_apply_transition_ids: '[1]')
+    db[:port_transitions].insert(new_port: 23_456, detected_at: Time.at(100), source_name: 'gluetun')
+    db[:notifications].insert(name: 'update_available', info: 'v2.7.0', active: true)
+    account_id = db[:accounts].insert(email: 'admin@example.com')
+    db[:account_password_hashes].insert(id: account_id, password_hash: 'existing-password-hash')
+    db[:account_oidc_identities].insert(account_id: account_id, issuer: 'https://id.example.com', subject: 'admin')
+    db[:api_keys].insert(name: 'existing key', token_digest: 'digest', token_prefix: 'qbop_existing',
+                         created_at: Time.at(100))
+    original_data = db.tables.reject { |table| table == :schema_info }.to_h { |table| [table, db[table].all] }
+
+    run_migrations(db)
+    expect(db[:settings].count).to eq(0)
+    original_data.each { |table, rows| expect(db[table].all).to eq(rows) }
+    db[:settings].insert(name: 'loop_freq', value: '60')
+    run_migrations(db)
+    expect(db[:settings].get(:value)).to eq('60')
+
+    Sequel::Migrator.run(db, 'db/migrate', target: 9)
+    expect(db.table_exists?(:settings)).to be(false)
+    original_data.each { |table, rows| expect(db[table].all).to eq(rows) }
+
+    run_migrations(db)
+    expect(db[:settings].count).to eq(0)
+    original_data.each { |table, rows| expect(db[table].all).to eq(rows) }
+  end
+
+  it 'retains stored settings across a database restart' do
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, 'qbop.sqlite3')
+      db = Sequel.sqlite(path)
+      run_migrations(db)
+      db[:settings].insert(name: 'port_source', value: 'gluetun')
+      db.disconnect
+
+      db = Sequel.sqlite(path)
+      expect(db[:settings][name: 'port_source'][:value]).to eq('gluetun')
+      db.disconnect
+    end
   end
 
   it 'labels legacy history as Proton and preserves it across migration rollback and reapplication' do

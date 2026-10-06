@@ -1,6 +1,7 @@
 require 'time'
 require_relative 'event_logger'
 require_relative 'gluetun_url'
+require_relative 'settings'
 
 module Service
   # The Helpers class provides utility methods for accessing environment variables
@@ -15,9 +16,9 @@ module Service
         script_version: app_version,
         commit_sha: commit_sha,
         loop_freq: loop_frequency,
-        required_attempts: validate_required_attempts(ENV['REQUIRED_ATTEMPTS'] || 3),
-        port_source: ENV.fetch('PORT_SOURCE', 'proton'),
-        proton_gateway: environment_value('PROTON_GATEWAY', '10.2.0.1'),
+        required_attempts: settings.value(:required_attempts),
+        port_source: settings.value(:port_source),
+        proton_gateway: settings.value(:proton_gateway),
         gluetun_addr: environment_value('GLUETUN_ADDR', 'http://gluetun:8000'),
         gluetun_api_key: environment_value('GLUETUN_API_KEY'),
         gluetun_user: environment_value('GLUETUN_USER'),
@@ -73,20 +74,15 @@ module Service
     end
 
     def validate_loop_frequency(loop_freq)
-      frequency = Integer(loop_freq, exception: false)
-      frequency&.positive? ? frequency : 45
+      Settings.validate_loop_frequency(loop_freq)
     end
 
     def loop_frequency
-      validate_loop_frequency(environment_value('LOOP_FREQ', 45))
+      settings.value(:loop_freq)
     end
 
     def validate_required_attempts(required_attempts)
-      if required_attempts&.to_i&.between?(1, 10)
-        required_attempts&.to_i
-      else
-        3
-      end
+      Settings.validate_required_attempts(required_attempts)
     end
 
     def validate_log_lines(log_lines, default = env_variables[:log_lines])
@@ -270,6 +266,10 @@ module Service
     end
 
     private
+
+    def settings
+      @settings ||= Settings.new
+    end
 
     def tail_lines(path, line_limit)
       File.foreach(path).each_with_object([]) do |line, output|

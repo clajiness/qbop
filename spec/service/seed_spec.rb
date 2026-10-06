@@ -23,6 +23,47 @@ RSpec.describe Service::Seed do # rubocop:disable Metrics/BlockLength
     expect(Source.order(:name).map(&:name)).to eq(%w[opnsense proton qbit])
     expect(Stat.count).to eq(3)
     expect(Counter.count).to eq(3)
+    expect(Setting.count).to eq(0)
+  end
+
+  it 'seeds Gluetun when selected by a database setting and leaves that setting unchanged' do
+    Setting.create(name: 'port_source', value: 'gluetun')
+
+    2.times { described_class.new }
+
+    expect(Source.order(:name).map(&:name)).to eq(%w[gluetun opnsense qbit])
+    expect(Stat.count).to eq(3)
+    expect(Counter.count).to eq(3)
+    expect(Setting.select_map(%i[name value])).to eq([%w[port_source gluetun]])
+  end
+
+  it 'seeds Proton when explicitly selected by ENV ahead of a database Gluetun setting' do
+    Setting.create(name: 'port_source', value: 'gluetun')
+    ENV['PORT_SOURCE'] = 'proton'
+
+    described_class.new
+
+    expect(Source.order(:name).map(&:name)).to eq(%w[opnsense proton qbit])
+    expect(Setting[name: 'port_source'].value).to eq('gluetun')
+  end
+
+  ['', 'invalid'].each do |input|
+    it "fails startup for ENV source #{input.inspect} even with a valid stored Gluetun source" do
+      Setting.create(name: 'port_source', value: 'gluetun')
+      ENV['PORT_SOURCE'] = input
+
+      expect { described_class.new }
+        .to raise_error(Service::PortSource::ConfigurationError, 'PORT_SOURCE must be proton or gluetun')
+      expect(Source.count).to eq(0)
+    end
+  end
+
+  it 'does not store environment values while seeding' do
+    ENV['PORT_SOURCE'] = 'gluetun'
+
+    described_class.new
+
+    expect(Setting.count).to eq(0)
   end
 
   it 'seeds Gluetun separately while preserving existing Proton records and history' do
