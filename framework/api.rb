@@ -25,7 +25,8 @@ module Framework
       end
 
       def require_wireguard_import_available!
-        return unless Service::Helpers.new.true?(ENV['OPN_SKIP'])
+        helpers = Service::Helpers.new
+        return unless helpers.true?(helpers.env_variables[:opnsense_skip])
 
         error!({ 'error' => WIREGUARD_IMPORT_UNAVAILABLE }, 503)
       end
@@ -211,6 +212,7 @@ module Framework
         } }
     end
 
+    # Keep the legacy env_variables representations; only historically effective fields use resolved config.
     get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
       config = helpers.env_variables
@@ -258,7 +260,8 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
-      port_source = Service::PortSource.name(helpers.env_variables)
+      config = helpers.env_variables
+      port_source = Service::PortSource.name(config)
       @port_stats = stats[port_source]
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
@@ -266,8 +269,8 @@ module Framework
 
       health = {
         'protonvpn' => service_status.call(@port_stats),
-        'opnsense' => helpers.true?(ENV['OPN_SKIP']) ? 'skipped' : service_status.call(@opn_stats),
-        'qbit' => helpers.true?(ENV['QBIT_SKIP']) ? 'skipped' : service_status.call(@qbit_stats)
+        'opnsense' => helpers.true?(config[:opnsense_skip]) ? 'skipped' : service_status.call(@opn_stats),
+        'qbit' => helpers.true?(config[:qbit_skip]) ? 'skipped' : service_status.call(@qbit_stats)
       }
 
       status health.value?(503) ? 503 : 200

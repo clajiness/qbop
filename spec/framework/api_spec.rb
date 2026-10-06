@@ -34,7 +34,9 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
 
   around do |example|
     env_keys = %w[OPN_SKIP QBIT_SKIP VERSION COMMIT_SHA BUILD_DATE LOOP_FREQ PROTON_GATEWAY PORT_SOURCE GLUETUN_API_KEY
-                  GLUETUN_ADDR GLUETUN_USER GLUETUN_PASS OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME]
+                  GLUETUN_ADDR GLUETUN_USER GLUETUN_PASS OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME
+                  UI_MODE REQUIRED_ATTEMPTS LOG_LINES LOG_REVERSE LOG_TO_STDOUT GLUETUN_SSL_VERIFY
+                  OPN_INTERFACE_ADDR OPN_SSL_VERIFY QBIT_ADDR QBIT_SSL_VERIFY]
     original_env = env_keys.to_h { |key| [key, ENV[key]] }
 
     env_keys.each { |key| ENV.delete(key) }
@@ -58,6 +60,124 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     issued_key = ApiKey.issue('api spec')
     @api_key = issued_key.api_key
     @api_token = issued_key.token
+  end
+
+  it 'preserves ENV-backed about fields while reporting historically effective fields and masking credentials' do
+    settings = Service::Settings.new
+    { ui_mode: 'light', loop_freq: 30, required_attempts: 5, proton_gateway: '10.7.0.1',
+      log_lines: 75, log_reverse: true, log_to_stdout: true, gluetun_addr: 'https://gluetun/control/',
+      gluetun_ssl_verify: true, opnsense_skip: true, opnsense_interface_addr: 'https://firewall/',
+      opnsense_alias_name: 'stored_alias', opnsense_ssl_verify: true, qbit_skip: true,
+      qbit_addr: 'http://qbit:8080/', qbit_ssl_verify: true }.each { |key, value| settings.set(key, value) }
+
+    response = api_get('/api/about')
+
+    expect(response.status).to eq(200)
+    expect(response_json(response)['env_variables']).to include(
+      'ui_mode' => nil, 'loop_freq' => 30, 'required_attempts' => nil, 'proton_gateway' => '10.7.0.1',
+      'log_lines' => nil, 'log_reverse' => false, 'log_to_stdout' => false,
+      'gluetun_addr' => 'https://gluetun/control/', 'gluetun_ssl_verify' => true,
+      'opn_skip' => false, 'opn_interface_addr' => nil, 'opn_alias_name' => 'stored_alias',
+      'opn_proton_alias_name' => nil, 'opn_ssl_verify' => false,
+      'qbit_skip' => false, 'qbit_addr' => nil, 'qbit_ssl_verify' => false,
+      'gluetun_api_key' => '***', 'gluetun_user' => '***', 'gluetun_pass' => '***',
+      'opn_api_key' => '***', 'opn_api_secret' => '***', 'qbit_api_key' => '***', 'qbit_pass' => '***'
+    )
+    expect(response.body).not_to include('environment_name', 'environment_override', '"source"')
+    expect(Setting.count).to eq(16)
+  end
+
+  it 'preserves unset ENV representations and historically effective defaults without creating settings rows' do
+    expect(response_json(api_get('/api/about'))['env_variables']).to include(
+      'ui_mode' => nil, 'required_attempts' => nil, 'log_lines' => nil,
+      'opn_skip' => false, 'opn_interface_addr' => nil, 'opn_ssl_verify' => false,
+      'qbit_skip' => false, 'qbit_addr' => nil, 'qbit_ssl_verify' => false,
+      'log_reverse' => false, 'log_to_stdout' => false, 'opn_alias_name' => nil, 'opn_proton_alias_name' => nil,
+      'loop_freq' => 45, 'proton_gateway' => '10.2.0.1', 'port_source' => 'proton',
+      'gluetun_addr' => 'http://gluetun:8000', 'gluetun_ssl_verify' => false
+    )
+    expect(Setting.count).to eq(0)
+  end
+
+  it 'preserves raw ENV strings, case, partial numbers, and established boolean parsing on about' do
+    ENV.update('UI_MODE' => 'LiGhT', 'REQUIRED_ATTEMPTS' => '5abc', 'LOG_LINES' => '7000abc',
+               'LOG_REVERSE' => 'TRUE', 'LOG_TO_STDOUT' => ' true ', 'OPN_SKIP' => 'TRUE',
+               'OPN_INTERFACE_ADDR' => 'https://legacy-firewall/proxy/', 'OPN_SSL_VERIFY' => 'TRUE',
+               'QBIT_SKIP' => 'false', 'QBIT_ADDR' => 'http://legacy-qbit:8080/qbit/', 'QBIT_SSL_VERIFY' => ' true ')
+
+    expect(response_json(api_get('/api/about'))['env_variables']).to include(
+      'ui_mode' => 'LiGhT', 'required_attempts' => '5abc', 'log_lines' => '7000abc',
+      'log_reverse' => true, 'log_to_stdout' => false, 'opn_skip' => true,
+      'opn_interface_addr' => 'https://legacy-firewall/proxy/', 'opn_ssl_verify' => true,
+      'qbit_skip' => false, 'qbit_addr' => 'http://legacy-qbit:8080/qbit/', 'qbit_ssl_verify' => false
+    )
+    expect(Setting.count).to eq(0)
+  end
+
+  ['', ' '].each do |blank|
+    it "retains raw #{blank.inspect} ENV placeholders and their legacy boolean representations on about" do
+      %w[UI_MODE REQUIRED_ATTEMPTS LOG_LINES LOG_REVERSE LOG_TO_STDOUT OPN_SKIP OPN_INTERFACE_ADDR
+         OPN_SSL_VERIFY QBIT_SKIP QBIT_ADDR QBIT_SSL_VERIFY].each { |name| ENV[name] = blank }
+
+      expect(response_json(api_get('/api/about'))['env_variables']).to include(
+        'ui_mode' => blank, 'required_attempts' => blank, 'log_lines' => blank,
+        'log_reverse' => false, 'log_to_stdout' => false, 'opn_skip' => false,
+        'opn_interface_addr' => blank, 'opn_ssl_verify' => false, 'qbit_skip' => false,
+        'qbit_addr' => blank, 'qbit_ssl_verify' => false
+      )
+      expect(Setting.count).to eq(0)
+    end
+  end
+
+  it 'keeps the existing about response fields without adding resolution metadata' do
+    expect(response_json(api_get('/api/about'))['env_variables'].keys).to contain_exactly(
+      *%w[ui_mode loop_freq required_attempts log_lines log_reverse log_to_stdout port_source gluetun_addr
+          gluetun_api_key gluetun_user gluetun_pass gluetun_ssl_verify proton_gateway opn_skip opn_interface_addr
+          opn_api_key opn_api_secret opn_alias_name opn_proton_alias_name opn_ssl_verify qbit_skip qbit_addr
+          qbit_api_key qbit_user qbit_pass qbit_ssl_verify]
+    )
+  end
+
+  it 'uses the stored alias when both ENV aliases are blank while retaining the raw legacy API field' do
+    ENV.update('OPN_ALIAS_NAME' => '', 'OPN_PROTON_ALIAS_NAME' => ' ')
+    Service::Settings.new.set(:opnsense_alias_name, 'stored_alias')
+
+    expect(response_json(api_get('/api/about'))['env_variables']).to include(
+      'opn_alias_name' => 'stored_alias', 'opn_proton_alias_name' => ' '
+    )
+  end
+
+  it 'honors stored skip settings in health without hiding a stale enabled target' do
+    settings = Service::Settings.new
+    settings.set(:opnsense_skip, true)
+    settings.set(:qbit_skip, true)
+    %w[opnsense qbit].each { |name| Source[name: name].stat.update(last_checked: Time.now - 10_000) }
+
+    response = api_get('/api/health')
+    expect(response.status).to eq(200)
+    expect(response_json(response)['health']).to eq('protonvpn' => 200, 'opnsense' => 'skipped', 'qbit' => 'skipped')
+
+    settings.set(:qbit_skip, false)
+    response = api_get('/api/health')
+    expect(response.status).to eq(503)
+    expect(response_json(response)['health']).to include('opnsense' => 'skipped', 'qbit' => 503)
+  end
+
+  it 'uses stored log count and direction as API log defaults' do
+    settings = Service::Settings.new
+    settings.set(:log_lines, 75)
+    settings.set(:log_reverse, true)
+    expect_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).with(75, true).and_return(['newest'])
+
+    expect(response_json(api_get('/api/logs'))).to eq('log_lines' => ['newest'])
+  end
+
+  it 'honors a stored OPNsense skip setting for WireGuard tools before creating an integration client' do
+    Service::Settings.new.set(:opnsense_skip, true)
+    expect(Service::Opnsense).not_to receive(:new)
+
+    expect(api_get('/api/tools/wireguard-targets').status).to eq(503)
+    expect(api_post('/api/tools/wireguard-import', {}).status).to eq(503)
   end
 
   it 'requires the same valid Bearer credential for every API endpoint' do

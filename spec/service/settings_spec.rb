@@ -19,28 +19,36 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
   }.each do |key, (default, database_input, database_value, environment_input, environment_value)|
     describe key.to_s do # rubocop:disable Metrics/BlockLength
       it 'resolves the existing default without creating a row' do
-        expect(settings.resolve(key).to_h).to eq(value: default, source: :default)
+        expect(settings.resolve(key).to_h).to eq(
+          value: default, source: :default, environment_name: nil, environment_override: false
+        )
         expect(Setting.count).to eq(0)
       end
 
       it 'resolves an environment value without importing it' do
         environment[key.to_s.upcase] = environment_input
 
-        expect(settings.resolve(key).to_h).to eq(value: environment_value, source: :environment)
+        expect(settings.resolve(key).to_h).to eq(
+          value: environment_value, source: :environment, environment_name: key.to_s.upcase, environment_override: true
+        )
         expect(Setting.count).to eq(0)
       end
 
       it 'resolves a stored database value when the environment key is absent' do
         Setting.create(name: key.to_s, value: database_input)
 
-        expect(settings.resolve(key).to_h).to eq(value: database_value, source: :database)
+        expect(settings.resolve(key).to_h).to eq(
+          value: database_value, source: :database, environment_name: nil, environment_override: false
+        )
       end
 
       it 'uses an environment value ahead of a stored database value' do
         environment[key.to_s.upcase] = environment_input
         Setting.create(name: key.to_s, value: database_input)
 
-        expect(settings.resolve(key).to_h).to eq(value: environment_value, source: :environment)
+        expect(settings.resolve(key).to_h).to eq(
+          value: environment_value, source: :environment, environment_name: key.to_s.upcase, environment_override: true
+        )
         expect(Setting[name: key.to_s].value).to eq(database_input)
       end
 
@@ -54,7 +62,8 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
         expect(settings.resolve(key)).to equal(original)
         expect(settings.value(key)).to eq(database_value)
         expect(described_class.new(environment: environment).resolve(key).to_h)
-          .to eq(value: environment_value, source: :environment)
+          .to eq(value: environment_value, source: :environment, environment_name: key.to_s.upcase,
+                 environment_override: true)
       end
 
       next if key == :port_source
@@ -64,13 +73,17 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
           environment[key.to_s.upcase] = blank
           Setting.create(name: key.to_s, value: database_input)
 
-          expect(settings.resolve(key).to_h).to eq(value: database_value, source: :database)
+          expect(settings.resolve(key).to_h).to eq(
+            value: database_value, source: :database, environment_name: nil, environment_override: false
+          )
         end
 
         it "uses the default for #{blank.inspect} environment input without a stored override" do
           environment[key.to_s.upcase] = blank
 
-          expect(settings.resolve(key).to_h).to eq(value: default, source: :default)
+          expect(settings.resolve(key).to_h).to eq(
+            value: default, source: :default, environment_name: nil, environment_override: false
+          )
         end
       end
     end
@@ -81,7 +94,9 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
       it "normalizes invalid database LOOP_FREQ #{input.inspect} to 45" do
         Setting.create(name: 'loop_freq', value: input)
 
-        expect(settings.resolve(:loop_freq).to_h).to eq(value: 45, source: :database)
+        expect(settings.resolve(:loop_freq).to_h).to eq(
+          value: 45, source: :database, environment_name: nil, environment_override: false
+        )
       end
     end
 
@@ -98,7 +113,9 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
       it "preserves existing REQUIRED_ATTEMPTS validation for database value #{input.inspect}" do
         Setting.create(name: 'required_attempts', value: input)
 
-        expect(settings.resolve(:required_attempts).to_h).to eq(value: expected, source: :database)
+        expect(settings.resolve(:required_attempts).to_h).to eq(
+          value: expected, source: :database, environment_name: nil, environment_override: false
+        )
       end
     end
 
@@ -107,7 +124,9 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
         environment[key.to_s.upcase] = 'invalid'
         Setting.create(name: key.to_s, value: database_value)
 
-        expect(settings.resolve(key).to_h).to eq(value: default, source: :environment)
+        expect(settings.resolve(key).to_h).to eq(
+          value: default, source: :environment, environment_name: key.to_s.upcase, environment_override: true
+        )
       end
     end
   end
@@ -118,7 +137,10 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
         environment['PORT_SOURCE'] = input
         Setting.create(name: 'port_source', value: 'gluetun')
 
-        expect(settings.resolve(:port_source).to_h).to eq(value: input, source: :environment)
+        expect(settings.resolve(:port_source).to_h).to eq(
+          value: input, source: :environment, environment_name: 'PORT_SOURCE', environment_override: true
+        )
+        expect(settings.resolve(:port_source).environment_override?).to be(true)
         expect { Service::PortSource.name(port_source: settings.value(:port_source)) }
           .to raise_error(Service::PortSource::ConfigurationError, 'PORT_SOURCE must be proton or gluetun')
       end
@@ -137,6 +159,7 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
 
     expect { settings.resolve(:gluetun_api_key) }.to raise_error(KeyError)
     expect { settings.resolve(:unrelated_setting) }.to raise_error(KeyError)
-    expect(settings.resolve(:loop_freq).to_h.keys).to contain_exactly(:value, :source)
+    expect(settings.resolve(:loop_freq).to_h.keys)
+      .to contain_exactly(:value, :source, :environment_name, :environment_override)
   end
 end

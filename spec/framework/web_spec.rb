@@ -27,7 +27,9 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
 
   around do |example| # rubocop:disable Metrics/BlockLength
     source_env_keys = %w[PORT_SOURCE GLUETUN_ADDR GLUETUN_API_KEY GLUETUN_USER GLUETUN_PASS
-                         OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME QBIT_SKIP]
+                         OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME QBIT_SKIP UI_MODE REQUIRED_ATTEMPTS
+                         LOG_LINES LOG_REVERSE LOG_TO_STDOUT GLUETUN_SSL_VERIFY OPN_INTERFACE_ADDR
+                         OPN_SSL_VERIFY QBIT_ADDR QBIT_SSL_VERIFY]
     source_env = source_env_keys.to_h { |key| [key, ENV[key]] }
     source_env_keys.each { |key| ENV.delete(key) }
     version = ENV['VERSION']
@@ -62,6 +64,60 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       source = Source.create(name: name)
       Stat.create(source_id: source.id, current_port: 12_345, same_port: 60)
     end
+  end
+
+  it 'shows effective stored settings on about and applies the stored UI mode to the layout' do
+    settings = Service::Settings.new
+    { ui_mode: 'light', loop_freq: 30, required_attempts: 5, proton_gateway: '10.7.0.1',
+      log_lines: 75, log_reverse: true, log_to_stdout: true, gluetun_addr: 'https://gluetun/control/',
+      gluetun_ssl_verify: true, opnsense_skip: true, opnsense_interface_addr: 'https://firewall/',
+      opnsense_alias_name: 'stored_alias', opnsense_ssl_verify: true, qbit_skip: true,
+      qbit_addr: 'http://qbit:8080/', qbit_ssl_verify: true }.each { |key, value| settings.set(key, value) }
+
+    response = web_request.get('/about')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include(
+      '/css/light.css', '/images/light/favicon-light.ico', 'UI_MODE: light', 'LOOP_FREQ: 30',
+      'REQUIRED_ATTEMPTS: 5', 'PROTON_GATEWAY: 10.7.0.1', 'LOG_LINES: 75', 'LOG_REVERSE: true',
+      'LOG_TO_STDOUT: true', 'GLUETUN_ADDR: https://gluetun/control/', 'GLUETUN_SSL_VERIFY: true',
+      'OPN_SKIP: true', 'OPN_INTERFACE_ADDR: https://firewall/', 'OPN_ALIAS_NAME: stored_alias',
+      'OPN_SSL_VERIFY: true', 'QBIT_SKIP: true', 'QBIT_ADDR: http://qbit:8080/', 'QBIT_SSL_VERIFY: true',
+      'GLUETUN_API_KEY: ***', 'OPN_API_SECRET: ***', 'QBIT_PASS: ***', 'OIDC_CLIENT_SECRET: ***'
+    )
+    expect(Setting.count).to eq(16)
+  end
+
+  it 'honors stored skip settings in status rendering' do
+    settings = Service::Settings.new
+    settings.set(:opnsense_skip, true)
+    settings.set(:qbit_skip, true)
+
+    response = web_request.get('/partials/status')
+    expect(response.body).to include('skipped per the OPN_SKIP setting', 'skipped per the QBIT_SKIP setting')
+    settings.set(:qbit_skip, false)
+    response = web_request.get('/partials/status')
+    expect(response.body).to include('skipped per the OPN_SKIP setting')
+    expect(response.body).not_to include('skipped per the QBIT_SKIP setting')
+  end
+
+  it 'uses stored log defaults for the page and live partial' do
+    settings = Service::Settings.new
+    settings.set(:log_lines, 75)
+    settings.set(:log_reverse, true)
+    allow_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).with(75, true).and_return(['newest'])
+
+    response = web_request.get('/logs')
+    expect(response.body).to include('last 75 lines of log output, newest first', 'newest')
+    expect(web_request.get('/partials/logs').body).to include('last 75 lines of log output, newest first')
+  end
+
+  it 'honors a stored OPNsense skip setting in tools without constructing a client' do
+    Service::Settings.new.set(:opnsense_skip, true)
+    expect(Service::Opnsense).not_to receive(:new)
+
+    expect(web_request.get('/tools').body).to include(Framework::Web::WIREGUARD_IMPORT_UNAVAILABLE)
+    expect(web_request.post('/wireguard-import').body).to include(Framework::Web::WIREGUARD_IMPORT_UNAVAILABLE)
   end
 
   it 'renders the stats page without an update notification row' do

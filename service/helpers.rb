@@ -10,35 +10,35 @@ module Service
     HISTORY_PAGE_SIZES = [25, 50, 100].freeze
     PUBLIC_IP_PROVIDERS = %w[akamai cloudflare google opendns].freeze
 
-    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
+    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize
       {
-        ui_mode: format_ui_mode(ENV['UI_MODE'] || 'dark'),
+        ui_mode: settings.value(:ui_mode),
         script_version: app_version,
         commit_sha: commit_sha,
         loop_freq: loop_frequency,
         required_attempts: settings.value(:required_attempts),
         port_source: settings.value(:port_source),
         proton_gateway: settings.value(:proton_gateway),
-        gluetun_addr: environment_value('GLUETUN_ADDR', 'http://gluetun:8000'),
+        gluetun_addr: settings.value(:gluetun_addr),
         gluetun_api_key: environment_value('GLUETUN_API_KEY'),
         gluetun_user: environment_value('GLUETUN_USER'),
         gluetun_pass: environment_value('GLUETUN_PASS'),
-        gluetun_ssl_verify: true?(ENV['GLUETUN_SSL_VERIFY'] || 'false'),
-        opnsense_skip: ENV['OPN_SKIP'] || 'false',
-        opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
+        gluetun_ssl_verify: settings.value(:gluetun_ssl_verify),
+        opnsense_skip: settings.value(:opnsense_skip),
+        opnsense_interface_addr: settings.value(:opnsense_interface_addr),
         opnsense_api_key: ENV['OPN_API_KEY'],
         opnsense_api_secret: ENV['OPN_API_SECRET'],
-        opnsense_alias_name: environment_value('OPN_ALIAS_NAME', environment_value('OPN_PROTON_ALIAS_NAME')),
-        opnsense_ssl_verify: true?(ENV['OPN_SSL_VERIFY'] || 'false'),
-        qbit_skip: ENV['QBIT_SKIP'] || 'false',
-        qbit_addr: ENV['QBIT_ADDR'],
+        opnsense_alias_name: settings.value(:opnsense_alias_name),
+        opnsense_ssl_verify: settings.value(:opnsense_ssl_verify),
+        qbit_skip: settings.value(:qbit_skip),
+        qbit_addr: settings.value(:qbit_addr),
         qbit_api_key: environment_value('QBIT_API_KEY'),
         qbit_user: ENV['QBIT_USER'],
         qbit_pass: ENV['QBIT_PASS'],
-        qbit_ssl_verify: true?(ENV['QBIT_SSL_VERIFY'] || 'false'),
-        log_lines: ENV['LOG_LINES'] || 50,
-        log_reverse: ENV['LOG_REVERSE'] || 'false',
-        log_to_stdout: ENV['LOG_TO_STDOUT'] || 'false',
+        qbit_ssl_verify: settings.value(:qbit_ssl_verify),
+        log_lines: settings.value(:log_lines),
+        log_reverse: settings.value(:log_reverse),
+        log_to_stdout: settings.value(:log_to_stdout),
         web_auth_enabled: ENV['WEB_AUTH_ENABLED'] || 'true'
       }
     end

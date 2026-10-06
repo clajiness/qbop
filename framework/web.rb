@@ -207,29 +207,29 @@ module Framework
       @start_time = Framework::Uptime.started_at
       @repo_url = 'https://github.com/clajiness/qbop'
 
-      @ui_mode = ENV['UI_MODE']
+      @ui_mode = config[:ui_mode]
       @loop_freq = config[:loop_freq]
-      @required_attempts = ENV['REQUIRED_ATTEMPTS']
-      @log_lines = ENV['LOG_LINES']
-      @log_reverse = helpers.true?(ENV['LOG_REVERSE'])
-      @log_to_stdout = helpers.true?(ENV['LOG_TO_STDOUT'])
+      @required_attempts = config[:required_attempts]
+      @log_lines = helpers.validate_log_lines(nil)
+      @log_reverse = helpers.true?(config[:log_reverse])
+      @log_to_stdout = helpers.true?(config[:log_to_stdout])
       @port_source_name = Service::PortSource.name(config)
       @gluetun_addr = helpers.redact_url_credentials(config[:gluetun_addr])
       @gluetun_ssl_verify = config[:gluetun_ssl_verify]
       @proton_gateway = config[:proton_gateway]
-      @opn_skip = helpers.true?(ENV['OPN_SKIP'])
-      @opn_interface_addr = ENV['OPN_INTERFACE_ADDR']
+      @opn_skip = helpers.true?(config[:opnsense_skip])
+      @opn_interface_addr = config[:opnsense_interface_addr]
       @opn_api_key = '***'
       @opn_api_secret = '***'
       @opn_alias_name = config[:opnsense_alias_name]
       @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
-      @opn_ssl_verify = helpers.true?(ENV['OPN_SSL_VERIFY'])
-      @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
-      @qbit_addr = ENV['QBIT_ADDR']
+      @opn_ssl_verify = config[:opnsense_ssl_verify]
+      @qbit_skip = helpers.true?(config[:qbit_skip])
+      @qbit_addr = config[:qbit_addr]
       @qbit_api_key = '***'
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
-      @qbit_ssl_verify = helpers.true?(ENV['QBIT_SSL_VERIFY'])
+      @qbit_ssl_verify = config[:qbit_ssl_verify]
       auth_config = authentication_config
       @web_auth_enabled = auth_config.web_auth_enabled?
       @oidc_enabled = auth_config.oidc_enabled?
@@ -251,7 +251,8 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
-      @port_source_name = Service::PortSource.name(helpers.env_variables)
+      config = helpers.env_variables
+      @port_source_name = Service::PortSource.name(config)
       @port_stats = stats[@port_source_name]
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
@@ -264,8 +265,8 @@ module Framework
       @opn_delta = helpers.time_delta_to_s(@opn_stats.last_checked, @opn_stats.updated_at)
       @qbit_delta = helpers.time_delta_to_s(@qbit_stats.last_checked, @qbit_stats.updated_at)
 
-      @opn_skip = helpers.true?(ENV['OPN_SKIP'])
-      @qbit_skip = helpers.true?(ENV['QBIT_SKIP'])
+      @opn_skip = helpers.true?(config[:opnsense_skip])
+      @qbit_skip = helpers.true?(config[:qbit_skip])
 
       @port_longest_time_on_same_port = helpers.seconds_to_s(@port_stats.same_port)
       @opn_longest_time_on_same_port = helpers.seconds_to_s(@opn_stats.same_port)
@@ -350,7 +351,8 @@ module Framework
     end
 
     def opnsense_skipped?
-      Service::Helpers.new.true?(ENV['OPN_SKIP'])
+      helpers = Service::Helpers.new
+      helpers.true?(helpers.env_variables[:opnsense_skip])
     end
 
     def csrf_mutation_request?

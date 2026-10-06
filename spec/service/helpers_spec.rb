@@ -51,6 +51,19 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
   end
 
   describe '#env_variables' do # rubocop:disable Metrics/BlockLength
+    it 'preserves all legacy blank values and types with an empty settings table' do
+      %w[UI_MODE LOG_LINES LOG_REVERSE LOG_TO_STDOUT GLUETUN_ADDR GLUETUN_SSL_VERIFY OPN_SKIP
+         OPN_INTERFACE_ADDR OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME OPN_SSL_VERIFY QBIT_SKIP QBIT_ADDR
+         QBIT_SSL_VERIFY].each { |key| ENV[key] = '' }
+
+      expect(described_class.new.env_variables).to include(
+        ui_mode: '', log_lines: '', log_reverse: '', log_to_stdout: '', gluetun_addr: 'http://gluetun:8000',
+        gluetun_ssl_verify: false, opnsense_skip: '', opnsense_interface_addr: '', opnsense_alias_name: nil,
+        opnsense_ssl_verify: false, qbit_skip: '', qbit_addr: '', qbit_ssl_verify: false
+      )
+      expect(Setting.count).to eq(0)
+    end
+
     it 'preserves the complete default configuration with an empty settings table' do
       expect(described_class.new.env_variables).to eq(
         ui_mode: 'dark', script_version: 'development', commit_sha: 'unknown', loop_freq: 45,
@@ -402,6 +415,14 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
   end
 
   describe '#validate_log_lines' do
+    it 'uses a stored default and preserves defensive normalization of manual values' do
+      { '75' => 75, '5abc' => 5, 'invalid' => 50, '-5' => 50, '7000' => 5000 }.each do |input, expected|
+        Setting.dataset.insert_conflict(target: :name, update: { value: input }).insert(name: 'log_lines', value: input)
+
+        expect(described_class.new.validate_log_lines(nil)).to eq(expected)
+      end
+    end
+
     it 'returns a positive line count' do
       expect(Service::Helpers.new.validate_log_lines('500')).to eq(500)
     end
@@ -639,6 +660,17 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
 
   describe '#logger_instance' do
     require 'logger'
+    it 'uses the database-backed stdout setting without creating other overrides' do
+      Service::Settings.new.set(:log_to_stdout, true)
+      file_logger = instance_double(Service::EventLogger)
+      stdout_logger = instance_double(Logger)
+      allow(Service::EventLogger).to receive(:new).and_return(file_logger)
+      expect(Logger).to receive(:new).with($stdout).and_return(stdout_logger)
+
+      expect(described_class.new.logger_instance).to equal(stdout_logger)
+      expect(Setting.count).to eq(1)
+    end
+
     it 'returns a logger instance' do
       logger = Service::Helpers.new.logger_instance
       expect(logger).to be_a(Logger)
