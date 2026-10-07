@@ -3,12 +3,13 @@
   <div class="terminal-logo">
     <div class="logo terminal-prompt"><a href="/" class="no-style">qbop</a></div>
   </div>
-  <nav class="terminal-menu">
-    <ul>
-      <% nav_items.each do |label, path| %>
-      <li><a class="menu-item<%= ' active' if active == label %>" href="<%= path %>"><%= label %></a></li>
-      <% end %>
-      <%= erb :_logout, layout: false %>
-    </ul>
+  <nav class="terminal-menu nav-desktop" aria-label="Main navigation">
+    <%= erb :_nav_items, locals: { active: active, nav_items: nav_items }, layout: false %>
   </nav>
+  <details class="nav-mobile">
+    <summary>menu</summary>
+    <nav class="terminal-menu" aria-label="Main navigation">
+      <%= erb :_nav_items, locals: { active: active, nav_items: nav_items }, layout: false %>
+    </nav>
+  </details>
 </div>
