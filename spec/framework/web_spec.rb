@@ -4,6 +4,7 @@ Bundler.require(:default)
 require 'rack/mock'
 require 'stringio'
 require_relative '../support/database_helper'
+require_relative '../support/settings_secret_helper'
 require_relative '../../service/helpers'
 require_relative '../../framework/uptime'
 require_relative '../../framework/web'
@@ -63,6 +64,33 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     %w[proton opnsense qbit].each do |name|
       source = Source.create(name: name)
       Stat.create(source_id: source.id, current_port: 12_345, same_port: 60)
+    end
+  end
+
+  context 'encrypted database credentials' do # rubocop:disable Metrics/BlockLength
+    include_context 'encrypted settings'
+
+    it 'keeps all database credentials and encryption material out of About HTML' do
+      values = SpecSettingsSecrets::CREDENTIALS.keys.to_h { |key| [key, "database-private-#{key}"] }
+      values.each { |key, value| settings.set(key, value) }
+
+      response = web_request.get('/about')
+
+      expect(response.status).to eq(200)
+      expect(response.body).to include('GLUETUN_API_KEY: ***', 'GLUETUN_USER: ***', 'GLUETUN_PASS: ***',
+                                       'OPN_API_KEY: ***', 'OPN_API_SECRET: ***', 'QBIT_API_KEY: ***', 'QBIT_PASS: ***')
+      forbidden = values.values + Setting.select_map(:value) + [File.read(key_path)]
+      expect(response.body).not_to include(*forbidden, 'enc:v1:')
+    end
+
+    it 'retains the historical ENV username display without displaying a decrypted DB username' do
+      settings.set(:qbit_user, 'database-private-username')
+      ENV['QBIT_USER'] = 'legacy-visible-env-user'
+
+      response = web_request.get('/about')
+
+      expect(response.body).to include('QBIT_USER: legacy-visible-env-user')
+      expect(response.body).not_to include('database-private-username')
     end
   end
 

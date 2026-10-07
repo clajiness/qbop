@@ -1,13 +1,13 @@
 require_relative 'settings_validation'
+require_relative 'settings_encryption'
+require_relative 'settings_resolution'
 
 module Service
-  # Resolves supported non-secret settings once per instance; only set/delete change stored overrides.
+  # Resolves supported settings once per instance; only set/delete change stored overrides.
   class Settings # rubocop:disable Metrics/ClassLength
     ValidationError = SettingsValidation::ValidationError
-    Resolution = Data.define(:value, :source, :environment_name, :environment_override) do
-      # Legacy blank provenance does not prevent a database override.
-      def environment_override? = environment_override
-    end
+    ConfigurationError = SettingsEncryption::ConfigurationError
+    Resolution = SettingsResolution
 
     DEFINITIONS = {
       loop_freq: { environment: %w[LOOP_FREQ], name: 'loop_freq', default: 45, blank_is_absent: true,
@@ -43,12 +43,30 @@ module Service
       qbit_addr: { environment: %w[QBIT_ADDR], name: 'qbit_addr', default: nil, blank_is_absent: true,
                    preserve_blank: true, write: :url, root_url: true },
       qbit_ssl_verify: { environment: %w[QBIT_SSL_VERIFY], name: 'qbit_ssl_verify', default: false,
-                         blank_is_absent: true, read: :boolean, write: :boolean }
+                         blank_is_absent: true, read: :boolean, write: :boolean },
+      gluetun_api_key: { environment: %w[GLUETUN_API_KEY], name: 'gluetun_api_key', default: nil,
+                         blank_is_absent: true, write: :secret, secret: true },
+      gluetun_user: { environment: %w[GLUETUN_USER], name: 'gluetun_user', default: nil,
+                      blank_is_absent: true, write: :secret, secret: true },
+      gluetun_pass: { environment: %w[GLUETUN_PASS], name: 'gluetun_pass', default: nil,
+                      blank_is_absent: true, write: :secret, secret: true },
+      opnsense_api_key: { environment: %w[OPN_API_KEY], name: 'opnsense_api_key', default: nil,
+                          blank_is_absent: true, preserve_blank: true, write: :secret, secret: true },
+      opnsense_api_secret: { environment: %w[OPN_API_SECRET], name: 'opnsense_api_secret', default: nil,
+                             blank_is_absent: true, preserve_blank: true, write: :secret, secret: true },
+      qbit_api_key: { environment: %w[QBIT_API_KEY], name: 'qbit_api_key', default: nil,
+                      blank_is_absent: true, write: :secret, secret: true },
+      qbit_user: { environment: %w[QBIT_USER], name: 'qbit_user', default: nil,
+                   blank_is_absent: true, preserve_blank: true, write: :secret, secret: true },
+      qbit_pass: { environment: %w[QBIT_PASS], name: 'qbit_pass', default: nil,
+                   blank_is_absent: true, preserve_blank: true, write: :secret, secret: true }
     }.transform_values(&:freeze).freeze
-    private_constant :DEFINITIONS
+    SECRET_NAMES = DEFINITIONS.values.filter_map { |definition| definition[:name] if definition[:secret] }.freeze
+    private_constant :DEFINITIONS, :SECRET_NAMES
 
-    def initialize(environment: ENV)
+    def initialize(environment: ENV, encryption_key_path: SettingsEncryptionKey::DEFAULT_PATH)
       @environment = environment
+      @encryption_key_path = encryption_key_path
       @resolutions = {}
     end
 
@@ -60,11 +78,18 @@ module Service
 
     def value(key) = resolve(key).value
 
+    # Never inspect or serialize the injected environment or plaintext-bearing caches.
+    def inspect = "#<#{self.class.name}>"
+    alias to_s inspect
+    def as_json(*) = inspect
+
+    def pretty_print(printer)
+      printer.text(inspect)
+    end
+
     def set(key, value)
       definition = write_definition(key)
-      canonical_value = SettingsValidation.canonical_value(definition, value)
-      Setting.dataset.insert_conflict(target: :name, update: { value: canonical_value })
-             .insert(name: definition.fetch(:name), value: canonical_value)
+      persist(definition, canonical_database_value(definition, value))
       @resolutions.delete(key)
       resolve(key)
     end
@@ -102,7 +127,7 @@ module Service
               else value
               end
       Resolution.new(value: value.freeze, source: source, environment_name: environment_name,
-                     environment_override: environment_override)
+                     environment_override: environment_override, secret: definition[:secret] == true)
     end
 
     def selected_value(definition)
@@ -110,7 +135,7 @@ module Service
       return environment if environment
 
       setting = Setting[name: definition.fetch(:name)]
-      return [setting.value, :database, nil, false] if setting
+      return [database_value(definition, setting), :database, nil, false] if setting
 
       # Blank placeholders permit DB overrides but retain their legacy behavior without an override.
       legacy_blank = environment_selection(definition, include_blank: true) if definition[:preserve_blank]
@@ -123,6 +148,30 @@ module Service
           (include_blank || !definition[:blank_is_absent] || !@environment[environment_name].to_s.strip.empty?)
       end
       [@environment[name], :environment, name, !include_blank] if name
+    end
+
+    def database_value(definition, setting)
+      definition[:secret] ? encryption.decrypt(definition.fetch(:name), setting.value) : setting.value
+    end
+
+    def canonical_database_value(definition, value)
+      canonical = SettingsValidation.canonical_value(definition, value)
+      return canonical unless definition[:secret]
+
+      encryption.encrypt(definition.fetch(:name), canonical) { Setting.where(name: SECRET_NAMES).any? }
+    end
+
+    def persist(definition, value)
+      Setting.dataset.insert_conflict(target: :name, update: { value: value })
+             .insert(name: definition.fetch(:name), value: value)
+    rescue Sequel::DatabaseError
+      raise unless definition[:secret]
+
+      raise ConfigurationError, 'Database credential could not be stored.', cause: nil
+    end
+
+    def encryption
+      @encryption ||= SettingsEncryption.new(key_path: @encryption_key_path)
     end
   end
 end

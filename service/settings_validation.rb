@@ -12,6 +12,7 @@ module Service
       when :enum then enum(definition, value)
       when :text then text(definition, value)
       when :url then url(definition, value)
+      when :secret then secret(definition, value)
       end
     end
 
@@ -57,6 +58,18 @@ module Service
       input
     end
     private_class_method :text
+
+    def self.secret(definition, value)
+      requirement = 'must be a valid, nonblank string without control characters.'
+      invalid!(definition, requirement) unless value.is_a?(String) && value.valid_encoding?
+      text = value.encoding.ascii_compatible? ? value : value.encode(Encoding::UTF_8)
+      invalid!(definition, requirement) if text.match?(/\A[[:space:]]*\z/) || text.match?(/[[:cntrl:]]/)
+
+      value
+    rescue ArgumentError, EncodingError
+      invalid!(definition, requirement)
+    end
+    private_class_method :secret
 
     def self.url(definition, value)
       scope = definition[:root_url] ? 'origin/root URL' : 'URL'

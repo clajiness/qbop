@@ -20,21 +20,21 @@ module Service
         port_source: settings.value(:port_source),
         proton_gateway: settings.value(:proton_gateway),
         gluetun_addr: settings.value(:gluetun_addr),
-        gluetun_api_key: environment_value('GLUETUN_API_KEY'),
-        gluetun_user: environment_value('GLUETUN_USER'),
-        gluetun_pass: environment_value('GLUETUN_PASS'),
+        gluetun_api_key: settings.value(:gluetun_api_key),
+        gluetun_user: settings.value(:gluetun_user),
+        gluetun_pass: settings.value(:gluetun_pass),
         gluetun_ssl_verify: settings.value(:gluetun_ssl_verify),
         opnsense_skip: settings.value(:opnsense_skip),
         opnsense_interface_addr: settings.value(:opnsense_interface_addr),
-        opnsense_api_key: ENV['OPN_API_KEY'],
-        opnsense_api_secret: ENV['OPN_API_SECRET'],
+        opnsense_api_key: settings.value(:opnsense_api_key),
+        opnsense_api_secret: settings.value(:opnsense_api_secret),
         opnsense_alias_name: settings.value(:opnsense_alias_name),
         opnsense_ssl_verify: settings.value(:opnsense_ssl_verify),
         qbit_skip: settings.value(:qbit_skip),
         qbit_addr: settings.value(:qbit_addr),
-        qbit_api_key: environment_value('QBIT_API_KEY'),
-        qbit_user: ENV['QBIT_USER'],
-        qbit_pass: ENV['QBIT_PASS'],
+        qbit_api_key: settings.value(:qbit_api_key),
+        qbit_user: settings.value(:qbit_user),
+        qbit_pass: settings.value(:qbit_pass),
         qbit_ssl_verify: settings.value(:qbit_ssl_verify),
         log_lines: settings.value(:log_lines),
         log_reverse: settings.value(:log_reverse),
@@ -276,11 +276,6 @@ module Service
         output.shift if output.length == line_limit
         output << line
       end
-    end
-
-    def environment_value(name, default = nil)
-      value = ENV[name]
-      value.nil? || value.strip.empty? ? default : value
     end
 
     def time_value(value)

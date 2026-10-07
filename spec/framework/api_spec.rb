@@ -4,6 +4,7 @@ Bundler.require(:default)
 require 'base64'
 require 'rack/mock'
 require_relative '../support/database_helper'
+require_relative '../support/settings_secret_helper'
 require_relative '../../service/helpers'
 require_relative '../../framework/uptime'
 require_relative '../../framework/api'
@@ -60,6 +61,38 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     issued_key = ApiKey.issue('api spec')
     @api_key = issued_key.api_key
     @api_token = issued_key.token
+  end
+
+  context 'encrypted database credentials' do # rubocop:disable Metrics/BlockLength
+    include_context 'encrypted settings'
+
+    it 'never exposes DB credentials, ciphertext, or key material through the existing about fields' do
+      values = SpecSettingsSecrets::CREDENTIALS.keys.to_h { |key| [key, "database-private-#{key}"] }
+      values.each { |key, value| settings.set(key, value) }
+
+      response = api_get('/api/about')
+
+      expect(response.status).to eq(200)
+      expect(response_json(response)['env_variables']).to include(
+        'gluetun_api_key' => '***', 'gluetun_user' => '***', 'gluetun_pass' => '***',
+        'opn_api_key' => '***', 'opn_api_secret' => '***', 'qbit_api_key' => '***', 'qbit_pass' => '***',
+        'qbit_user' => nil
+      )
+      forbidden = values.values + Setting.select_map(:value) + [File.read(key_path)]
+      expect(response.body).not_to include(*forbidden, 'enc:v1:', 'environment_override', '"secret"')
+    end
+
+    it 'retains the historical raw ENV username field without revealing a DB username' do
+      settings.set(:qbit_user, 'database-private-username')
+      ENV['QBIT_USER'] = 'legacy-visible-env-user'
+
+      response = api_get('/api/about')
+
+      expect(response_json(response)['env_variables']['qbit_user']).to eq('legacy-visible-env-user')
+      expect(response.body).not_to include('database-private-username')
+      ENV['QBIT_USER'] = ''
+      expect(response_json(api_get('/api/about'))['env_variables']['qbit_user']).to eq('')
+    end
   end
 
   it 'preserves ENV-backed about fields while reporting historically effective fields and masking credentials' do

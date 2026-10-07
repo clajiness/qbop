@@ -147,9 +147,8 @@ RSpec.describe 'Settings writes' do # rubocop:disable Metrics/BlockLength
       .to raise_error(error_class, 'LOG_LINES must be a complete integer in 1..5000.')
   end
 
-  it 'rejects unknown, legacy alias, credential, authentication and metadata keys' do
-    %i[unknown opn_proton_alias_name gluetun_api_key gluetun_user gluetun_pass opnsense_api_key
-       opnsense_api_secret qbit_api_key qbit_user qbit_pass web_auth_enabled local_login_enabled
+  it 'rejects unknown, legacy alias, browser authentication and metadata keys' do
+    %i[unknown opn_proton_alias_name web_auth_enabled local_login_enabled
        oidc_enabled oidc_issuer oidc_client_id oidc_client_secret oidc_public_url oidc_auto_redirect
        version commit_sha build_date].each do |key|
       expect { settings.set(key, 'submitted-secret') }.to raise_error(error_class, 'Unsupported setting key.')

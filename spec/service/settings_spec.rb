@@ -154,10 +154,10 @@ RSpec.describe Service::Settings do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  it 'does not expose or resolve unsupported settings, including credentials' do
+  it 'does not expose or resolve unsupported settings, including browser authentication' do
     Setting.create(name: 'unrelated_setting', value: 'unrelated-value')
 
-    expect { settings.resolve(:gluetun_api_key) }.to raise_error(KeyError)
+    expect { settings.resolve(:oidc_client_secret) }.to raise_error(KeyError)
     expect { settings.resolve(:unrelated_setting) }.to raise_error(KeyError)
     expect(settings.resolve(:loop_freq).to_h.keys)
       .to contain_exactly(:value, :source, :environment_name, :environment_override)

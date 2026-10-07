@@ -1,5 +1,7 @@
 data/qbop.sqlite3
 data/session_secret.txt
+data/settings_encryption_key.txt
+data/settings_encryption_key.txt.lock
 data/wireguard-import.lock
 log/*.log
 log/*.log.*
