@@ -12,14 +12,18 @@
     <link rel="stylesheet" href="https://unpkg.com/terminal.css@0.7.5/dist/terminal.min.css" integrity="sha512-X8PpCFdlyXfQ93O7R/tmLP0uln53P5/hY29faFCjhpfinyggAeQbcwiv8pDvu49vHvZPWJN+yfb4VomHJK6sJA==" crossorigin="anonymous" />
 
     <!-- Theme stylesheets -->
-    <% if Service::Helpers.new.env_variables[:ui_mode] == "light" %>
+    <% ui_mode = @settings_page ? @settings_ui_mode : Service::Helpers.new.env_variables[:ui_mode] %>
+    <% if ui_mode == "light" %>
     <link rel="stylesheet" href="/css/light.css" />
     <% else %>
     <link rel="stylesheet" href="/css/dark.css" />
     <% end %>
+    <% if @settings_page %>
+    <link rel="stylesheet" href="/css/settings.css" />
+    <% end %>
 
     <!-- Light mode favicons -->
-    <% if Service::Helpers.new.env_variables[:ui_mode] == "light" %>
+    <% if ui_mode == "light" %>
     <link rel="icon" type="image/x-icon" href="/images/light/favicon-light.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/images/light/apple-touch-icon-light.png" />
     <link rel="icon" sizes="32x32" href="/images/light/favicon-light-32x32.png" />

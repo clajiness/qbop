@@ -1,0 +1,61 @@
+<%= erb :_nav, locals: { active: 'settings' }, layout: false %>
+<%= erb :_update_banner, layout: false %>
+<hr>
+
+<h4><em>settings</em></h4>
+<p>qbop uses environment variables first, then settings saved in qbop, then built-in defaults. Clearing a saved setting removes the qbop value, so the environment variable is used if one is set; otherwise qbop uses the built-in default.</p>
+<p>Settings marked <strong>Restart required</strong> take effect in the synchronization job after qbop restarts. Display-only settings apply on the next request.</p>
+
+<% if @settings_notice %>
+<div class="terminal-alert terminal-alert-primary" role="status"><%= Rack::Utils.escape_html(@settings_notice) %></div>
+<% end %>
+<% if @settings_error %>
+<div class="terminal-alert terminal-alert-error" role="alert"><%= Rack::Utils.escape_html(@settings_error) %></div>
+<% end %>
+
+<% @settings_sections.each do |section, entries| %>
+<details class="settings-section">
+  <summary class="settings-section-summary">
+    <span><%= Rack::Utils.escape_html(section) %></span>
+    <span class="settings-section-count">(<%= entries.size %>)</span>
+  </summary>
+  <% entries.each do |entry| %>
+  <fieldset class="setting-card form-group" id="setting-card-<%= entry.key %>">
+    <legend><%= Rack::Utils.escape_html(entry.label) %></legend>
+    <p class="setting-meta">
+      <% if entry.environment_override? %>
+      <strong>Managed by environment: <%= Rack::Utils.escape_html(entry.environment_name) %></strong>
+      <% else %>
+      <strong><%= Rack::Utils.escape_html(entry.source_label) %></strong>
+      <% end %>
+      <% if entry.restart_required? %><span class="setting-restart"><span aria-hidden="true"> · </span>Restart required</span><% end %>
+    </p>
+    <p class="setting-description" id="setting-help-<%= entry.key %>"><%= Rack::Utils.escape_html(entry.description) %></p>
+    <% if entry.environment_override? && entry.database_value_present? %>
+    <p class="setting-note">A qbop override is also stored but is currently inactive.</p>
+    <% end %>
+    <% if entry.invalid_port_source? %>
+    <p class="terminal-alert terminal-alert-error">PORT_SOURCE must be proton or gluetun. Update the environment if it manages this setting.</p>
+    <% end %>
+    <% if entry.environment_override? && !entry.secret? && !entry.unset? %>
+    <p class="setting-note">Current value: <code class="setting-current-value"><%= Rack::Utils.escape_html(entry.display_value) %></code></p>
+    <% end %>
+
+    <form action="/settings/<%= entry.key %>" method="post" class="setting-form form-group" autocomplete="off">
+      <%= request.env.fetch('rodauth').csrf_tag("/settings/#{entry.key}") %>
+      <div class="setting-editor">
+        <label for="setting-<%= entry.key %>"<%= ' class="setting-label-hidden"' unless entry.secret? %>><%= Rack::Utils.escape_html(entry.secret? ? 'New credential' : entry.label) %></label>
+        <%= erb :_setting_input, locals: { entry: entry }, layout: false %>
+      </div>
+      <button class="btn btn-default btn-ghost" type="submit"<%= ' disabled' if entry.environment_override? %>>Save</button>
+    </form>
+    <% if entry.database_value_present? %>
+    <form action="/settings/<%= entry.key %>/delete" method="post" class="setting-clear-form form-group">
+      <%= request.env.fetch('rodauth').csrf_tag("/settings/#{entry.key}/delete") %>
+      <button class="btn btn-default btn-ghost" type="submit">Clear qbop override</button>
+    </form>
+    <% end %>
+  </fieldset>
+  <% end %>
+</details>
+<% end %>

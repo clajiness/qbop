@@ -1,0 +1,14 @@
+<% if entry.input_type == 'select' %>
+<select id="setting-<%= entry.key %>" name="value" aria-describedby="setting-help-<%= entry.key %>" required<%= ' disabled' if entry.environment_override? %>>
+  <% unless entry.input_choices.include?(entry.input_value) %>
+  <option value="" disabled selected><%= entry.unset? ? 'Not configured' : 'Current value is not a supported saved choice' %></option>
+  <% end %>
+  <% entry.input_choices.each do |choice| %>
+  <option value="<%= Rack::Utils.escape_html(choice) %>"<%= ' selected' if entry.input_value == choice %>><%= Rack::Utils.escape_html(choice) %></option>
+  <% end %>
+</select>
+<% elsif entry.secret? %>
+<input id="setting-<%= entry.key %>" name="value" type="password" aria-describedby="setting-help-<%= entry.key %>" autocomplete="new-password" required<%= ' disabled' if entry.environment_override? %>>
+<% else %>
+<input id="setting-<%= entry.key %>" name="value" type="<%= entry.input_type %>" value="<%= Rack::Utils.escape_html(entry.input_value) %>" aria-describedby="setting-help-<%= entry.key %>"<% if entry.minimum %> min="<%= entry.minimum %>" step="1"<% end %><% if entry.maximum %> max="<%= entry.maximum %>"<% end %> required<%= ' disabled' if entry.environment_override? %>>
+<% end %>

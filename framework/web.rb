@@ -4,13 +4,17 @@ require_relative 'event_stream'
 require_relative '../service/opnsense'
 require_relative '../service/proton_wireguard'
 require_relative '../service/proton_wireguard_rotation'
+require_relative '../service/settings_presentation'
 
 module Framework
   # The Web class is a Sinatra application that provides qbop's web UI routes.
   class Web < Sinatra::Application # rubocop:disable Metrics/ClassLength
     WIREGUARD_IMPORT_UNAVAILABLE = 'proton wireguard import requires opnsense integration.'.freeze
+    SETTINGS_VALUE_UNAVAILABLE = Object.new.freeze
+    private_constant :SETTINGS_VALUE_UNAVAILABLE
 
     before do
+      headers 'Cache-Control' => 'no-store' if settings_request?
       unless public_asset_request? || public_authentication_request? || !web_auth_enabled?
         authentication = request.env.fetch('rodauth')
         DB[:accounts].count.zero? ? redirect('/setup') : authentication.require_authentication
@@ -61,6 +65,42 @@ module Framework
       @api_keys = ApiKey.reverse_order(:created_at, :id).all
 
       erb :api_keys
+    end
+
+    get '/settings' do
+      @settings_page = true
+      @settings_notice = request.session.delete(:settings_notice)
+      @settings_error = request.session.delete(:settings_error)
+      @settings_sections = settings_presentation.sections
+      @settings_ui_mode = settings_service.metadata(:ui_mode).value
+
+      erb :settings
+    end
+
+    post '/settings/:key' do
+      entry = settings_entry
+      if entry.environment_override?
+        request.session[:settings_error] = "#{entry.label} is managed by environment and cannot be edited here."
+      else
+        changed = settings_effective_value_changed?(entry) { settings_service.set(entry.key, params['value']) }
+        request.session[:settings_notice] = settings_success_message(entry, 'saved', changed: changed)
+      end
+      redirect '/settings', 303
+    rescue Service::Settings::ValidationError => e
+      request.session[:settings_error] = e.message
+      redirect '/settings', 303
+    rescue Service::Settings::ConfigurationError
+      request.session[:settings_error] = 'Credential could not be saved. Check the qbop configuration and try again.'
+      redirect '/settings', 303
+    end
+
+    post '/settings/:key/delete' do
+      entry = settings_entry
+      halt 404, 'No qbop override is stored for this setting.' unless entry.database_value_present?
+
+      changed = settings_effective_value_changed?(entry) { settings_service.delete(entry.key) }
+      request.session[:settings_notice] = settings_success_message(entry, 'cleared', changed: changed)
+      redirect '/settings', 303
     end
 
     get '/account' do
@@ -247,6 +287,44 @@ module Framework
 
     private
 
+    def settings_service
+      @settings_service ||= Service::Settings.new
+    end
+
+    def settings_presentation
+      @settings_presentation ||= Service::SettingsPresentation.new(settings: settings_service)
+    end
+
+    def settings_entry
+      settings_presentation.find(params['key']) || halt(404, 'Setting not found.')
+    end
+
+    def settings_effective_value_changed?(entry)
+      previous = settings_effective_value(entry)
+      yield
+      current = settings_effective_value(entry)
+      previous.equal?(SETTINGS_VALUE_UNAVAILABLE) || current.equal?(SETTINGS_VALUE_UNAVAILABLE) || previous != current
+    end
+
+    def settings_effective_value(entry)
+      value = settings_service.value(entry.key)
+      entry.metadata.input_type == :boolean ? Service::Helpers.new.true?(value) : value
+    rescue Service::Settings::ConfigurationError
+      # Unreadable existing credentials must still be replaceable or clearable.
+      SETTINGS_VALUE_UNAVAILABLE
+    end
+
+    def settings_success_message(entry, action, changed:)
+      message = "#{entry.label} #{action}."
+      return message unless entry.restart_required? && changed
+
+      "#{message} Restart qbop to apply this change to the running synchronization job."
+    end
+
+    def settings_request?
+      request.path_info == '/settings' || request.path_info.start_with?('/settings/')
+    end
+
     def load_status # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
@@ -356,7 +434,7 @@ module Framework
     end
 
     def csrf_mutation_request?
-      request.path_info == '/wireguard-import' || api_key_mutation_request?
+      request.path_info == '/wireguard-import' || api_key_mutation_request? || settings_request?
     end
 
     def api_key_mutation_request?

@@ -1,6 +1,7 @@
 require_relative 'settings_validation'
 require_relative 'settings_encryption'
 require_relative 'settings_resolution'
+require_relative 'settings_metadata'
 
 module Service
   # Resolves supported settings once per instance; only set/delete change stored overrides.
@@ -78,6 +79,26 @@ module Service
 
     def value(key) = resolve(key).value
 
+    def self.keys = DEFINITIONS.keys
+
+    def database_value_present?(key)
+      !Setting.where(name: DEFINITIONS.fetch(key).fetch(:name)).empty?
+    end
+
+    def metadata(key) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+      definition = DEFINITIONS.fetch(key)
+      result = resolve_setting(definition, include_secret: false)
+      range = definition[:range]
+      SettingsMetadata.new(
+        key: key, label: definition.fetch(:environment).first, value: result.value, source: result.source,
+        environment_name: result.environment_name, environment_override: result.environment_override?,
+        secret: result.secret?, database_value_present: database_value_present?(key),
+        default_value: definition.fetch(:default), input_type: definition.fetch(:write),
+        choices: definition[:allowed]&.dup&.freeze,
+        minimum: range&.begin || (1 if definition[:write] == :integer), maximum: range&.end
+      )
+    end
+
     # Never inspect or serialize the injected environment or plaintext-bearing caches.
     def inspect = "#<#{self.class.name}>"
     alias to_s inspect
@@ -117,8 +138,8 @@ module Service
       DEFINITIONS.fetch(key) { raise ValidationError, 'Unsupported setting key.', cause: nil }
     end
 
-    def resolve_setting(definition)
-      value, source, environment_name, environment_override = selected_value(definition)
+    def resolve_setting(definition, include_secret: true)
+      value, source, environment_name, environment_override = selected_value(definition, include_secret: include_secret)
       value = case definition[:read]
               when :loop_frequency then self.class.validate_loop_frequency(value)
               when :required_attempts then self.class.validate_required_attempts(value)
@@ -130,24 +151,38 @@ module Service
                      environment_override: environment_override, secret: definition[:secret] == true)
     end
 
-    def selected_value(definition)
-      environment = environment_selection(definition)
+    def selected_value(definition, include_secret:)
+      include_value = include_secret || !definition[:secret]
+      environment = environment_selection(definition, include_value: include_value)
       return environment if environment
 
-      setting = Setting[name: definition.fetch(:name)]
-      return [database_value(definition, setting), :database, nil, false] if setting
+      database = database_selection(definition, include_value: include_value)
+      return database if database
 
       # Blank placeholders permit DB overrides but retain their legacy behavior without an override.
-      legacy_blank = environment_selection(definition, include_blank: true) if definition[:preserve_blank]
+      if definition[:preserve_blank]
+        legacy_blank = environment_selection(definition, include_blank: true, include_value: include_value)
+      end
       legacy_blank || [definition.fetch(:default), :default, nil, false]
     end
 
-    def environment_selection(definition, include_blank: false)
+    def environment_selection(definition, include_blank: false, include_value: true)
       name = definition.fetch(:environment).find do |environment_name|
         @environment.key?(environment_name) &&
           (include_blank || !definition[:blank_is_absent] || !@environment[environment_name].to_s.strip.empty?)
       end
-      [@environment[name], :environment, name, !include_blank] if name
+      [include_value ? @environment[name] : nil, :environment, name, !include_blank] if name
+    end
+
+    def database_selection(definition, include_value:)
+      unless include_value
+        return [nil, :database, nil, false] unless Setting.where(name: definition.fetch(:name)).empty?
+
+        return
+      end
+
+      setting = Setting[name: definition.fetch(:name)]
+      [database_value(definition, setting), :database, nil, false] if setting
     end
 
     def database_value(definition, setting)
