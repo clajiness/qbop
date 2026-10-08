@@ -8,7 +8,7 @@
   <% end %>
 </select>
 <% elsif entry.secret? %>
-<input id="setting-<%= entry.key %>" name="value" type="password" aria-describedby="setting-help-<%= entry.key %>" autocomplete="new-password" required<%= ' disabled' if entry.environment_override? %>>
+<input id="setting-<%= entry.key %>" name="value" type="password"<%= ' placeholder="***"' if entry.source == :database %> aria-describedby="setting-help-<%= entry.key %>" autocomplete="new-password" required<%= ' disabled' if entry.environment_override? %>>
 <% else %>
 <input id="setting-<%= entry.key %>" name="value" type="<%= entry.input_type %>" value="<%= Rack::Utils.escape_html(entry.input_value) %>" aria-describedby="setting-help-<%= entry.key %>"<% if entry.minimum %> min="<%= entry.minimum %>" step="1"<% end %><% if entry.maximum %> max="<%= entry.maximum %>"<% end %> required<%= ' disabled' if entry.environment_override? %>>
 <% end %>

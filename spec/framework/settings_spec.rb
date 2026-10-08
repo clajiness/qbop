@@ -583,7 +583,7 @@ RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLen
     entry = card(@client.get('/settings'), :qbit_addr)
 
     expect(entry).to include('Configured in qbop', 'value="http://qbit:8080"', '/settings/qbit_addr/delete')
-    expect(entry).not_to include(' disabled')
+    expect(entry).not_to include(' disabled', 'placeholder=')
   end
 
   { qbit_addr: ['QBIT_ADDR', 'http://environment-qbit:8080'], qbit_skip: %w[QBIT_SKIP false],
@@ -709,7 +709,16 @@ RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLen
     expect(@client.get('/settings/loop_freq/delete').status).to eq(404)
   end
 
-  it 'renders all eight DB and ENV credentials as empty password fields without reading ciphertext' do
+  it 'leaves unconfigured credential fields empty without saved-value placeholders' do
+    page = @client.get('/settings')
+
+    SpecSettingsSecrets::CREDENTIALS.each_key do |key|
+      field = card(page, key)[/<input id="setting-#{key}"[^>]*>/]
+      expect(field).not_to include('value=', 'placeholder=')
+    end
+  end
+
+  it 'renders all eight credentials with placeholders only when managed by qbop without reading ciphertext' do
     values = SpecSettingsSecrets::CREDENTIALS.keys.to_h { |key| [key, "database-private-#{key}"] }
     values.each { |key, value| settings.set(key, value) }
     stored = Setting.select_map(:value)
@@ -723,13 +732,15 @@ RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLen
       entry = card(page, key)
       field = entry[/<input id="setting-#{key}"[^>]*>/]
       expect(entry).to include('Configured in qbop')
-      expect(field).to include('type="password"', 'autocomplete="new-password"')
+      expect(field).to include('type="password"', 'autocomplete="new-password"', 'placeholder="***"')
       expect(field).not_to include('value=')
     end
     SpecSettingsSecrets::CREDENTIALS.each_value { |name, _| ENV[name] = "env-private-#{name}" }
     page = @client.get('/settings')
     SpecSettingsSecrets::CREDENTIALS.each do |key, (name, _)|
       expect(card(page, key)).to include("Managed by environment: #{name}", 'currently inactive')
+      field = card(page, key)[/<input id="setting-#{key}"[^>]*>/]
+      expect(field).not_to include('value=', 'placeholder=')
     end
     expect(page.body).not_to include(*values.values, *stored, key_material, 'enc:v1:', 'env-private-')
   end
