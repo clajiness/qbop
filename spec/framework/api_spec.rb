@@ -66,6 +66,21 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
   context 'encrypted database credentials' do # rubocop:disable Metrics/BlockLength
     include_context 'encrypted settings'
 
+    it 'checks the disabled WireGuard integration without resolving unrelated unreadable credentials' do
+      settings.set(:opnsense_skip, true)
+      Setting.create(name: 'qbit_pass', value: 'enc:v1:unreadable-credential')
+      expect(Service::SettingsEncryption).not_to receive(:new)
+      expect(Service::Opnsense).not_to receive(:new)
+
+      [api_get('/api/tools/wireguard-targets'), api_post('/api/tools/wireguard-import', {})].each do |response|
+        expect(response.status).to eq(503)
+        expect(response_json(response)).to eq('error' => described_class::WIREGUARD_IMPORT_UNAVAILABLE)
+      end
+      expect(api_get('/api/tools/wireguard-targets', token: nil).status).to eq(401)
+      expect(api_post('/api/tools/wireguard-import', {}, token: nil).status).to eq(401)
+      expect(Dir.children(File.dirname(key_path))).to be_empty
+    end
+
     it 'never exposes DB credentials, ciphertext, or key material through the existing about fields' do
       values = SpecSettingsSecrets::CREDENTIALS.keys.to_h { |key| [key, "database-private-#{key}"] }
       values.each { |key, value| settings.set(key, value) }

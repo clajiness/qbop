@@ -94,7 +94,10 @@ module Service
     end
 
     def sections
-      GROUPS.transform_values { |entries| entries.keys.map { |key| find(key.to_s) } }
+      metadata = @settings.all_metadata
+      GROUPS.transform_values do |entries|
+        entries.map { |key, description| build_entry(metadata.fetch(key), description) }
+      end
     end
 
     def find(name)
@@ -102,8 +105,14 @@ module Service
       return unless key
 
       description = GROUPS.values.find { |entries| entries.key?(key) }.fetch(key)
-      Entry.new(metadata: @settings.metadata(key), description: description,
-                restart_required: !DYNAMIC_KEYS.include?(key))
+      build_entry(@settings.metadata(key), description)
+    end
+
+    private
+
+    def build_entry(metadata, description)
+      Entry.new(metadata: metadata, description: description,
+                restart_required: !DYNAMIC_KEYS.include?(metadata.key))
     end
   end
 end

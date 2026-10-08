@@ -3,7 +3,7 @@ require_relative 'port_source'
 
 module Service
   # Only non-secret startup values needed to interpret synchronization statistics.
-  class SynchronizationConfiguration
+  module SynchronizationConfiguration
     KEYS = %i[port_source opnsense_skip qbit_skip loop_freq].freeze
     Snapshot = Data.define(*KEYS) do
       # Pending source/skip metadata keeps its existing public meaning.
@@ -14,28 +14,21 @@ module Service
       end
     end
 
-    def initialize
-      @mutex = Mutex.new
-      @snapshot = nil
-    end
+    @mutex = Mutex.new
+    @snapshot = nil
 
-    def capture(config)
-      snapshot = self.class.from_config(config)
+    def self.capture(config)
+      snapshot = from_config(config)
       @mutex.synchronize { @snapshot = snapshot }
     end
 
-    def current(settings)
-      @mutex.synchronize { @snapshot } || self.class.resolve(settings)
+    def self.current(settings)
+      @mutex.synchronize { @snapshot } || resolve(settings)
     end
 
-    def reset
+    def self.reset
       @mutex.synchronize { @snapshot = nil }
     end
-
-    INSTANCE = new
-
-    def self.capture(config) = INSTANCE.capture(config)
-    def self.current(settings) = INSTANCE.current(settings)
 
     def self.resolve(settings)
       from_config(KEYS.to_h { |key| [key, settings.value(key)] })

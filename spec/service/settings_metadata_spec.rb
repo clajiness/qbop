@@ -1,5 +1,7 @@
 require 'bundler/setup'
 Bundler.require(:default)
+require 'logger'
+require 'stringio'
 require_relative '../support/database_helper'
 require_relative '../support/settings_secret_helper'
 require_relative '../../service/settings_presentation'
@@ -10,6 +12,87 @@ RSpec.describe 'Safe settings metadata and presentation' do # rubocop:disable Me
   before { SpecDatabase.reset! }
 
   let(:presentation) { Service::SettingsPresentation.new(settings: settings) }
+
+  def settings_queries
+    output = StringIO.new
+    logger = Logger.new(output)
+    DB.loggers << logger
+    yield
+    output.string.lines.select { |line| line.match?(/SELECT.*FROM [`"\[]?settings/i) }
+  ensure
+    DB.loggers.delete(logger)
+  end
+
+  it 'uses two bulk queries for both one section and all 25 settings' do
+    groups = Service::SettingsPresentation.const_get(:GROUPS)
+    [groups.slice('Application'), groups].each do |shown_groups|
+      stub_const('Service::SettingsPresentation::GROUPS', shown_groups)
+      entries = nil
+
+      queries = settings_queries { entries = presentation.sections.values.flatten }
+
+      expect(entries.size).to eq(shown_groups.values.sum(&:size))
+      expect(queries.size).to eq(2)
+    end
+  end
+
+  it 'bulk-loads secret names without selecting ciphertext or decrypting credentials' do
+    SpecSettingsSecrets::CREDENTIALS.each_key do |key|
+      Setting.create(name: key.to_s, value: 'enc:v1:unreadable-private-ciphertext')
+    end
+    expect(Service::SettingsEncryption).not_to receive(:new)
+    entries = nil
+
+    queries = settings_queries { entries = presentation.sections.values.flatten }
+
+    value_query = queries.find { |query| query.include?('`value`') }
+    expect(value_query).not_to include(*SpecSettingsSecrets::CREDENTIALS.keys.map(&:to_s))
+    expect(queries.reject { |query| query == value_query }.first).to include('SELECT `name` FROM')
+    expect(entries.select(&:secret?)).to all(have_attributes(value: nil, source: :database))
+    expect(entries.select(&:secret?)).to all(be_database_value_present)
+    expect(entries.inspect).not_to include('private-ciphertext', 'enc:v1:')
+    expect(Dir.children(File.dirname(key_path))).to be_empty
+  end
+
+  it 'preserves precedence, legacy blanks and inactive overrides in bulk metadata' do
+    settings.set(:qbit_addr, 'http://inactive-private-qbit:8080')
+    settings.set(:ui_mode, 'light')
+    settings.set(:opnsense_alias_name, 'stored_alias')
+    settings.set(:opnsense_skip, true)
+    settings.set(:port_source, 'gluetun')
+    Setting.create(name: 'qbit_pass', value: 'enc:v1:unreadable-private-ciphertext')
+    ENV.update('QBIT_ADDR' => 'http://env-qbit:8080', 'UI_MODE' => '', 'OPN_ALIAS_NAME' => ' ',
+               'OPN_PROTON_ALIAS_NAME' => 'legacy_alias', 'OPN_SKIP' => 'false', 'PORT_SOURCE' => '')
+    expect(Service::SettingsEncryption).not_to receive(:new)
+
+    metadata = settings.all_metadata
+
+    expect(metadata.keys).to eq(Service::Settings.keys)
+    expect(metadata[:qbit_addr]).to have_attributes(
+      value: 'http://env-qbit:8080', source: :environment, database_value_present: true, environment_override: true
+    )
+    expect(metadata[:ui_mode]).to have_attributes(value: 'light', source: :database)
+    expect(metadata[:opnsense_alias_name]).to have_attributes(
+      value: 'legacy_alias', environment_name: 'OPN_PROTON_ALIAS_NAME'
+    )
+    expect(metadata[:opnsense_skip]).to have_attributes(value: 'false', environment_override: true)
+    expect(metadata[:port_source]).to have_attributes(value: '', environment_override: true)
+    expect(metadata[:qbit_pass]).to have_attributes(value: nil, source: :database, database_value_present: true)
+    expect(metadata.inspect).not_to include('inactive-private-qbit', 'private-ciphertext')
+    metadata.each { |key, entry| expect(entry).to eq(settings.metadata(key)) }
+  end
+
+  it 'reads new database state on each bulk call without changing runtime resolver snapshots' do
+    settings.value(:loop_freq)
+    expect(settings.all_metadata[:loop_freq]).to have_attributes(value: 45, source: :default)
+    writer = Service::Settings.new
+    writer.set(:loop_freq, 60)
+    expect(settings.all_metadata[:loop_freq]).to have_attributes(value: 60, source: :database)
+    writer.delete(:loop_freq)
+
+    expect(settings.all_metadata[:loop_freq]).to have_attributes(value: 45, source: :default)
+    expect(settings.value(:loop_freq)).to eq(45)
+  end
 
   it 'presents precisely the 25 registry settings in the expected groups without importing defaults' do
     sections = presentation.sections

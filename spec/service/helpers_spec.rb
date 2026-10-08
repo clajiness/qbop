@@ -660,15 +660,19 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
 
   describe '#logger_instance' do
     require 'logger'
-    it 'uses the database-backed stdout setting without creating other overrides' do
-      Service::Settings.new.set(:log_to_stdout, true)
-      file_logger = instance_double(Service::EventLogger)
-      stdout_logger = instance_double(Logger)
-      allow(Service::EventLogger).to receive(:new).and_return(file_logger)
-      expect(Logger).to receive(:new).with($stdout).and_return(stdout_logger)
+    [false, true].each do |stdout|
+      it "selects stdout=#{stdout} without resolving unrelated encrypted credentials" do
+        Service::Settings.new.set(:log_to_stdout, stdout)
+        Setting.create(name: 'qbit_pass', value: 'enc:v1:unreadable-credential')
+        file_logger = instance_double(Service::EventLogger)
+        stdout_logger = instance_double(Logger)
+        allow(Service::EventLogger).to receive(:new).and_return(file_logger)
+        allow(Logger).to receive(:new).with($stdout).and_return(stdout_logger)
+        expect(Service::SettingsEncryption).not_to receive(:new)
 
-      expect(described_class.new.logger_instance).to equal(stdout_logger)
-      expect(Setting.count).to eq(1)
+        expect(described_class.new.logger_instance).to equal(stdout ? stdout_logger : file_logger)
+        expect(Setting.count).to eq(2)
+      end
     end
 
     it 'returns a logger instance' do

@@ -167,7 +167,7 @@ module Framework
           config_text = wireguard_config_input(params['wireguardconfig']&.to_s)
           wireguard = Service::ProtonWireguard.new.import(config_text)
           result = Service::ProtonWireguardRotation.new(
-            Service::Helpers.new.env_variables
+            Service::Helpers.new.wireguard_config
           ).rotate(
             wireguard,
             instance_uuid: @wireguard_instance_uuid,
@@ -419,7 +419,7 @@ module Framework
         return
       end
 
-      @wireguard_targets = Service::Opnsense.new(Service::Helpers.new.env_variables).wireguard_targets
+      @wireguard_targets = Service::Opnsense.new(Service::Helpers.new.wireguard_config).wireguard_targets
     rescue Service::Opnsense::WireguardImportError => e
       @wireguard_targets_error = e.message
     end

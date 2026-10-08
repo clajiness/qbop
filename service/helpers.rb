@@ -10,36 +10,21 @@ module Service
     HISTORY_PAGE_SIZES = [25, 50, 100].freeze
     PUBLIC_IP_PROVIDERS = %w[akamai cloudflare google opendns].freeze
 
-    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize
-      {
-        ui_mode: settings.value(:ui_mode),
+    def env_variables
+      Settings.keys.to_h { |key| [key, settings.value(key)] }.merge(
         script_version: app_version,
         commit_sha: commit_sha,
-        loop_freq: loop_frequency,
-        required_attempts: settings.value(:required_attempts),
-        port_source: settings.value(:port_source),
-        proton_gateway: settings.value(:proton_gateway),
-        gluetun_addr: settings.value(:gluetun_addr),
-        gluetun_api_key: settings.value(:gluetun_api_key),
-        gluetun_user: settings.value(:gluetun_user),
-        gluetun_pass: settings.value(:gluetun_pass),
-        gluetun_ssl_verify: settings.value(:gluetun_ssl_verify),
-        opnsense_skip: settings.value(:opnsense_skip),
-        opnsense_interface_addr: settings.value(:opnsense_interface_addr),
-        opnsense_api_key: settings.value(:opnsense_api_key),
-        opnsense_api_secret: settings.value(:opnsense_api_secret),
-        opnsense_alias_name: settings.value(:opnsense_alias_name),
-        opnsense_ssl_verify: settings.value(:opnsense_ssl_verify),
-        qbit_skip: settings.value(:qbit_skip),
-        qbit_addr: settings.value(:qbit_addr),
-        qbit_api_key: settings.value(:qbit_api_key),
-        qbit_user: settings.value(:qbit_user),
-        qbit_pass: settings.value(:qbit_pass),
-        qbit_ssl_verify: settings.value(:qbit_ssl_verify),
-        log_lines: settings.value(:log_lines),
-        log_reverse: settings.value(:log_reverse),
-        log_to_stdout: settings.value(:log_to_stdout),
         web_auth_enabled: ENV['WEB_AUTH_ENABLED'] || 'true'
+      )
+    end
+
+    # WireGuard tools use only the OPNsense connection, independent of synchronization settings.
+    def wireguard_config
+      {
+        opnsense_interface_addr: settings.value(:opnsense_interface_addr),
+        opnsense_ssl_verify: settings.value(:opnsense_ssl_verify),
+        opnsense_api_key: settings.value(:opnsense_api_key),
+        opnsense_api_secret: settings.value(:opnsense_api_secret)
       }
     end
 
@@ -256,7 +241,7 @@ module Service
     def logger_instance
       default = EventLogger.new('log/qbop.log', 10, 5_120_000)
 
-      if true?(env_variables[:log_to_stdout])
+      if true?(settings.value(:log_to_stdout))
         Logger.new($stdout)
       else
         default

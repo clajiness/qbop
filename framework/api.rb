@@ -26,8 +26,7 @@ module Framework
       end
 
       def require_wireguard_import_available!
-        helpers = Service::Helpers.new
-        return unless helpers.true?(helpers.env_variables[:opnsense_skip])
+        return unless Service::Helpers.new.true?(Service::Settings.new.value(:opnsense_skip))
 
         error!({ 'error' => WIREGUARD_IMPORT_UNAVAILABLE }, 503)
       end
@@ -134,7 +133,7 @@ module Framework
 
     get '/tools/wireguard-targets' do
       require_wireguard_import_available!
-      targets = Service::Opnsense.new(Service::Helpers.new.env_variables).wireguard_targets
+      targets = Service::Opnsense.new(Service::Helpers.new.wireguard_config).wireguard_targets
 
       { 'wireguard_targets' => targets }
     rescue Service::Opnsense::WireguardImportError => e
@@ -145,7 +144,7 @@ module Framework
       require_wireguard_import_available!
       wireguard = Service::ProtonWireguard.new.import(params['config'])
       result = Service::ProtonWireguardRotation.new(
-        Service::Helpers.new.env_variables
+        Service::Helpers.new.wireguard_config
       ).rotate(
         wireguard,
         instance_uuid: params['instance_uuid'].to_s.strip,

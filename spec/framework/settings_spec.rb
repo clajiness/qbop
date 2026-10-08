@@ -4,6 +4,7 @@ require 'cgi'
 require 'rack/mock'
 require 'stringio'
 require 'uri'
+require 'webmock/rspec'
 require_relative '../support/database_helper'
 require_relative '../support/settings_secret_helper'
 SpecDatabase.reset!
@@ -144,6 +145,158 @@ RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLen
     when :corrupt_key then File.write(key_path, 'private-corrupt-key')
     end
     forbidden + ['private-malformed-ciphertext', 'private-corrupt-key', 'enc:v1:']
+  end
+
+  it 'renders all 25 settings with three settings-table queries including the theme lookup' do
+    output = StringIO.new
+    logger = Logger.new(output)
+    DB.loggers << logger
+
+    page = @client.get('/settings')
+
+    expect(page.status).to eq(200)
+    expect(page.body.scan('id="setting-card-').size).to eq(25)
+    expect(output.string.lines.count { |line| line.match?(/SELECT.*FROM [`"\[]?settings/i) }).to eq(3)
+  ensure
+    DB.loggers.delete(logger)
+  end
+
+  context 'WireGuard configuration isolation' do # rubocop:disable Metrics/BlockLength
+    let(:opnsense_connection) do
+      { opnsense_interface_addr: 'https://firewall', opnsense_ssl_verify: true,
+        opnsense_api_key: 'opn-private-key', opnsense_api_secret: 'opn-private-secret' }
+    end
+
+    before do
+      opnsense_connection.each { |key, value| settings.set(key, value) }
+      (SpecSettingsSecrets::CREDENTIALS.keys - %i[opnsense_api_key opnsense_api_secret]).each do |key|
+        Setting.create(name: key.to_s, value: 'enc:v1:unreadable-unrelated-credential')
+      end
+    end
+
+    def wireguard_api_import
+      @status_api_token ||= ApiKey.issue('WireGuard regression').token
+      Rack::MockRequest.new(@app).post(
+        '/api/tools/wireguard-import',
+        'HTTP_AUTHORIZATION' => "Bearer #{@status_api_token}", 'CONTENT_TYPE' => 'application/json',
+        input: { config: 'test-wireguard-input', instance_uuid: 'instance', peer_uuid: 'peer',
+                 rename_peer: true }.to_json
+      )
+    end
+
+    def expect_working_wireguard(connection) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+      requests = %w[server/search_server client/search_client].map do |path|
+        stub_request(:get, "#{connection[:opnsense_interface_addr]}/api/wireguard/#{path}?rowCount=-1")
+          .with(basic_auth: connection.values_at(:opnsense_api_key, :opnsense_api_secret))
+          .to_return(body: '{"rows":[]}')
+      end
+      expect(Service::Opnsense).to receive(:new).with(connection).exactly(3).times.and_call_original
+      parsed = { instance: {}, peer: {} }
+      allow_any_instance_of(Service::ProtonWireguard).to receive(:import).with('test-wireguard-input')
+                                                                         .and_return(parsed)
+      rotation = instance_double(Service::ProtonWireguardRotation)
+      expect(Service::ProtonWireguardRotation).to receive(:new).with(connection).twice.and_return(rotation)
+      expect(rotation).to receive(:rotate).with(parsed, instance_uuid: 'instance', peer_uuid: 'peer', rename_peer: true)
+                                          .twice.and_return(instance_name: 'proton-instance', peer_name: 'proton-peer')
+
+      page = @client.get('/tools')
+      expect(page.status).to eq(200)
+      imported = @client.post('/wireguard-import', wireguardconfig: 'test-wireguard-input',
+                                                   wireguardinstance: 'instance', wireguardpeer: 'peer',
+                                                   wireguardrenamepeer: 'true',
+                                                   _csrf: @client.token_for('/wireguard-import'))
+      expect(imported.status).to eq(200)
+      expect(imported.body).to include('updated instance proton-instance and peer proton-peer')
+      targets = status_api_get('/api/tools/wireguard-targets')
+      expect(targets.status).to eq(200)
+      expect(JSON.parse(targets.body)).to eq('wireguard_targets' => { 'instances' => [], 'peers' => [] })
+      api_imported = wireguard_api_import
+      expect(api_imported.status).to eq(200)
+      expect(JSON.parse(api_imported.body)).to eq(
+        'wireguard_import' => { 'instance_name' => 'proton-instance', 'peer_name' => 'proton-peer' }
+      )
+      [page, imported, targets, api_imported].each do |response|
+        expect(response.body).not_to include(connection[:opnsense_api_key], connection[:opnsense_api_secret],
+                                             'unreadable-unrelated-credential', 'enc:v1:', 'test-wireguard-input')
+      end
+      requests.each { |request| expect(request).to have_been_requested.times(3) }
+    end
+
+    it 'uses only the required encrypted OPNsense credentials for web and API tools' do
+      expect_working_wireguard(opnsense_connection)
+    end
+
+    %i[missing_key corrupt_key].each do |failure|
+      it "uses authoritative ENV connection values without key access despite #{failure}" do
+        ENV.update('OPN_INTERFACE_ADDR' => 'https://env-firewall', 'OPN_SSL_VERIFY' => 'false',
+                   'OPN_API_KEY' => 'env-private-key', 'OPN_API_SECRET' => 'env-private-secret')
+        failure == :missing_key ? File.unlink(key_path) : File.write(key_path, 'corrupt-private-key-file')
+        expect(Service::SettingsEncryption).not_to receive(:new)
+        expect(Service::SettingsEncryptionKey).not_to receive(:new)
+
+        expect_working_wireguard(opnsense_interface_addr: 'https://env-firewall', opnsense_ssl_verify: false,
+                                 opnsense_api_key: 'env-private-key', opnsense_api_secret: 'env-private-secret')
+
+        if failure == :missing_key
+          expect(File.exist?(key_path)).to be(false)
+        else
+          expect(File.read(key_path)).to eq('corrupt-private-key-file')
+        end
+      end
+    end
+
+    %i[opnsense_api_key opnsense_api_secret missing_key corrupt_key].each do |failure| # rubocop:disable Metrics/BlockLength
+      it "fails closed before client construction for required credential failure #{failure}" do
+        forbidden = Setting.select_map(:value) + [File.read(key_path), 'opn-private-key', 'opn-private-secret']
+        case failure
+        when :missing_key then File.unlink(key_path)
+        when :corrupt_key then File.write(key_path, 'corrupt-private-key-file')
+        else Setting[name: failure.to_s].update(value: 'enc:v1:unreadable-required-credential')
+        end
+        allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(instance: {}, peer: {})
+        expect(Service::Opnsense).not_to receive(:new)
+        expect(Service::ProtonWireguardRotation).not_to receive(:new)
+        expect(@client.get('/settings').status).to eq(200)
+        csrf = @client.token_for('/wireguard-import')
+        operations = [
+          -> { @client.get('/tools') },
+          -> { @client.post('/wireguard-import', wireguardconfig: 'test-wireguard-input', _csrf: csrf) },
+          -> { status_api_get('/api/tools/wireguard-targets') },
+          -> { wireguard_api_import }
+        ]
+        operations.each do |operation|
+          expect(&operation).to raise_error(Service::Settings::ConfigurationError) do |error|
+            expect(error.cause).to be_nil
+            expect(error.full_message).not_to include(*forbidden, 'unreadable-required-credential',
+                                                      'corrupt-private-key-file', 'enc:v1:')
+          end
+        end
+      end
+    end
+
+    it 'keeps disabled responses, login, Bearer authentication and CSRF checks ahead of credential reads' do
+      settings.set(:opnsense_skip, true)
+      File.unlink(key_path)
+      expect(Service::SettingsEncryption).not_to receive(:new)
+      expect(Service::Opnsense).not_to receive(:new)
+      expect(Service::ProtonWireguard).not_to receive(:new)
+      expect(Service::ProtonWireguardRotation).not_to receive(:new)
+      anonymous = SettingsSessionClient.new(@app)
+      expect(URI(anonymous.get('/tools')['location']).path).to eq('/login')
+      expect(URI(anonymous.post('/wireguard-import')['location']).path).to eq('/login')
+      expect(@client.post('/wireguard-import').status).to eq(403)
+      unauthenticated = Rack::MockRequest.new(@app)
+      expect(unauthenticated.get('/api/tools/wireguard-targets').status).to eq(401)
+      expect(unauthenticated.post('/api/tools/wireguard-import').status).to eq(401)
+      expect(@client.get('/tools').body).to include(Framework::Web::WIREGUARD_IMPORT_UNAVAILABLE)
+      response = @client.post('/wireguard-import', _csrf: @client.token_for('/wireguard-import'))
+      expect(response.status).to eq(200)
+      expect(response.body).to include(Framework::Web::WIREGUARD_IMPORT_UNAVAILABLE)
+      [status_api_get('/api/tools/wireguard-targets'), wireguard_api_import].each do |result|
+        expect(result.status).to eq(503)
+        expect(JSON.parse(result.body)).to eq('error' => Framework::API::WIREGUARD_IMPORT_UNAVAILABLE)
+      end
+    end
   end
 
   context 'running loop frequency' do # rubocop:disable Metrics/BlockLength
