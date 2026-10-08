@@ -5,6 +5,7 @@ require_relative '../service/opnsense'
 require_relative '../service/proton_wireguard'
 require_relative '../service/proton_wireguard_rotation'
 require_relative '../service/settings_presentation'
+require_relative '../service/synchronization_configuration'
 
 module Framework
   # The Web class is a Sinatra application that provides qbop's web UI routes.
@@ -72,7 +73,6 @@ module Framework
       @settings_notice = request.session.delete(:settings_notice)
       @settings_error = request.session.delete(:settings_error)
       @settings_sections = settings_presentation.sections
-      @settings_ui_mode = settings_service.metadata(:ui_mode).value
 
       erb :settings
     end
@@ -233,7 +233,6 @@ module Framework
 
     get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
-      config = helpers.env_variables
 
       @app_version = helpers.app_version
       @app_commit = helpers.commit_sha
@@ -247,29 +246,29 @@ module Framework
       @start_time = Framework::Uptime.started_at
       @repo_url = 'https://github.com/clajiness/qbop'
 
-      @ui_mode = config[:ui_mode]
-      @loop_freq = config[:loop_freq]
-      @required_attempts = config[:required_attempts]
+      @ui_mode = settings_service.value(:ui_mode)
+      @loop_freq = settings_service.value(:loop_freq)
+      @required_attempts = settings_service.value(:required_attempts)
       @log_lines = helpers.validate_log_lines(nil)
-      @log_reverse = helpers.true?(config[:log_reverse])
-      @log_to_stdout = helpers.true?(config[:log_to_stdout])
-      @port_source_name = Service::PortSource.name(config)
-      @gluetun_addr = helpers.redact_url_credentials(config[:gluetun_addr])
-      @gluetun_ssl_verify = config[:gluetun_ssl_verify]
-      @proton_gateway = config[:proton_gateway]
-      @opn_skip = helpers.true?(config[:opnsense_skip])
-      @opn_interface_addr = config[:opnsense_interface_addr]
+      @log_reverse = helpers.true?(settings_service.value(:log_reverse))
+      @log_to_stdout = helpers.true?(settings_service.value(:log_to_stdout))
+      @port_source_name = Service::PortSource.name(port_source: settings_service.value(:port_source))
+      @gluetun_addr = helpers.redact_url_credentials(settings_service.value(:gluetun_addr))
+      @gluetun_ssl_verify = settings_service.value(:gluetun_ssl_verify)
+      @proton_gateway = settings_service.value(:proton_gateway)
+      @opn_skip = helpers.true?(settings_service.value(:opnsense_skip))
+      @opn_interface_addr = settings_service.value(:opnsense_interface_addr)
       @opn_api_key = '***'
       @opn_api_secret = '***'
-      @opn_alias_name = config[:opnsense_alias_name]
+      @opn_alias_name = settings_service.value(:opnsense_alias_name)
       @opn_proton_alias_name = ENV['OPN_PROTON_ALIAS_NAME']
-      @opn_ssl_verify = config[:opnsense_ssl_verify]
-      @qbit_skip = helpers.true?(config[:qbit_skip])
-      @qbit_addr = config[:qbit_addr]
+      @opn_ssl_verify = settings_service.value(:opnsense_ssl_verify)
+      @qbit_skip = helpers.true?(settings_service.value(:qbit_skip))
+      @qbit_addr = settings_service.value(:qbit_addr)
       @qbit_api_key = '***'
       @qbit_user = ENV['QBIT_USER']
       @qbit_pass = '***'
-      @qbit_ssl_verify = config[:qbit_ssl_verify]
+      @qbit_ssl_verify = settings_service.value(:qbit_ssl_verify)
       auth_config = authentication_config
       @web_auth_enabled = auth_config.web_auth_enabled?
       @oidc_enabled = auth_config.oidc_enabled?
@@ -329,22 +328,28 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
-      config = helpers.env_variables
-      @port_source_name = Service::PortSource.name(config)
-      @port_stats = stats[@port_source_name]
+      config = Service::SynchronizationConfiguration.current(settings_service)
+      configured = Service::SynchronizationConfiguration.resolve(settings_service)
+      @synchronization_restart_required = config.source_or_skip_changed?(configured)
+      @configured_port_source = configured.port_source
+      @port_source_name = config.port_source
+      @port_stats = stats[@port_source_name] || Stat::Snapshot.new(
+        source_id: nil, source_name: @port_source_name, current_port: nil, same_port: 0,
+        updated_at: nil, last_checked: nil
+      )
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
 
-      @port_connected = helpers.connected_to_service?(@port_stats.last_checked)
-      @opn_connected = helpers.connected_to_service?(@opn_stats.last_checked)
-      @qbit_connected = helpers.connected_to_service?(@qbit_stats.last_checked)
+      @port_connected = helpers.connected_to_service?(@port_stats.last_checked, loop_frequency: config.loop_freq)
+      @opn_connected = helpers.connected_to_service?(@opn_stats.last_checked, loop_frequency: config.loop_freq)
+      @qbit_connected = helpers.connected_to_service?(@qbit_stats.last_checked, loop_frequency: config.loop_freq)
 
       @port_delta = helpers.time_delta_to_s(@port_stats.last_checked, @port_stats.updated_at)
       @opn_delta = helpers.time_delta_to_s(@opn_stats.last_checked, @opn_stats.updated_at)
       @qbit_delta = helpers.time_delta_to_s(@qbit_stats.last_checked, @qbit_stats.updated_at)
 
-      @opn_skip = helpers.true?(config[:opnsense_skip])
-      @qbit_skip = helpers.true?(config[:qbit_skip])
+      @opn_skip = config.opnsense_skip
+      @qbit_skip = config.qbit_skip
 
       @port_longest_time_on_same_port = helpers.seconds_to_s(@port_stats.same_port)
       @opn_longest_time_on_same_port = helpers.seconds_to_s(@opn_stats.same_port)
@@ -364,7 +369,7 @@ module Framework
 
       @log_lines = helpers.validate_log_lines(params['lines'])
       @log_direction = helpers.format_log_direction(
-        params['direction'], default_reverse: helpers.true?(helpers.env_variables[:log_reverse])
+        params['direction'], default_reverse: helpers.true?(settings_service.value(:log_reverse))
       )
       log_reverse = @log_direction == 'desc'
       @output = helpers.log_lines_to_a(@log_lines, log_reverse)
@@ -429,8 +434,7 @@ module Framework
     end
 
     def opnsense_skipped?
-      helpers = Service::Helpers.new
-      helpers.true?(helpers.env_variables[:opnsense_skip])
+      Service::Helpers.new.true?(settings_service.value(:opnsense_skip))
     end
 
     def csrf_mutation_request?

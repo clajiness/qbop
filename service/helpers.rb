@@ -85,7 +85,7 @@ module Service
       Settings.validate_required_attempts(required_attempts)
     end
 
-    def validate_log_lines(log_lines, default = env_variables[:log_lines])
+    def validate_log_lines(log_lines, default = settings.value(:log_lines))
       lines = log_lines.to_i
       return lines.clamp(1, 5000) if lines.positive?
 
@@ -171,7 +171,7 @@ module Service
       'unknown'
     end
 
-    def connected_to_service?(last_checked)
+    def connected_to_service?(last_checked, loop_frequency: self.loop_frequency)
       last_checked_time = time_value(last_checked)
 
       !!(last_checked_time && last_checked_time >= (Time.now - (loop_frequency * 3)))
@@ -194,7 +194,7 @@ module Service
       return [] if log_lines.nil?
 
       output = tail_lines('log/qbop.log', validate_log_lines(log_lines))
-      reverse = true?(env_variables[:log_reverse]) if reverse.nil?
+      reverse = true?(settings.value(:log_reverse)) if reverse.nil?
       output.reverse! if reverse
 
       output[-1] = output.last.strip if output.any?

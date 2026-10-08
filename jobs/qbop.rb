@@ -1,4 +1,5 @@
 require_relative '../service/port_source'
+require_relative '../service/synchronization_configuration'
 
 # Qbop is a class responsible for managing the synchronization of port forwarding settings
 # between the selected port source, OPNsense firewall, and qBittorrent.
@@ -27,6 +28,7 @@ class Qbop # rubocop:disable Metrics/ClassLength
     @opnsense_data = Source[name: 'opnsense']
     @qbit_data = Source[name: 'qbit']
     @logger = @helpers.logger_instance
+    Service::SynchronizationConfiguration.capture(@config)
   end
 
   def log_startup

@@ -1,4 +1,5 @@
 require_relative '../service/port_source'
+require_relative '../service/synchronization_configuration'
 require 'base64'
 
 require_relative '../service/opnsense'
@@ -31,6 +32,19 @@ module Framework
         error!({ 'error' => WIREGUARD_IMPORT_UNAVAILABLE }, 503)
       end
 
+      def synchronization_configuration
+        @synchronization_settings ||= Service::Settings.new
+        @synchronization_configuration ||= Service::SynchronizationConfiguration.current(@synchronization_settings)
+      end
+
+      def synchronization_pending_metadata
+        current = synchronization_configuration
+        configured = Service::SynchronizationConfiguration.resolve(@synchronization_settings)
+        return {} unless current.source_or_skip_changed?(configured)
+
+        { 'configured_port_source' => configured.port_source, 'restart_required' => true }
+      end
+
       def derive_wireguard_public_key! # rubocop:disable Metrics/AbcSize
         query = Rack::Utils.parse_nested_query(request.query_string)
         if query.key?('private_key') || query.key?('private-key')
@@ -61,7 +75,8 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
-      port_source = Service::PortSource.name(helpers.env_variables)
+      config = synchronization_configuration
+      port_source = config.port_source
       @port_stats = stats[port_source]
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
@@ -69,34 +84,34 @@ module Framework
       { 'port_source' => port_source,
         'stats' => {
           'protonvpn' => {
-            'current_port': @port_stats.current_port,
-            'last_changed': @port_stats.updated_at,
-            'last_checked': @port_stats.last_checked,
-            'delta': helpers.time_delta(@port_stats.last_checked, @port_stats.updated_at),
-            'connected': helpers.connected_to_service?(@port_stats.last_checked)
+            'current_port': @port_stats&.current_port,
+            'last_changed': @port_stats&.updated_at,
+            'last_checked': @port_stats&.last_checked,
+            'delta': helpers.time_delta(@port_stats&.last_checked, @port_stats&.updated_at),
+            'connected': helpers.connected_to_service?(@port_stats&.last_checked, loop_frequency: config.loop_freq)
           },
           'opnsense' => {
             'current_port': @opn_stats.current_port,
             'last_changed': @opn_stats.updated_at,
             'last_checked': @opn_stats.last_checked,
             'delta': helpers.time_delta(@opn_stats.last_checked, @opn_stats.updated_at),
-            'connected': helpers.connected_to_service?(@opn_stats.last_checked)
+            'connected': helpers.connected_to_service?(@opn_stats.last_checked, loop_frequency: config.loop_freq)
           },
           'qbit' => {
             'current_port': @qbit_stats.current_port,
             'last_changed': @qbit_stats.updated_at,
             'last_checked': @qbit_stats.last_checked,
             'delta': helpers.time_delta(@qbit_stats.last_checked, @qbit_stats.updated_at),
-            'connected': helpers.connected_to_service?(@qbit_stats.last_checked)
+            'connected': helpers.connected_to_service?(@qbit_stats.last_checked, loop_frequency: config.loop_freq)
           }
         },
         'records' => {
           'longest_time_on_same_port' => {
-            'proton': @port_stats.same_port,
+            'proton': @port_stats&.same_port,
             'opnsense': @opn_stats.same_port,
             'qbit': @qbit_stats.same_port
           }
-        } }
+        } }.merge(synchronization_pending_metadata)
     end
 
     # Deprecated: use POST /api/tools/pubkey so private keys are sent in the request body.
@@ -170,7 +185,7 @@ module Framework
       log_line_count = helpers.validate_log_lines(params['lines'])
       log_direction = helpers.format_log_direction(
         params['direction'],
-        default_reverse: helpers.true?(helpers.env_variables[:log_reverse])
+        default_reverse: helpers.true?(Service::Settings.new.value(:log_reverse))
       )
       log_lines = helpers.log_lines_to_a(log_line_count, log_direction == 'desc')
 
@@ -215,7 +230,7 @@ module Framework
     # Keep the legacy env_variables representations; only historically effective fields use resolved config.
     get '/about' do # rubocop:disable Metrics/BlockLength
       helpers = Service::Helpers.new
-      config = helpers.env_variables
+      settings = Service::Settings.new
 
       { 'about' => {
           app_version: helpers.app_version,
@@ -228,23 +243,23 @@ module Framework
         },
         'env_variables' => {
           'ui_mode': ENV['UI_MODE'],
-          'loop_freq': config[:loop_freq],
+          'loop_freq': settings.value(:loop_freq),
           'required_attempts': ENV['REQUIRED_ATTEMPTS'],
           'log_lines': ENV['LOG_LINES'],
           'log_reverse': helpers.true?(ENV['LOG_REVERSE']),
           'log_to_stdout': helpers.true?(ENV['LOG_TO_STDOUT']),
-          'port_source': Service::PortSource.name(config),
-          'gluetun_addr': helpers.redact_url_credentials(config[:gluetun_addr]),
+          'port_source': Service::PortSource.name(port_source: settings.value(:port_source)),
+          'gluetun_addr': helpers.redact_url_credentials(settings.value(:gluetun_addr)),
           'gluetun_api_key': '***',
           'gluetun_user': '***',
           'gluetun_pass': '***',
-          'gluetun_ssl_verify': config[:gluetun_ssl_verify],
-          'proton_gateway': config[:proton_gateway],
+          'gluetun_ssl_verify': settings.value(:gluetun_ssl_verify),
+          'proton_gateway': settings.value(:proton_gateway),
           'opn_skip': helpers.true?(ENV['OPN_SKIP']),
           'opn_interface_addr': ENV['OPN_INTERFACE_ADDR'],
           'opn_api_key': '***',
           'opn_api_secret': '***',
-          'opn_alias_name': config[:opnsense_alias_name],
+          'opn_alias_name': settings.value(:opnsense_alias_name),
           'opn_proton_alias_name': ENV['OPN_PROTON_ALIAS_NAME'],
           'opn_ssl_verify': helpers.true?(ENV['OPN_SSL_VERIFY']),
           'qbit_skip': helpers.true?(ENV['QBIT_SKIP']),
@@ -260,22 +275,24 @@ module Framework
       helpers = Service::Helpers.new
       stats = Stat.by_source_name
 
-      config = helpers.env_variables
-      port_source = Service::PortSource.name(config)
+      config = synchronization_configuration
+      port_source = config.port_source
       @port_stats = stats[port_source]
       @opn_stats = stats['opnsense']
       @qbit_stats = stats['qbit']
-      service_status = ->(source_stats) { helpers.connected_to_service?(source_stats.last_checked) ? 200 : 503 }
+      service_status = lambda do |source_stats|
+        helpers.connected_to_service?(source_stats&.last_checked, loop_frequency: config.loop_freq) ? 200 : 503
+      end
 
       health = {
         'protonvpn' => service_status.call(@port_stats),
-        'opnsense' => helpers.true?(config[:opnsense_skip]) ? 'skipped' : service_status.call(@opn_stats),
-        'qbit' => helpers.true?(config[:qbit_skip]) ? 'skipped' : service_status.call(@qbit_stats)
+        'opnsense' => config.opnsense_skip ? 'skipped' : service_status.call(@opn_stats),
+        'qbit' => config.qbit_skip ? 'skipped' : service_status.call(@qbit_stats)
       }
 
       status health.value?(503) ? 503 : 200
 
-      { 'port_source' => port_source, 'health' => health }
+      { 'port_source' => port_source, 'health' => health }.merge(synchronization_pending_metadata)
     end
 
     get '/notifications' do

@@ -36,6 +36,8 @@ RSpec.describe 'Encrypted credentials in Qbop startup and job logs' do # rubocop
       when :corrupt_key then File.write(key_path, 'private-key-corrupt')
       when :tampered_ciphertext then Setting[name: 'gluetun_api_key'].update(value: 'enc:v1:private-ciphertext')
       end
+      # On a cold start the same unreadable row must not prevent the web process from being seeded.
+      Service::Seed.new
       allow(Qbop).to receive(:new).and_return(job)
       allow(SuckerPunch).to receive(:logger).and_return(logger)
       expect(job).not_to receive(:run_loop_iteration)

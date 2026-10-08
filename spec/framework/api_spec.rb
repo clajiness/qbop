@@ -93,6 +93,56 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
       ENV['QBIT_USER'] = ''
       expect(response_json(api_get('/api/about'))['env_variables']['qbit_user']).to eq('')
     end
+
+    context 'diagnostics with unreadable credentials' do # rubocop:disable Metrics/BlockLength
+      %i[malformed missing_key corrupt_key].each do |failure| # rubocop:disable Metrics/BlockLength
+        it "preserves About and log responses without decrypting a #{failure} credential" do # rubocop:disable Metrics/BlockLength
+          settings.set(:gluetun_api_key, 'private-diagnostic-credential')
+          settings.set(:loop_freq, 30)
+          settings.set(:log_lines, 2)
+          settings.set(:log_reverse, true)
+          ENV.update('UI_MODE' => 'LiGhT', 'REQUIRED_ATTEMPTS' => '5abc', 'LOG_LINES' => '',
+                     'LOG_REVERSE' => ' ', 'OPN_SSL_VERIFY' => 'TRUE', 'QBIT_ADDR' => '')
+          expected_about = response_json(api_get('/api/about'))['env_variables']
+          forbidden = ['private-diagnostic-credential', Setting[name: 'gluetun_api_key'].value, File.read(key_path)]
+          case failure
+          when :malformed
+            Setting[name: 'gluetun_api_key'].update(value: 'enc:v1:private-malformed-diagnostic-ciphertext')
+          when :missing_key then File.unlink(key_path)
+          when :corrupt_key then File.write(key_path, 'private-corrupt-diagnostic-key')
+          end
+          forbidden += ['enc:v1:', 'private-malformed-diagnostic-ciphertext', 'private-corrupt-diagnostic-key']
+          allow(Service::SettingsEncryption).to receive(:new).and_call_original
+          log_entries = [" first \n", " middle \n", " newest \n"]
+          allow(File).to receive(:foreach).with('log/qbop.log').and_return(log_entries.each)
+
+          about = api_get('/api/about')
+          expect(about.status).to eq(200)
+          expect(response_json(about)['env_variables']).to eq(expected_about)
+          expect(about.body).not_to include(*forbidden)
+          {
+            '/api/logs' => %w[newest middle],
+            '/api/logs?lines=3&direction=asc' => %w[first middle newest],
+            '/api/logs?lines=0&direction=invalid' => %w[newest middle]
+          }.each do |path, lines|
+            response = api_get(path)
+            expect(response.status).to eq(200)
+            expect(response_json(response)).to eq('log_lines' => lines)
+            expect(response.body).not_to include(*forbidden)
+          end
+          %w[/api/about /api/logs].each do |path|
+            expect(api_get(path, token: nil).status).to eq(401)
+          end
+          expect(Service::SettingsEncryption).not_to have_received(:new)
+
+          expect { Service::Gluetun.new(Service::Helpers.new.env_variables) }
+            .to raise_error(Service::Settings::ConfigurationError) do |error|
+              expect(error.cause).to be_nil
+              expect(error.full_message).not_to include(*forbidden)
+            end
+        end
+      end
+    end
   end
 
   it 'preserves ENV-backed about fields while reporting historically effective fields and masking credentials' do
@@ -194,6 +244,17 @@ RSpec.describe Framework::API do # rubocop:disable Metrics/BlockLength
     response = api_get('/api/health')
     expect(response.status).to eq(503)
     expect(response_json(response)['health']).to include('opnsense' => 'skipped', 'qbit' => 503)
+  end
+
+  it 'uses normalized configured frequency before synchronization initialization without capturing it' do
+    DB[:stats].update(last_checked: Time.now - 20)
+    ENV['LOOP_FREQ'] = 'invalid'
+    expect(api_get('/api/health').status).to eq(200)
+    expect(response_json(api_get('/api/stats'))['stats'].values).to all(include('connected' => true))
+
+    ENV['LOOP_FREQ'] = '1'
+    expect(api_get('/api/health').status).to eq(503)
+    expect(response_json(api_get('/api/stats'))['stats'].values).to all(include('connected' => false))
   end
 
   it 'uses stored log count and direction as API log defaults' do

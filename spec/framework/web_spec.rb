@@ -30,7 +30,7 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
     source_env_keys = %w[PORT_SOURCE GLUETUN_ADDR GLUETUN_API_KEY GLUETUN_USER GLUETUN_PASS
                          OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME QBIT_SKIP UI_MODE REQUIRED_ATTEMPTS
                          LOG_LINES LOG_REVERSE LOG_TO_STDOUT GLUETUN_SSL_VERIFY OPN_INTERFACE_ADDR
-                         OPN_SSL_VERIFY QBIT_ADDR QBIT_SSL_VERIFY]
+                         OPN_SSL_VERIFY QBIT_ADDR QBIT_SSL_VERIFY QBIT_USER]
     source_env = source_env_keys.to_h { |key| [key, ENV[key]] }
     source_env_keys.each { |key| ENV.delete(key) }
     version = ENV['VERSION']
@@ -92,6 +92,54 @@ RSpec.describe Framework::Web do # rubocop:disable Metrics/BlockLength
       expect(response.body).to include('QBIT_USER: legacy-visible-env-user')
       expect(response.body).not_to include('database-private-username')
     end
+
+    it 'renders About and dynamic log display settings without decrypting broken credentials' do
+      Setting.create(name: 'qbit_pass', value: 'enc:v1:private-malformed-ciphertext')
+      settings.set(:ui_mode, 'light')
+      settings.set(:log_lines, 75)
+      settings.set(:log_reverse, true)
+      allow_any_instance_of(Service::Helpers).to receive(:log_lines_to_a).with(75, true).and_return(['newest'])
+      expect(Service::SettingsEncryption).not_to receive(:new)
+
+      about = web_request.get('/about')
+      expect(about.status).to eq(200)
+      expect(about.body).to include('/css/light.css', 'QBIT_PASS: ***')
+      %w[/logs /partials/logs].each do |path|
+        response = web_request.get(path)
+        expect(response.status).to eq(200)
+        expect(response.body).to include('last 75 lines of log output, newest first')
+        expect(response.body).not_to include('private-malformed-ciphertext', 'enc:v1:')
+      end
+    end
+  end
+
+  it 'escapes persisted gateway and alias markup on About without restricting their values' do
+    markup = '<em>example</em>'
+    Service::Settings.new.set(:proton_gateway, markup)
+    Service::Settings.new.set(:opnsense_alias_name, markup)
+
+    response = web_request.get('/about')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('<em>configuration</em>', 'PROTON_GATEWAY: &lt;em&gt;example&lt;/em&gt;',
+                                     'OPN_ALIAS_NAME: &lt;em&gt;example&lt;/em&gt;')
+    expect(response.body).not_to include(markup, '<em>env variables</em>')
+    expect(Setting[name: 'proton_gateway'].value).to eq(markup)
+  end
+
+  it 'escapes other legacy configuration strings rendered on About' do
+    ENV.update('UI_MODE' => '<em>theme</em>', 'OPN_PROTON_ALIAS_NAME' => '<em>alias</em>',
+               'QBIT_USER' => '<em>username</em>', 'OPN_INTERFACE_ADDR' => 'http://firewall/<em>path</em>',
+               'QBIT_ADDR' => 'http://qbit/<em>path</em>')
+
+    response = web_request.get('/about')
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include('UI_MODE: &lt;em&gt;theme&lt;/em&gt;',
+                                     'OPN_PROTON_ALIAS_NAME: &lt;em&gt;alias&lt;/em&gt;',
+                                     'QBIT_USER: &lt;em&gt;username&lt;/em&gt;',
+                                     'OPN_INTERFACE_ADDR: http://firewall/&lt;em&gt;path&lt;/em&gt;',
+                                     'QBIT_ADDR: http://qbit/&lt;em&gt;path&lt;/em&gt;')
   end
 
   it 'shows effective stored settings on about and applies the stored UI mode to the layout' do

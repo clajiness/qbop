@@ -9,6 +9,7 @@ require_relative '../support/settings_secret_helper'
 SpecDatabase.reset!
 require_relative '../../service/helpers'
 require_relative '../../service/qbit'
+require_relative '../../service/seed'
 require_relative '../../jobs/qbop'
 require_relative '../../framework/uptime'
 require_relative '../../framework/web'
@@ -120,6 +121,232 @@ RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLen
     notice = page.body[%r{<div class="terminal-alert terminal-alert-primary" role="status">.*?</div>}m]
     expect(notice).to include("#{Service::Settings.new.metadata(key).label} #{action}.")
     expect(notice.include?('Restart qbop to apply this change')).to eq(restart)
+  end
+
+  def start_synchronization
+    Service::Seed.new
+    allow_any_instance_of(Service::Helpers).to receive(:logger_instance).and_return(Logger.new(StringIO.new))
+    Qbop.allocate.tap { |job| job.send(:initialize_dependencies) }
+  end
+
+  def status_api_get(path)
+    @status_api_token ||= ApiKey.issue('status regression').token
+    Rack::MockRequest.new(@app).get(path, 'HTTP_AUTHORIZATION' => "Bearer #{@status_api_token}")
+  end
+
+  def make_credential_unreadable(failure)
+    settings.set(:gluetun_api_key, 'private-recovery-credential')
+    forbidden = ['private-recovery-credential', Setting[name: 'gluetun_api_key'].value, File.read(key_path)]
+    case failure
+    when :malformed
+      Setting[name: 'gluetun_api_key'].update(value: 'enc:v1:private-malformed-ciphertext')
+    when :missing_key then File.unlink(key_path)
+    when :corrupt_key then File.write(key_path, 'private-corrupt-key')
+    end
+    forbidden + ['private-malformed-ciphertext', 'private-corrupt-key', 'enc:v1:']
+  end
+
+  context 'running loop frequency' do # rubocop:disable Metrics/BlockLength
+    before do
+      now = Time.now
+      allow(Time).to receive(:now).and_return(now)
+    end
+
+    def expect_running_freshness(connected) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+      %w[/ /partials/status].each do |path|
+        response = @client.get(path)
+        expect(response.status).to eq(200)
+        expect(response.body.scan("class=\"#{connected ? 'green' : 'red'}-dot\"").size).to eq(3)
+        expect(response.body).not_to include('Saved synchronization settings require a restart')
+      end
+      health = status_api_get('/api/health')
+      expect(health.status).to eq(connected ? 200 : 503)
+      expect(JSON.parse(health.body)).to eq(
+        'port_source' => 'proton',
+        'health' => %w[protonvpn opnsense qbit].to_h { |source| [source, connected ? 200 : 503] }
+      )
+      stats = status_api_get('/api/stats')
+      expect(stats.status).to eq(200)
+      body = JSON.parse(stats.body)
+      expect(body['stats'].values.map { |source| source.fetch('connected') }).to eq([connected] * 3)
+      expect(body).not_to have_key('configured_port_source')
+      expect(body).not_to have_key('restart_required')
+    end
+
+    [
+      ['1', 20, true, false], ['3600', 200, false, true], [' +0045 ', 20, true, true]
+    ].each do |value, age, before, after|
+      it "keeps running freshness after saving #{value.strip}, then applies it after restart" do
+        job = start_synchronization
+        original_config = job.instance_variable_get(:@config).dup
+        client_variables = %i[@port_source @opnsense @qbit]
+        original_clients = client_variables.map { |variable| job.instance_variable_get(variable) }
+        DB[:stats].update(last_checked: Time.now - age)
+        expect_running_freshness(before)
+        expect(Qbop).not_to receive(:perform_async)
+
+        expect_settings_redirect(save(:loop_freq, value))
+
+        expect(Service::Settings.new.value(:loop_freq)).to eq(Integer(value, 10))
+        about = status_api_get('/api/about')
+        expect(JSON.parse(about.body).dig('env_variables', 'loop_freq')).to eq(Integer(value, 10))
+        expect_running_freshness(before)
+        expect(job.instance_variable_get(:@config)).to eq(original_config)
+        expect(client_variables.map { |variable| job.instance_variable_get(variable) }).to eq(original_clients)
+
+        restarted = start_synchronization
+        expect(restarted.instance_variable_get(:@config)[:loop_freq]).to eq(Integer(value, 10))
+        expect_running_freshness(after)
+      end
+    end
+
+    [[1, 20, false], [3600, 200, true]].each do |frequency, age, connected|
+      it "keeps running freshness after clearing #{frequency} until restart restores the default" do
+        settings.set(:loop_freq, frequency)
+        job = start_synchronization
+        DB[:stats].update(last_checked: Time.now - age)
+        expect_running_freshness(connected)
+
+        expect_settings_redirect(clear(:loop_freq))
+
+        expect(Setting[name: 'loop_freq']).to be_nil
+        expect(Service::Settings.new.value(:loop_freq)).to eq(45)
+        expect(job.instance_variable_get(:@config)[:loop_freq]).to eq(frequency)
+        expect_running_freshness(connected)
+
+        restarted = start_synchronization
+        expect(restarted.instance_variable_get(:@config)[:loop_freq]).to eq(45)
+        expect_running_freshness(!connected)
+      end
+    end
+  end
+
+  %i[malformed missing_key corrupt_key].each do |failure| # rubocop:disable Metrics/BlockLength
+    it "permits cold startup, fresh login and Settings recovery with #{failure} credentials" do # rubocop:disable Metrics/BlockLength
+      forbidden = make_credential_unreadable(failure)
+      key_before = File.binread(key_path) if File.exist?(key_path)
+      allow(Service::SettingsEncryption).to receive(:new).and_call_original
+      settings.set(:ui_mode, 'light')
+      Service::Seed.new
+      expect(Source[name: 'proton']).not_to be_nil
+      @app = Framework::Application.build(session_secret_path: File.join(File.dirname(key_path), 'session_secret.txt'))
+      @client = SettingsSessionClient.new(@app)
+
+      login = @client.get('/login')
+      expect(login.status).to eq(200)
+      expect(login.body).to include('/css/light.css')
+      csrf = CGI.unescapeHTML(login.body[/name="_csrf" value="([^"]+)"/, 1])
+      response = @client.post('/login', login: 'admin@example.com', password: 'correct horse battery staple',
+                                        _csrf: csrf)
+      expect(response.status).to eq(302)
+      expect(@client.get('/').status).to eq(200)
+      expect(status_api_get('/api/health').status).to eq(503)
+      page = @client.get('/settings')
+      expect(page.status).to eq(200)
+      expect(card(page, :gluetun_api_key)).to include('Configured in qbop', 'type="password"')
+      expect(Service::SettingsEncryption).not_to have_received(:new)
+      [login.body, page.body, @client.session.inspect, @client.access_log.string,
+       @client.errors.string].each do |output|
+        expect(output).not_to include(*forbidden)
+      end
+      if key_before
+        expect(File.binread(key_path)).to eq(key_before)
+      else
+        expect(File.exist?(key_path)).to be(false)
+      end
+
+      if failure == :malformed
+        expect_settings_redirect(save(:gluetun_api_key, 'private-replacement-credential'))
+        expect(Service::Settings.new.value(:gluetun_api_key)).to eq('private-replacement-credential')
+      else
+        stored = Setting[name: 'gluetun_api_key'].value
+        expect_settings_redirect(save(:gluetun_api_key, 'private-replacement-credential'))
+        expect(Setting[name: 'gluetun_api_key'].value).to eq(stored)
+        expect(@client.get('/settings').body).to include('Credential could not be saved.')
+      end
+      expect_settings_redirect(clear(:gluetun_api_key))
+      expect(Setting[name: 'gluetun_api_key']).to be_nil
+      page = @client.get('/settings')
+      expect(page.status).to eq(200)
+      [page.body, @client.session.inspect, @client.access_log.string, @client.errors.string].each do |output|
+        expect(output).not_to include(*forbidden, 'private-replacement-credential')
+      end
+    end
+  end
+
+  [%w[proton gluetun], %w[gluetun proton]].each do |initial, target| # rubocop:disable Metrics/BlockLength
+    [false, true].each do |target_has_statistics| # rubocop:disable Metrics/BlockLength
+      it "keeps #{initial} status after saving #{target}, with target statistics #{target_has_statistics}" do # rubocop:disable Metrics/BlockLength
+        settings.set(:port_source, initial)
+        job = start_synchronization
+        original_config = job.instance_variable_get(:@config).dup
+        Source[name: initial].stat.update(current_port: 12_345)
+        DB[:stats].update(last_checked: Time.now)
+        expect(Source[name: target]).to be_nil
+        Source.create(name: target).seed_tables if target_has_statistics
+        expect(Qbop).not_to receive(:perform_async)
+
+        expect_settings_redirect(save(:port_source, target))
+
+        %w[/ /partials/status].each do |path|
+          response = @client.get(path)
+          expect(response.status).to eq(200)
+          expect(response.body).to include("Configured port source: #{target}.", 'current port: 12345',
+                                           "Showing #{initial} statistics until qbop restarts.")
+        end
+        health = status_api_get('/api/health')
+        expect(health.status).to eq(200)
+        expect(JSON.parse(health.body)).to include('port_source' => initial, 'configured_port_source' => target,
+                                                   'restart_required' => true,
+                                                   'health' => { 'protonvpn' => 200, 'opnsense' => 200, 'qbit' => 200 })
+        stats = status_api_get('/api/stats')
+        expect(stats.status).to eq(200)
+        expect(JSON.parse(stats.body).dig('stats', 'protonvpn', 'current_port')).to eq(12_345)
+        expect(job.instance_variable_get(:@config)).to eq(original_config)
+        expect(job.instance_variable_get(:@port_source).name).to eq(initial)
+        expect(Source[name: target]).to be_nil unless target_has_statistics
+
+        start_synchronization
+        Source[name: target].stat.update(current_port: 51_820)
+        DB[:stats].update(last_checked: Time.now)
+        response = @client.get('/')
+        expect(response.status).to eq(200)
+        expect(response.body).to include('current port: 51820')
+        expect(response.body).not_to include('Saved synchronization settings require a restart')
+        health = status_api_get('/api/health')
+        expect(health.status).to eq(200)
+        expect(JSON.parse(health.body)).to include('port_source' => target)
+        expect(JSON.parse(health.body).keys).to contain_exactly('port_source', 'health')
+      end
+    end
+  end
+
+  { opnsense_skip: %w[OPN_SKIP opnsense], qbit_skip: %w[QBIT_SKIP qbit] }.each do |key, (label, source)|
+    [false, true].each do |initial|
+      it "keeps startup #{label}=#{initial} in status and health until restart" do
+        settings.set(key, initial)
+        start_synchronization
+        DB[:stats].update(last_checked: Time.now)
+        Source[name: source].stat.update(last_checked: Time.now - 10_000)
+
+        expect_settings_redirect(save(key, (!initial).to_s))
+
+        page = @client.get('/partials/status')
+        expect(page.status).to eq(200)
+        expect(page.body).to include('Saved synchronization settings require a restart')
+        expect(page.body.include?("skipped per the #{label} setting")).to eq(initial)
+        health = status_api_get('/api/health')
+        expect(health.status).to eq(initial ? 200 : 503)
+        expect(JSON.parse(health.body).dig('health', source)).to eq(initial ? 'skipped' : 503)
+        expect(JSON.parse(health.body)['restart_required']).to be(true)
+
+        start_synchronization
+        health = status_api_get('/api/health')
+        expect(health.status).to eq(initial ? 503 : 200)
+        expect(JSON.parse(health.body).dig('health', source)).to eq(initial ? 503 : 'skipped')
+        expect(JSON.parse(health.body)).not_to have_key('restart_required')
+      end
+    end
   end
 
   it 'uses the existing browser login and setup requirements for the page and both POST routes' do

@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://unpkg.com/terminal.css@0.7.5/dist/terminal.min.css" integrity="sha512-X8PpCFdlyXfQ93O7R/tmLP0uln53P5/hY29faFCjhpfinyggAeQbcwiv8pDvu49vHvZPWJN+yfb4VomHJK6sJA==" crossorigin="anonymous" />
 
     <!-- Theme stylesheets -->
-    <% ui_mode = @settings_page ? @settings_ui_mode : Service::Helpers.new.env_variables[:ui_mode] %>
+    <% ui_mode = Service::Settings.new.value(:ui_mode) %>
     <% if ui_mode == "light" %>
     <link rel="stylesheet" href="/css/light.css" />
     <% else %>

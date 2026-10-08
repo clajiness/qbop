@@ -2,6 +2,7 @@ require 'bundler/setup'
 Bundler.require(:default)
 
 require_relative '../support/database_helper'
+require_relative '../support/settings_secret_helper'
 require_relative '../../service/seed'
 
 RSpec.describe Service::Seed do # rubocop:disable Metrics/BlockLength
@@ -24,6 +25,21 @@ RSpec.describe Service::Seed do # rubocop:disable Metrics/BlockLength
     expect(Stat.count).to eq(3)
     expect(Counter.count).to eq(3)
     expect(Setting.count).to eq(0)
+  end
+
+  context 'unrelated unreadable credentials' do
+    include_context 'encrypted settings'
+
+    it 'seeds a cold database without decrypting a malformed credential or creating a key' do
+      Setting.create(name: 'qbit_pass', value: 'enc:v1:private-malformed-ciphertext')
+      expect(Service::SettingsEncryption).not_to receive(:new)
+
+      described_class.new
+
+      expect(Source.order(:name).map(&:name)).to eq(%w[opnsense proton qbit])
+      expect(Stat.count).to eq(3)
+      expect(File.exist?(key_path)).to be(false)
+    end
   end
 
   it 'seeds Gluetun when selected by a database setting and leaves that setting unchanged' do

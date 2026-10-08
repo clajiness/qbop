@@ -59,42 +59,42 @@
 </blockquote>
 <hr>
 
-<h4><em>env variables</em></h4>
+<h4><em>configuration</em></h4>
 <blockquote>
-  UI_MODE: <%= @ui_mode %><br>
-  LOOP_FREQ: <%= @loop_freq %><br>
-  REQUIRED_ATTEMPTS: <%= @required_attempts %><br>
-  LOG_LINES: <%= @log_lines %><br>
-  LOG_REVERSE: <%= @log_reverse %><br>
-  LOG_TO_STDOUT: <%= @log_to_stdout %><br>
-  PORT_SOURCE: <%= @port_source_name %><br>
+  UI_MODE: <%= Rack::Utils.escape_html(@ui_mode) %><br>
+  LOOP_FREQ: <%= Rack::Utils.escape_html(@loop_freq) %><br>
+  REQUIRED_ATTEMPTS: <%= Rack::Utils.escape_html(@required_attempts) %><br>
+  LOG_LINES: <%= Rack::Utils.escape_html(@log_lines) %><br>
+  LOG_REVERSE: <%= Rack::Utils.escape_html(@log_reverse) %><br>
+  LOG_TO_STDOUT: <%= Rack::Utils.escape_html(@log_to_stdout) %><br>
+  PORT_SOURCE: <%= Rack::Utils.escape_html(@port_source_name) %><br>
   GLUETUN_ADDR: <%= Rack::Utils.escape_html(@gluetun_addr) %><br>
   GLUETUN_API_KEY: ***<br>
   GLUETUN_USER: ***<br>
   GLUETUN_PASS: ***<br>
-  GLUETUN_SSL_VERIFY: <%= @gluetun_ssl_verify %><br>
-  PROTON_GATEWAY: <%= @proton_gateway %><br>
-  OPN_SKIP: <%= @opn_skip %><br>
-  OPN_INTERFACE_ADDR: <%= @opn_interface_addr %><br>
-  OPN_API_KEY: <%= @opn_api_key %><br>
-  OPN_API_SECRET: <%= @opn_api_secret %><br>
+  GLUETUN_SSL_VERIFY: <%= Rack::Utils.escape_html(@gluetun_ssl_verify) %><br>
+  PROTON_GATEWAY: <%= Rack::Utils.escape_html(@proton_gateway) %><br>
+  OPN_SKIP: <%= Rack::Utils.escape_html(@opn_skip) %><br>
+  OPN_INTERFACE_ADDR: <%= Rack::Utils.escape_html(@opn_interface_addr) %><br>
+  OPN_API_KEY: <%= Rack::Utils.escape_html(@opn_api_key) %><br>
+  OPN_API_SECRET: <%= Rack::Utils.escape_html(@opn_api_secret) %><br>
   OPN_ALIAS_NAME: <%= Rack::Utils.escape_html(@opn_alias_name) %><br>
-  OPN_PROTON_ALIAS_NAME: <%= @opn_proton_alias_name %><br>
-  OPN_SSL_VERIFY: <%= @opn_ssl_verify %><br>
-  QBIT_SKIP: <%= @qbit_skip %><br>
-  QBIT_ADDR: <%= @qbit_addr %><br>
-  QBIT_API_KEY: <%= @qbit_api_key %><br>
-  QBIT_USER: <%= @qbit_user %><br>
-  QBIT_PASS: <%= @qbit_pass %><br>
-  QBIT_SSL_VERIFY: <%= @qbit_ssl_verify %><br>
-  WEB_AUTH_ENABLED: <%= @web_auth_enabled %><br>
-  OIDC_ENABLED: <%= @oidc_enabled %><br>
+  OPN_PROTON_ALIAS_NAME: <%= Rack::Utils.escape_html(@opn_proton_alias_name) %><br>
+  OPN_SSL_VERIFY: <%= Rack::Utils.escape_html(@opn_ssl_verify) %><br>
+  QBIT_SKIP: <%= Rack::Utils.escape_html(@qbit_skip) %><br>
+  QBIT_ADDR: <%= Rack::Utils.escape_html(@qbit_addr) %><br>
+  QBIT_API_KEY: <%= Rack::Utils.escape_html(@qbit_api_key) %><br>
+  QBIT_USER: <%= Rack::Utils.escape_html(@qbit_user) %><br>
+  QBIT_PASS: <%= Rack::Utils.escape_html(@qbit_pass) %><br>
+  QBIT_SSL_VERIFY: <%= Rack::Utils.escape_html(@qbit_ssl_verify) %><br>
+  WEB_AUTH_ENABLED: <%= Rack::Utils.escape_html(@web_auth_enabled) %><br>
+  OIDC_ENABLED: <%= Rack::Utils.escape_html(@oidc_enabled) %><br>
   OIDC_ISSUER: <%= Rack::Utils.escape_html(@oidc_issuer) %><br>
   OIDC_CLIENT_ID: <%= Rack::Utils.escape_html(@oidc_client_id) %><br>
-  OIDC_CLIENT_SECRET: <%= @oidc_client_secret %><br>
+  OIDC_CLIENT_SECRET: <%= Rack::Utils.escape_html(@oidc_client_secret) %><br>
   OIDC_PUBLIC_URL: <%= Rack::Utils.escape_html(@oidc_public_url) %><br>
-  OIDC_AUTO_REDIRECT: <%= @oidc_auto_redirect %><br>
-  LOCAL_LOGIN_ENABLED: <%= @local_login_enabled %>
+  OIDC_AUTO_REDIRECT: <%= Rack::Utils.escape_html(@oidc_auto_redirect) %><br>
+  LOCAL_LOGIN_ENABLED: <%= Rack::Utils.escape_html(@local_login_enabled) %>
 </blockquote>
 <hr>
 

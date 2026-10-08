@@ -1,5 +1,4 @@
-require_relative 'helpers'
-require_relative 'port_source'
+require_relative 'synchronization_configuration'
 
 module Service
   class Seed # rubocop:disable Style/Documentation
@@ -10,7 +9,8 @@ module Service
     private
 
     def seed
-      port_data = Source.find_or_create(name: PortSource.name(Helpers.new.env_variables))
+      config = SynchronizationConfiguration.resolve(Settings.new)
+      port_data = Source.find_or_create(name: config.port_source)
       port_data.seed_tables
 
       opnsense_data = Source.find_or_create(name: 'opnsense')
@@ -18,6 +18,8 @@ module Service
 
       qbit_data = Source.find_or_create(name: 'qbit')
       qbit_data.seed_tables
+
+      SynchronizationConfiguration.capture(config.to_h)
     end
   end
 end

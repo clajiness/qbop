@@ -24,6 +24,7 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
   def self.reset!
     initialize_database unless @database
     clear_tables
+    Service::SynchronizationConfiguration::INSTANCE.reset if defined?(Service::SynchronizationConfiguration)
   end
 
   def self.initialize_database
