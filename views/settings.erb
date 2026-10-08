@@ -3,8 +3,8 @@
 <hr>
 
 <h4><em>settings</em></h4>
-<p>qbop uses environment variables first, then settings saved in qbop, then built-in defaults. Clearing a saved setting removes the qbop value, so the environment variable is used if one is set; otherwise qbop uses the built-in default.</p>
-<p>Settings marked <strong>Restart required</strong> take effect in the synchronization job after qbop restarts. Display-only settings apply on the next request.</p>
+<p>Settings configured through environment variables (such as Docker Compose) take priority and cannot be changed here. Otherwise, qbop uses your saved settings or the built-in defaults. Use <strong>Clear</strong> to remove a saved value.</p>
+<p>Settings marked <strong>Restart required</strong> take effect after restarting qbop. Theme and log viewer preferences apply without a restart.</p>
 
 <% if @settings_notice %>
 <div class="terminal-alert terminal-alert-primary" role="status"><%= Rack::Utils.escape_html(@settings_notice) %></div>
