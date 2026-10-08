@@ -6,7 +6,7 @@ A tool for synchronizing a forwarded port from ProtonVPN/NAT-PMP or Gluetun, wit
 
 qbop is built with Ruby and available as a Docker image. **Proton mode remains the default and requires the container to be routed through ProtonVPN** (via a VPN container or network namespace). In Gluetun mode, qbop observes the control API; Gluetun owns the VPN connection and forwarded-port lease.
 
-Upgrading an existing installation? Read [Upgrading from qbop 2.x to 3.0](#upgrading-from-qbop-2x-to-30) before replacing the image; browser and API authentication have changed.
+Upgrading an existing installation? See [Upgrading to v3.6.0](#upgrading-to-v360). If you are coming from 2.x, also read [Upgrading from qbop 2.x to 3.0](#upgrading-from-qbop-2x-to-30) for the browser and API authentication changes.
 
 ## What qbop does
 
@@ -27,6 +27,7 @@ Upgrading an existing installation? Read [Upgrading from qbop 2.x to 3.0](#upgra
 - [Authentication](#authentication)
 - [ProtonVPN WireGuard importer](#protonvpn-wireguard-importer)
 - [API](#api)
+- [Upgrading to v3.6.0](#upgrading-to-v360)
 - [Upgrading from qbop 2.x to 3.0](#upgrading-from-qbop-2x-to-30)
 - [Operational details and troubleshooting](#operational-details-and-troubleshooting)
 - [Architecture and implementation](#architecture-and-implementation)
@@ -36,10 +37,10 @@ Upgrading an existing installation? Read [Upgrading from qbop 2.x to 3.0](#upgra
 * AMD64 or ARM64/v8 architecture - If you need support for a different architecture, file an issue.
 * [Docker Engine](https://docs.docker.com/engine/install/)
 * [ProtonVPN](https://protonvpn.com/support/port-forwarding) for the default NAT-PMP source, or an existing [Gluetun](https://github.com/qdm12/gluetun) deployment with port forwarding enabled
-* Optional: [OPNsense](https://docs.opnsense.org/). Set `OPN_SKIP=true` to run without this integration.
+* Optional: [OPNsense](https://docs.opnsense.org/). Set `OPN_SKIP` to `true` in Settings to run without this integration.
     * [Selective routing](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html)
     * [API](https://docs.opnsense.org/development/how-tos/api.html)
-* Optional: [qBittorrent](https://www.qbittorrent.org/). Set `QBIT_SKIP=true` to run without this integration.
+* Optional: [qBittorrent](https://www.qbittorrent.org/). Set `QBIT_SKIP` to `true` in Settings to run without this integration.
 
 ## Quick Start
 
@@ -50,7 +51,7 @@ Upgrading an existing installation? Read [Upgrading from qbop 2.x to 3.0](#upgra
    cd qbop/docker-compose
    ```
 
-2. Edit `docker-compose.yml` using the [configuration reference](#env-variables). Set the credentials and addresses for the integrations you use, or set `OPN_SKIP=true` and/or `QBIT_SKIP=true` to skip them. For the default Proton source, configure your VPN container or network namespace so qbop's traffic goes through ProtonVPN; the sample Compose file does not set up VPN routing. Alternatively, select `PORT_SOURCE=gluetun` and configure access to Gluetun's control API.
+2. Review `docker-compose.yml` and your networking. The sample does not set up VPN routing: the default Proton source requires routing through ProtonVPN, while Gluetun mode requires access to its control API. See [Integration setup](#integration-setup). Leave integration settings out of Compose to manage them through the UI.
 3. Start qbop:
 
    ```bash
@@ -58,12 +59,22 @@ Upgrading an existing installation? Read [Upgrading from qbop 2.x to 3.0](#upgra
    ```
 
 4. Open `http://<host_ip>:4567/`. With the default browser authentication, the first request redirects to `/setup`, where you create the qbop administrator account.
+5. Open **settings** at `/settings`. Use the default Proton source and configure its gateway if needed, or select `PORT_SOURCE=gluetun` and enter the control API address and credentials. Configure OPNsense and qBittorrent, or save `OPN_SKIP=true` and/or `QBIT_SKIP=true` for integrations you do not use.
+6. Apply synchronization settings:
+
+   ```bash
+   docker compose restart qbop
+   ```
+
+Before configuration and VPN/control-API access are ready, the status indicators may be unhealthy and synchronization logs may report unavailable gateways or integrations. The web UI remains available for setup; authenticated `/api/health` requests return `503` until enabled services have recent successful checks.
 
 ## Installation
 
-Use the provided [Docker Compose example](https://github.com/clajiness/qbop/blob/main/docker-compose/docker-compose.yml) to set up qbop. The [container image](https://github.com/clajiness/qbop/pkgs/container/qbop) is published on GitHub Container Registry.
+Use the provided [Docker Compose example](docker-compose/docker-compose.yml) to set up qbop. The [container image](https://github.com/clajiness/qbop/pkgs/container/qbop) is published on GitHub Container Registry.
 
-The sample mounts persistent `data` and `log` volumes at `/opt/qbop/data/` and `/opt/qbop/log/`. Keep the `data` volume across container replacements: it contains the database and browser session secret.
+The sample keeps browser authentication enabled; local login is enabled and OIDC is disabled by default. Optional OIDC settings remain in the [authentication reference](#authentication-and-oidc-settings).
+
+The sample mounts persistent `data` and `log` volumes at `/opt/qbop/data/` and `/opt/qbop/log/`. Keep the `data` volume across container replacements: it contains the database, browser session secret, and settings encryption key when generated. See [Encrypted credentials and backups](#encrypted-credentials-and-backups).
 
 ### Image tags
 
@@ -83,11 +94,52 @@ The app displays `main` for main-branch images and the exact version for release
 
 ## Configuration
 
-Set environment variables in your Compose configuration. OPNsense and qBittorrent are optional: use `OPN_SKIP=true` and/or `QBIT_SKIP=true` with another firewall or BitTorrent client.
+New installations can configure the 25 application, integration, and logging settings through **settings** at `/settings`; values are saved in qbop's SQLite database. Environment variables remain fully supported for users who prefer Compose-managed configuration. Authentication and OIDC settings remain environment-only.
+
+qbop uses an authoritative environment variable first, then a saved qbop setting, then the built-in default. Environment-managed controls are read-only in Settings. Removing the ENV assignment and recreating the container allows the saved value or default to take effect.
+
+**Save** writes a database override. Saving the displayed default also creates an explicit override, pinning that value until cleared. **Clear qbop override** removes only the saved value; it never edits Compose or the process environment. An inactive override can also be cleared while ENV manages the setting. Existing ENV values are not automatically imported into SQLite.
+
+Ordinary empty or whitespace-only ENV placeholders allow saved settings to take precedence; some retain their legacy blank behavior when no saved value exists. A present blank `PORT_SOURCE` is authoritative and invalid. Explicit `false` boolean ENV values are authoritative. For the firewall alias, populated `OPN_ALIAS_NAME` takes precedence over legacy `OPN_PROTON_ALIAS_NAME`, which takes precedence over the saved alias.
+
+### Restart behavior
+
+Settings labeled **Restart required** take effect in the synchronization job and its integration clients after qbop restarts. Saving a changed value does not update the running job or its clients. With the sample deployment, use `docker compose restart qbop` after saving these settings. `UI_MODE`, `LOG_LINES`, and `LOG_REVERSE` apply on the next request without a job restart.
+
+Status and health use the running source, skip flags, and loop frequency rather than pending values. The About page shows effective configured values, which may still be awaiting a restart. See [API](#api) for the limited scope of its pending-restart metadata.
+
+### Moving from ENV to Settings
+
+Working ENV-based installations need no migration. To manage a setting through the UI instead:
+
+1. Identify the ENV variable shown as managing the setting; for aliases, check both `OPN_ALIAS_NAME` and `OPN_PROTON_ALIAS_NAME`.
+2. Remove that assignment from Compose or the environment source supplying it.
+3. Recreate qbop with the updated environment, preserving its volumes:
+
+   ```bash
+   docker compose up -d --force-recreate qbop
+   ```
+
+4. Sign in and save the desired value in Settings. For credentials, enter the original credential in its password field; saved credentials are not displayed for copying.
+5. Restart qbop if the setting is marked **Restart required**.
+
+Removing the assignment may temporarily expose a default or missing configuration before you save the desired value. A plain Compose restart does not apply changes to the container environment; [recreate it](https://docs.docker.com/reference/cli/docker/compose/up/) after editing Compose. The UI field remains locked while an authoritative ENV assignment is present.
+
+### Encrypted credentials and backups
+
+Integration API keys, usernames, and passwords saved in Settings are encrypted in SQLite using AES-256-GCM. Their application-managed key is stored separately in `data/settings_encryption_key.txt` (`/opt/qbop/data/settings_encryption_key.txt` in the container). It is distinct from `data/session_secret.txt`, which protects browser sessions. The settings key is generated on the first saved credential; ordinary settings and ENV-only credentials do not generate it. Clearing credentials does not delete the key.
+
+**Back up and restore `data/qbop.sqlite3` and its associated `data/settings_encryption_key.txt` together.** Stop qbop before copying the persistent `data` volume, keep the whole volume in the backup, then start it again. For restore, stop qbop and restore that volume from the same backup. Preserve writable ownership for the container's qbop user (UID/GID `1234`) and mode `0600` for the key and its `.lock` file. The database alone cannot recover encrypted credentials without the original key. Keep backups private.
+
+If the key is missing, corrupt, or does not match the encrypted rows, restore the original key from backup. qbop will not silently regenerate a missing key while saved credentials depend on it, or overwrite a corrupt key. Login and Settings remain available for recovery, but the synchronization job can fail initialization and credential replacement can fail until the key issue is resolved.
+
+If the original key cannot be restored, clear **every saved integration credential, including usernames**, through Settings. If a corrupt key file remains, stop qbop and remove that unusable `settings_encryption_key.txt` from the data volume after clearing the credentials. Restart qbop and re-enter the credentials. With no key file and no dependent encrypted rows, the first credential save generates a new key; a valid existing key is reused. Restart again to apply the new credentials. Do not delete a valid key or substitute the browser session secret. ENV-managed credentials are unaffected.
 
 ### ENV Variables
 
-A blank default means no default value is provided. OPNsense and qBittorrent credentials are required unless those integrations are skipped. Gluetun authentication depends on the control-server role; API key, HTTP Basic, and explicitly permitted unauthenticated access are supported. OIDC requirements apply only when OIDC and browser authentication are enabled.
+A blank default means no default value is provided; defaults apply when neither an authoritative ENV value nor a saved setting supplies the value. All variables below remain supported. OPNsense and qBittorrent credentials are required unless those integrations are skipped. Gluetun authentication depends on the control-server role; API key, HTTP Basic, and explicitly permitted unauthenticated access are supported. OIDC requirements apply only when OIDC and browser authentication are enabled.
+
+The UI validates saved values: booleans must be `true` or `false`, integers must be complete numbers in the listed range, and credentials must be nonblank without control characters. Saved HTTP(S) URLs require a host and a valid port, with no userinfo, query, or fragment. Only `GLUETUN_ADDR` supports a path prefix; OPNsense and qBittorrent saved URLs must be origins/root URLs, optionally ending in `/`. Legacy ENV parsing remains unchanged.
 
 #### Core application settings
 
@@ -96,7 +148,7 @@ A blank default means no default value is provided. OPNsense and qBittorrent cre
 | `UI_MODE` | `dark` | Web UI mode: `dark` or `light`. |
 | `LOOP_FREQ` | `45` | Seconds between job loops. Must be a positive integer; the default is recommended by ProtonVPN. |
 | `REQUIRED_ATTEMPTS` | `3` | Number of loops in which a downstream port differs from the selected source's forwarded port before updating that integration. Range: 1–10; shared by both sources. |
-| `PORT_SOURCE` | `proton` | Forwarded-port source: `proton` or `gluetun`. Unset selects Proton; blank or unsupported values fail startup. |
+| `PORT_SOURCE` | `proton` | Forwarded-port source: `proton` or `gluetun`. A present blank ENV value or unsupported source fails startup. |
 
 #### ProtonVPN settings
 
@@ -110,7 +162,7 @@ These settings apply only when `PORT_SOURCE=gluetun`.
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `GLUETUN_ADDR` | `http://gluetun:8000` | Gluetun control server base URL, including `http(s)://`. An optional reverse proxy path prefix is preserved. Query strings and fragments are rejected. Must be reachable from qbop. Use the dedicated authentication variables; URL userinfo is ignored and masked in configuration displays. |
+| `GLUETUN_ADDR` | `http://gluetun:8000` | Gluetun control server base URL, including `http(s)://`. An optional reverse proxy path prefix is preserved. Query strings and fragments are rejected. Must be reachable from qbop. Use the dedicated authentication variables; legacy ENV URL userinfo is ignored and masked in configuration displays, while saved URLs reject it. |
 | `GLUETUN_API_KEY` | | Control API key sent as `X-API-Key`. Takes precedence over Basic credentials. |
 | `GLUETUN_USER` | | HTTP Basic username; requires `GLUETUN_PASS` when no API key is configured. |
 | `GLUETUN_PASS` | | HTTP Basic password; requires `GLUETUN_USER` when no API key is configured. If neither authentication method is configured, requests are unauthenticated. |
@@ -120,8 +172,8 @@ These settings apply only when `PORT_SOURCE=gluetun`.
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `OPN_SKIP` | `false` | [`true`/`false`] Skip OPNsense. If `true`, subsequent OPNsense environment variables are not required. |
-| `OPN_INTERFACE_ADDR` | | OPNsense Interface Address. Requires `http(s)://` and no trailing slash. |
+| `OPN_SKIP` | `false` | [`true`/`false`] Skip OPNsense synchronization and WireGuard import. If `true`, its connection settings are not required. |
+| `OPN_INTERFACE_ADDR` | | Root HTTP(S) URL for the OPNsense API. A trailing `/` is accepted for saved values. |
 | `OPN_API_KEY` | | OPNsense API Key |
 | `OPN_API_SECRET` | | OPNsense API Secret |
 | `OPN_ALIAS_NAME` | | Preferred firewall alias used for the selected source's forwarded port. A populated value takes precedence over `OPN_PROTON_ALIAS_NAME`. For example, `vpn_forwarded_port`. |
@@ -134,8 +186,8 @@ The About page displays the effective alias under `OPN_ALIAS_NAME`, and `/api/ab
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `QBIT_SKIP` | `false` | [`true`/`false`] Skip qBittorrent. If `true`, subsequent qBittorrent environment variables are not required. |
-| `QBIT_ADDR` | | The IP address of your qBittorrent app. Requires `http(s)://` and no trailing slash. |
+| `QBIT_SKIP` | `false` | [`true`/`false`] Skip qBittorrent synchronization. If `true`, its connection settings are not required. |
+| `QBIT_ADDR` | | Root HTTP(S) URL for the qBittorrent Web API. A trailing `/` is accepted for saved values. |
 | `QBIT_API_KEY` | | qBittorrent API key. If set, this is used instead of `QBIT_USER` and `QBIT_PASS`. Requires qBittorrent 5.2.0 or newer. |
 | `QBIT_USER` | | qBittorrent username. Used when `QBIT_API_KEY` is not set. |
 | `QBIT_PASS` | | qBittorrent password. Used when `QBIT_API_KEY` is not set. |
@@ -158,7 +210,7 @@ The About page displays the effective alias under `OPN_ALIAS_NAME`, and `/api/ab
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `LOG_LINES` | `50` | Number of log lines displayed on `/logs`; also the default for `/api/logs`. |
+| `LOG_LINES` | `50` | Default number of log lines displayed on `/logs` and `/api/logs`. Saved values: 1–5000. |
 | `LOG_REVERSE` | `false` | Reverse the display order of log lines, showing newest logs at the top when enabled. |
 | `LOG_TO_STDOUT` | `false` | Log to stdout instead of the default log directory. See [Logging](#logging) for the effect on `/logs`. |
 
@@ -168,7 +220,7 @@ The About page displays the effective alias under `OPN_ALIAS_NAME`, and `/api/ab
 
 Route qbop through ProtonVPN so it can reach `PROTON_GATEWAY` and request a forwarded port. Generate ProtonVPN WireGuard configurations with NAT-PMP (Port Forwarding) enabled and Moderate NAT disabled.
 
-For OPNsense, follow its [WireGuard selective-routing guide](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html) and [API setup guide](https://docs.opnsense.org/development/how-tos/api.html). Set the OPNsense address and API credentials, and set `OPN_ALIAS_NAME` to the firewall alias used for the forwarded port. Existing `OPN_PROTON_ALIAS_NAME` configurations remain supported as a fallback. qbop updates that alias as the forwarded port changes.
+For OPNsense, follow its [WireGuard selective-routing guide](https://docs.opnsense.org/manual/how-tos/wireguard-selective-routing.html) and [API setup guide](https://docs.opnsense.org/development/how-tos/api.html). In Settings, save the OPNsense address and API credentials, and set `OPN_ALIAS_NAME` to the firewall alias used for the forwarded port. Existing `OPN_PROTON_ALIAS_NAME` ENV configurations remain supported as a fallback. Restart qbop to apply synchronization settings; it updates that alias as the forwarded port changes.
 
 To rotate an existing tunnel using a new ProtonVPN configuration, see the [WireGuard importer](#protonvpn-wireguard-importer).
 
@@ -176,17 +228,9 @@ To rotate an existing tunnel using a new ProtonVPN configuration, see the [WireG
 
 With qBittorrent enabled, qbop reads Gluetun's current forwarded port and keeps qBittorrent's listening port synchronized with it.
 
-Use an existing Gluetun deployment with VPN port forwarding enabled and exactly one forwarded port. Set qbop's `PORT_SOURCE=gluetun` and `GLUETUN_ADDR` to the reachable control server URL. For example:
+Use an existing Gluetun deployment with VPN port forwarding enabled and exactly one forwarded port. In Settings, select `PORT_SOURCE=gluetun`, save the reachable `GLUETUN_ADDR` (for example, `http://gluetun:8000`), and enter the control API credentials if required. Configure the enabled downstream integrations and restart qbop. Users who prefer ENV management can supply the same setting names in Compose; see the [Gluetun settings reference](#gluetun-settings).
 
-```yaml
-environment:
-  - PORT_SOURCE=gluetun
-  - GLUETUN_ADDR=http://gluetun:8000
-  - GLUETUN_API_KEY=your-control-api-key
-  - GLUETUN_SSL_VERIFY=false
-```
-
-Configure Gluetun's authentication role to allow `GET /v1/portforward`, following its [control server documentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md#authentication). A populated `GLUETUN_API_KEY` takes precedence and is sent as `X-API-Key`, regardless of Basic settings. Without an API key, HTTP Basic requires both `GLUETUN_USER` and `GLUETUN_PASS`; supplying only one is invalid configuration and prevents startup. Unset, empty, and whitespace-only values count as absent. If neither authentication method is configured, requests are unauthenticated; Gluetun must explicitly permit unauthenticated access for that to work.
+Configure Gluetun's authentication role to allow `GET /v1/portforward`, following its [control server documentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md#authentication). A populated `GLUETUN_API_KEY` takes precedence and is sent as `X-API-Key`, regardless of Basic settings. Without an API key, HTTP Basic requires both `GLUETUN_USER` and `GLUETUN_PASS`; supplying only one prevents synchronization job initialization. For ENV credentials, unset, empty, and whitespace-only values count as absent; the UI rejects blank saves, so use Clear to remove a saved credential. If neither authentication method is configured, requests are unauthenticated; Gluetun must explicitly permit unauthenticated access for that to work.
 
 `GLUETUN_ADDR` accepts a path prefix such as `https://vpn.example/control/`, but no query string or fragment; query-based authentication is unsupported. Explicit endpoint ports must be within `1..65535`; omitted ports use the HTTP/HTTPS defaults. Active API-key or Basic credentials must be valid strings without control characters, including newlines. Invalid configuration fails initialization with a secret-free error. Configuration displays show `[invalid URL]` for malformed URLs, invalid endpoint ports, or URLs containing a query string or fragment.
 
@@ -198,7 +242,7 @@ To synchronize OPNsense in this mode, set `OPN_ALIAS_NAME` for the target firewa
 
 ### qBittorrent
 
-Set the connection and authentication variables listed under [qBittorrent settings](#qbittorrent-settings). qbop updates qBittorrent's listening port to match the selected source's forwarded port.
+Save the connection and authentication settings listed under [qBittorrent settings](#qbittorrent-settings), then restart qbop. ENV configuration remains supported. qbop updates qBittorrent's listening port to match the selected source's forwarded port.
 
 ## Authentication
 
@@ -351,7 +395,19 @@ qbop exposes a JSON API for status, history, logs, and tools. Open `/api-docs` t
 
 The log and history endpoints share the web UI's [query parameters](#query-parameters). Monitoring checks of `/api/health` also require Bearer authentication; skipped integrations are excluded from health failures.
 
-`/api/stats` and `/api/health` include a `port_source` field identifying `proton` or `gluetun`. For compatibility, the existing `protonvpn` status key and `records.longest_time_on_same_port.proton` key continue representing the selected port source. History entries include a `source` identity. Proton-specific WireGuard tools retain their existing names and behavior.
+`/api/stats` and `/api/health` include a `port_source` field identifying the startup statistics source, `proton` or `gluetun`. If the configured source or skip flags differ, they add `configured_port_source` and `restart_required: true`; those fields disappear when the source/skip values match again or after restart. This metadata does not track every unapplied setting, such as `LOOP_FREQ` or credentials. For compatibility, the existing `protonvpn` status key and `records.longest_time_on_same_port.proton` key continue representing the startup port source. History entries include a `source` identity. Proton-specific WireGuard tools retain their existing names and behavior.
+
+Health freshness uses the running loop frequency and the last successful check within three loop intervals. It is not a job-liveness check: recent persisted statistics can briefly remain healthy after initialization fails. Before statistics exist, enabled services are unhealthy.
+
+The browser About page shows effective configured values. `/api/about` preserves its historical response representation, including legacy raw ENV-derived fields and credential masking; it does not return decrypted database credentials.
+
+## Upgrading to v3.6.0
+
+v3.6.0 adds migration 010 and the optional database-backed Settings interface. Startup applies migrations automatically. Existing supported ENV configuration continues working unchanged, with no automatic copying of ENV values into SQLite. Keep a working Compose configuration; replacing it with the minimal sample would remove its overrides. Moving settings into the UI is [optional](#moving-from-env-to-settings).
+
+Before upgrading, back up the persistent data volume and your Compose configuration. Pull your selected image and recreate qbop while retaining the existing volumes. If encrypted credentials have been saved, include the original settings encryption key in every [backup and restore](#encrypted-credentials-and-backups).
+
+Rolling back migration 010 drops the settings table and removes saved settings. Simply changing an image tag does not guarantee a migration rollback: an image with migration files only through 009 rejects a database already at 010. Back up data before downgrading, and use a compatible pre-upgrade backup and configuration for the older version. Saved settings are not converted back into ENV assignments automatically.
 
 ## Upgrading from qbop 2.x to 3.0
 
@@ -402,7 +458,7 @@ The About page shows server-rendered uptime and other information as of page loa
 
 ### Query Parameters
 
-Query parameters are per-request overrides and do not change environment variables.
+Query parameters are per-request overrides and do not change saved settings or environment variables.
 
 Examples:
 
@@ -418,8 +474,8 @@ Applies to `/logs` and `/api/logs`.
 
 | Parameter | Default | Description |
 | :--- | :--- | :--- |
-| `lines` | `LOG_LINES` or `50` | Number of log lines to show, from 1 to 5000. |
-| `direction` | `desc` if `LOG_REVERSE=true`, otherwise `asc` | `asc` shows oldest first, `desc` shows newest first. |
+| `lines` | Resolved `LOG_LINES` (built-in `50`) | Number of log lines to show, from 1 to 5000. |
+| `direction` | `desc` if resolved `LOG_REVERSE` is true, otherwise `asc` | `asc` shows oldest first, `desc` shows newest first. |
 
 Invalid values use the defaults above. Log counts are capped at 5000.
 
@@ -460,7 +516,7 @@ Live logs use the centralized file logger. During bursts, the browser debounces 
 
 ### Server process and event limits
 
-The broadcaster is bounded and process-local: run one Puma process with SuckerPunch. The included `config/puma.rb` allows up to 16 request threads and permits up to eight live browser connections, leaving capacity for ordinary requests.
+The broadcaster is bounded and process-local; synchronization status configuration is also process-local. Run one Puma process with SuckerPunch. The included `config/puma.rb` allows up to 16 request threads and permits up to eight live browser connections, leaving capacity for ordinary requests.
 
 Duplicate pending events coalesce, and publishers never write to browser sockets. Healthy SSE connections stay open, with a heartbeat every 15 seconds. Disconnects release subscriptions.
 

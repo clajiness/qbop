@@ -10,45 +10,9 @@ services:
       - log:/opt/qbop/log/
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-    # environment variables are documented here: https://github.com/clajiness/qbop?tab=readme-ov-file#env-variables
+    # Configure integrations in the Settings UI; optional ENV overrides are documented in README.md.
     environment:
-      - UI_MODE=
-      - LOOP_FREQ=
-      - REQUIRED_ATTEMPTS=
-      - PORT_SOURCE=proton
-      - PROTON_GATEWAY=
-      # Used only with PORT_SOURCE=gluetun; Gluetun manages its own VPN and lease.
-      - GLUETUN_ADDR=http://gluetun:8000
-      - GLUETUN_API_KEY=
-      - GLUETUN_USER=
-      - GLUETUN_PASS=
-      - GLUETUN_SSL_VERIFY=false
-      - OPN_SKIP=
-      - OPN_INTERFACE_ADDR=
-      - OPN_API_KEY=
-      - OPN_API_SECRET=
-      - OPN_ALIAS_NAME=
-      # Backwards-compatible fallback when OPN_ALIAS_NAME is unset or blank.
-      - OPN_PROTON_ALIAS_NAME=
-      - OPN_SSL_VERIFY=false
-      - QBIT_SKIP=
-      - QBIT_ADDR=
-      - QBIT_API_KEY=
-      - QBIT_USER=
-      - QBIT_PASS=
-      - QBIT_SSL_VERIFY=false
-      - LOG_LINES=
-      - LOG_REVERSE=
-      - LOG_TO_STDOUT=
       - WEB_AUTH_ENABLED=true
-      # Optional browser OIDC; leave disabled for qbop's existing local-login behavior.
-      - OIDC_ENABLED=false
-      - OIDC_ISSUER=
-      - OIDC_CLIENT_ID=
-      - OIDC_CLIENT_SECRET=
-      - OIDC_PUBLIC_URL=
-      - OIDC_AUTO_REDIRECT=false
-      - LOCAL_LOGIN_ENABLED=true
 
 volumes:
   data:
