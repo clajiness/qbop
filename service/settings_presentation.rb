@@ -7,39 +7,39 @@ module Service
   class SettingsPresentation
     GROUPS = {
       'Application' => {
-        ui_mode: 'Color theme for the browser interface.',
-        loop_freq: 'Seconds between forwarded-port checks.',
-        required_attempts: 'Consecutive mismatches before qbop updates a downstream integration.',
-        port_source: 'Selects where qbop obtains the forwarded port.'
+        ui_mode: 'Color theme for the browser interface',
+        loop_freq: 'Seconds between forwarded-port checks',
+        required_attempts: 'Consecutive mismatches before qbop updates a downstream integration',
+        port_source: 'Selects where qbop obtains the forwarded port'
       },
       'ProtonVPN' => {
-        proton_gateway: 'VPN gateway used for ProtonVPN NAT-PMP port requests.'
+        proton_gateway: 'VPN gateway used for ProtonVPN NAT-PMP port requests'
       },
       'Gluetun' => {
         gluetun_addr: 'Base URL for the Gluetun control API. Reverse-proxy path prefixes are supported.',
-        gluetun_api_key: 'Control API key. Takes precedence over Basic authentication.',
-        gluetun_user: 'Basic authentication username, used when no API key is configured.',
+        gluetun_api_key: 'Control API key that takes precedence over Basic authentication',
+        gluetun_user: 'Basic authentication username, used when no API key is configured',
         gluetun_pass: 'Basic authentication password. Configure both username and password.',
         gluetun_ssl_verify: 'Verify the Gluetun control API TLS certificate.'
       },
       'OPNsense' => {
         opnsense_skip: 'Skip OPNsense port synchronization and WireGuard import.',
-        opnsense_interface_addr: 'Root HTTP(S) URL for the OPNsense API, without a path prefix.',
-        opnsense_api_key: 'OPNsense API key.',
-        opnsense_api_secret: 'OPNsense API secret.',
-        opnsense_alias_name: 'OPNsense firewall alias synchronized with the forwarded port.',
+        opnsense_interface_addr: 'Root HTTP(S) URL for the OPNsense API, without a path prefix',
+        opnsense_api_key: 'OPNsense API key',
+        opnsense_api_secret: 'OPNsense API secret',
+        opnsense_alias_name: 'OPNsense firewall alias synchronized with the forwarded port',
         opnsense_ssl_verify: 'Verify the OPNsense API TLS certificate.'
       },
       'qBittorrent' => {
         qbit_skip: 'Skip qBittorrent port synchronization.',
-        qbit_addr: 'Root HTTP(S) URL for the qBittorrent Web API, without a path prefix.',
-        qbit_api_key: 'Bearer API key. Takes precedence over username/password login.',
-        qbit_user: 'Login username, used when no API key is configured.',
-        qbit_pass: 'Login password, used when no API key is configured.',
+        qbit_addr: 'Root HTTP(S) URL for the qBittorrent Web API, without a path prefix',
+        qbit_api_key: 'Bearer API key that takes precedence over username/password login',
+        qbit_user: 'Login username, used when no API key is configured',
+        qbit_pass: 'Login password, used when no API key is configured',
         qbit_ssl_verify: 'Verify the qBittorrent Web API TLS certificate.'
       },
       'Logging' => {
-        log_lines: 'Default number of lines shown in the log viewer.',
+        log_lines: 'Default number of lines shown in the log viewer',
         log_reverse: 'Show newest log entries first by default.',
         log_to_stdout: 'Send synchronization job logs to stdout instead of the log file.'
       }

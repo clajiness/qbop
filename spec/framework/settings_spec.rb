@@ -583,7 +583,7 @@ RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLen
     entry = card(@client.get('/settings'), :qbit_addr)
 
     expect(entry).to include('Configured in qbop', 'value="http://qbit:8080"', '/settings/qbit_addr/delete')
-    expect(entry).not_to include(' disabled', 'placeholder=')
+    expect(entry).not_to include(' disabled', 'placeholder=', 'New credential', 'Replacement credential')
   end
 
   { qbit_addr: ['QBIT_ADDR', 'http://environment-qbit:8080'], qbit_skip: %w[QBIT_SKIP false],
@@ -713,6 +713,7 @@ RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLen
     page = @client.get('/settings')
 
     SpecSettingsSecrets::CREDENTIALS.each_key do |key|
+      expect(card(page, key)).to include('>New credential</label>')
       field = card(page, key)[/<input id="setting-#{key}"[^>]*>/]
       expect(field).not_to include('value=', 'placeholder=')
     end
@@ -731,14 +732,15 @@ RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLen
     values.each_key do |key|
       entry = card(page, key)
       field = entry[/<input id="setting-#{key}"[^>]*>/]
-      expect(entry).to include('Configured in qbop')
+      expect(entry).to include('Configured in qbop', '>Replacement credential</label>')
       expect(field).to include('type="password"', 'autocomplete="new-password"', 'placeholder="***"')
       expect(field).not_to include('value=')
     end
     SpecSettingsSecrets::CREDENTIALS.each_value { |name, _| ENV[name] = "env-private-#{name}" }
     page = @client.get('/settings')
     SpecSettingsSecrets::CREDENTIALS.each do |key, (name, _)|
-      expect(card(page, key)).to include("Managed by environment: #{name}", 'currently inactive')
+      expect(card(page, key)).to include("Managed by environment: #{name}", 'currently inactive',
+                                         '>New credential</label>')
       field = card(page, key)[/<input id="setting-#{key}"[^>]*>/]
       expect(field).not_to include('value=', 'placeholder=')
     end

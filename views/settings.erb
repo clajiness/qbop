@@ -44,7 +44,7 @@
     <form action="/settings/<%= entry.key %>" method="post" class="setting-form form-group" autocomplete="off">
       <%= request.env.fetch('rodauth').csrf_tag("/settings/#{entry.key}") %>
       <div class="setting-editor">
-        <label for="setting-<%= entry.key %>"<%= ' class="setting-label-hidden"' unless entry.secret? %>><%= Rack::Utils.escape_html(entry.secret? ? 'New credential' : entry.label) %></label>
+        <label for="setting-<%= entry.key %>"<%= ' class="setting-label-hidden"' unless entry.secret? %>><%= Rack::Utils.escape_html(entry.secret? ? (entry.source == :database ? 'Replacement credential' : 'New credential') : entry.label) %></label>
         <%= erb :_setting_input, locals: { entry: entry }, layout: false %>
       </div>
       <button class="btn btn-default btn-ghost" type="submit"<%= ' disabled' if entry.environment_override? %>>Save</button>
