@@ -1,15 +1,27 @@
+<% if @synchronization_restart_required %>
+<p>Saved synchronization settings require a restart to take effect.
+  <% if @configured_port_source != @port_source_name %>
+  Configured port source: <%= Rack::Utils.escape_html(@configured_port_source) %>.
+  Showing <%= Rack::Utils.escape_html(@port_source_name) %> statistics until qbop restarts.
+  <% end %>
+</p>
+<% end %>
 <h4><em><%= @port_source_name == 'proton' ? 'protonvpn' : @port_source_name %></em> <%= @port_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
+  <% if @port_stats.source_id %>
   current port: <%= @port_stats.current_port %><br>
   last changed: <%= @port_stats.updated_at || 'unknown' %><br>
   last checked: <%= @port_stats.last_checked || 'unknown' %><br>
   &#916;: <%= @port_delta %>
+  <% else %>
+  Statistics are not available for this source yet.
+  <% end %>
 </blockquote>
 
 <h4><em>opnsense</em> <%= @opn_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
   <% if @opn_skip %>
-  skipped per the OPN_SKIP env variable
+  skipped per the OPN_SKIP setting
   <% else %>
   current port: <%= @opn_stats.current_port %><br>
   <% if @opn_sync_status %>sync: <%= @opn_sync_status %><br><% end %>
@@ -22,7 +34,7 @@
 <h4><em>qbittorrent</em> <%= @qbit_connected ? '<span class="green-dot"></span>' : '<span class="red-dot"></span>' %></h4>
 <blockquote>
   <% if @qbit_skip %>
-  skipped per the QBIT_SKIP env variable
+  skipped per the QBIT_SKIP setting
   <% else %>
   current port: <%= @qbit_stats.current_port %><br>
   <% if @transition %>sync: <%= @transition.sync_status('qbit') %><br><% end %>

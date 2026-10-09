@@ -1,5 +1,6 @@
 module SpecDatabase # rubocop:disable Metrics/ModuleLength
   CLEANUP_TABLES = %i[
+    settings
     api_keys
     account_oidc_identities
     account_password_hashes
@@ -16,12 +17,14 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
     notification
     port_transition
     source
+    setting
     stat
   ].freeze
 
   def self.reset!
     initialize_database unless @database
     clear_tables
+    Service::SynchronizationConfiguration.reset if defined?(Service::SynchronizationConfiguration)
   end
 
   def self.initialize_database
@@ -49,6 +52,12 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
     DB.create_table(:sources) do
       primary_key :id
       String :name, null: false, unique: true
+    end
+
+    DB.create_table(:settings) do
+      primary_key :id
+      String :name, null: false, unique: true
+      String :value, text: true, null: false
     end
 
     DB.create_table(:stats) do
@@ -137,13 +146,14 @@ module SpecDatabase # rubocop:disable Metrics/ModuleLength
     MODEL_FILES.each { |model| require_relative "../../models/#{model}" }
   end
 
-  def self.set_datasets
+  def self.set_datasets # rubocop:disable Metrics/MethodLength
     {
       Counter => :counters,
       ApiKey => :api_keys,
       Notification => :notifications,
       PortTransition => :port_transitions,
       Source => :sources,
+      Setting => :settings,
       Stat => :stats
     }.each do |model, table|
       model.set_dataset(DB[table])

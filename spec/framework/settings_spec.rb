@@ -1,0 +1,1044 @@
+require 'bundler/setup'
+Bundler.require(:default)
+require 'cgi'
+require 'rack/mock'
+require 'stringio'
+require 'uri'
+require 'webmock/rspec'
+require_relative '../support/database_helper'
+require_relative '../support/settings_secret_helper'
+SpecDatabase.reset!
+require_relative '../../service/helpers'
+require_relative '../../service/qbit'
+require_relative '../../service/seed'
+require_relative '../../jobs/qbop'
+require_relative '../../framework/uptime'
+require_relative '../../framework/web'
+require_relative '../../framework/api'
+require_relative '../../framework/session_secret'
+require_relative '../../framework/session_middleware'
+require_relative '../../framework/authentication'
+require_relative '../../framework/application'
+
+Framework::Web.set :environment, :test
+Framework::Web.set :run, false
+Framework::Web.set :views, File.expand_path('../../views', __dir__)
+
+# Exercises real sessions, route-bound CSRF tokens, and formatted HTTP access logging.
+class SettingsSessionClient
+  attr_reader :session, :access_log, :errors
+
+  def initialize(app)
+    @access_log = StringIO.new
+    @errors = StringIO.new
+    observer = lambda do |env|
+      response = app.call(env)
+      @session = env['rack.session'].to_hash
+      @authentication = env['rodauth']
+      response
+    end
+    @request = Rack::MockRequest.new(Rack::CommonLogger.new(observer, @access_log))
+  end
+
+  def get(path)
+    record_cookie(@request.get(path, headers))
+  end
+
+  def post(path, params = {})
+    record_cookie(@request.post(path, headers.merge(
+                                        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+                                        input: Rack::Utils.build_query(params)
+                                      )))
+  end
+
+  def token_for(path)
+    CGI.unescapeHTML(@authentication.csrf_tag(path)[/name="_csrf" value="([^"]+)"/, 1])
+  end
+
+  private
+
+  def headers
+    { 'rack.errors' => @errors }.tap { |values| values['HTTP_COOKIE'] = @cookie if @cookie }
+  end
+
+  def record_cookie(response)
+    @cookie = response['set-cookie'].split(';', 2).first if response['set-cookie']
+    response
+  end
+end
+
+RSpec.describe 'Browser Settings workflow' do # rubocop:disable Metrics/BlockLength
+  include_context 'encrypted settings'
+
+  around do |example|
+    names = %w[WEB_AUTH_ENABLED LOCAL_LOGIN_ENABLED OIDC_ENABLED OIDC_ISSUER OIDC_CLIENT_ID OIDC_CLIENT_SECRET
+               OIDC_PUBLIC_URL OIDC_AUTO_REDIRECT]
+    original = names.to_h { |name| [name, ENV[name]] }
+    names.each { |name| ENV.delete(name) }
+    example.run
+  ensure
+    original.each { |name, value| value.nil? ? ENV.delete(name) : ENV[name] = value }
+  end
+
+  before do
+    SpecDatabase.reset!
+    Framework::Authentication.rodauth.create_account(login: 'admin@example.com',
+                                                     password: 'correct horse battery staple')
+    @app = Framework::Application.build(session_secret_path: File.join(File.dirname(key_path), 'session_secret.txt'))
+    @client = SettingsSessionClient.new(@app)
+    login_page = @client.get('/login')
+    token = CGI.unescapeHTML(login_page.body[/name="_csrf" value="([^"]+)"/, 1])
+    @client.post('/login', login: 'admin@example.com', password: 'correct horse battery staple', _csrf: token)
+  end
+
+  def card(response, key)
+    response.body[%r{<fieldset class="setting-card[^"]*" id="setting-card-#{Regexp.escape(key.to_s)}">.*?</fieldset>}m]
+  end
+
+  def token(response, path)
+    form = response.body[%r{<form action="#{Regexp.escape(path)}" method="post".*?</form>}m]
+    CGI.unescapeHTML(form[/name="_csrf" value="([^"]+)"/, 1])
+  end
+
+  def save(key, value)
+    page = @client.get('/settings')
+    path = "/settings/#{key}"
+    @client.post(path, value: value, _csrf: token(page, path))
+  end
+
+  def clear(key)
+    page = @client.get('/settings')
+    path = "/settings/#{key}/delete"
+    @client.post(path, _csrf: token(page, path))
+  end
+
+  def expect_settings_redirect(response)
+    expect(response.status).to eq(303)
+    expect(URI(response['location'])).to have_attributes(path: '/settings', query: nil)
+    expect(response['cache-control']).to include('no-store')
+  end
+
+  def expect_settings_notice(page, key, action, restart:)
+    notice = page.body[%r{<div class="terminal-alert terminal-alert-primary" role="status">.*?</div>}m]
+    expect(notice).to include("#{Service::Settings.new.metadata(key).label} #{action}.")
+    expect(notice.include?('Restart qbop to apply this change')).to eq(restart)
+  end
+
+  def start_synchronization
+    Service::Seed.new
+    allow_any_instance_of(Service::Helpers).to receive(:logger_instance).and_return(Logger.new(StringIO.new))
+    Qbop.allocate.tap { |job| job.send(:initialize_dependencies) }
+  end
+
+  def status_api_get(path)
+    @status_api_token ||= ApiKey.issue('status regression').token
+    Rack::MockRequest.new(@app).get(path, 'HTTP_AUTHORIZATION' => "Bearer #{@status_api_token}")
+  end
+
+  def make_credential_unreadable(failure)
+    settings.set(:gluetun_api_key, 'private-recovery-credential')
+    forbidden = ['private-recovery-credential', Setting[name: 'gluetun_api_key'].value, File.read(key_path)]
+    case failure
+    when :malformed
+      Setting[name: 'gluetun_api_key'].update(value: 'enc:v1:private-malformed-ciphertext')
+    when :missing_key then File.unlink(key_path)
+    when :corrupt_key then File.write(key_path, 'private-corrupt-key')
+    end
+    forbidden + ['private-malformed-ciphertext', 'private-corrupt-key', 'enc:v1:']
+  end
+
+  it 'renders all 25 settings with three settings-table queries including the theme lookup' do
+    output = StringIO.new
+    logger = Logger.new(output)
+    DB.loggers << logger
+
+    page = @client.get('/settings')
+
+    expect(page.status).to eq(200)
+    expect(page.body.scan('id="setting-card-').size).to eq(25)
+    expect(output.string.lines.count { |line| line.match?(/SELECT.*FROM [`"\[]?settings/i) }).to eq(3)
+  ensure
+    DB.loggers.delete(logger)
+  end
+
+  context 'WireGuard configuration isolation' do # rubocop:disable Metrics/BlockLength
+    let(:opnsense_connection) do
+      { opnsense_interface_addr: 'https://firewall', opnsense_ssl_verify: true,
+        opnsense_api_key: 'opn-private-key', opnsense_api_secret: 'opn-private-secret' }
+    end
+
+    before do
+      opnsense_connection.each { |key, value| settings.set(key, value) }
+      (SpecSettingsSecrets::CREDENTIALS.keys - %i[opnsense_api_key opnsense_api_secret]).each do |key|
+        Setting.create(name: key.to_s, value: 'enc:v1:unreadable-unrelated-credential')
+      end
+    end
+
+    def wireguard_api_import
+      @status_api_token ||= ApiKey.issue('WireGuard regression').token
+      Rack::MockRequest.new(@app).post(
+        '/api/tools/wireguard-import',
+        'HTTP_AUTHORIZATION' => "Bearer #{@status_api_token}", 'CONTENT_TYPE' => 'application/json',
+        input: { config: 'test-wireguard-input', instance_uuid: 'instance', peer_uuid: 'peer',
+                 rename_peer: true }.to_json
+      )
+    end
+
+    def expect_working_wireguard(connection) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+      requests = %w[server/search_server client/search_client].map do |path|
+        stub_request(:get, "#{connection[:opnsense_interface_addr]}/api/wireguard/#{path}?rowCount=-1")
+          .with(basic_auth: connection.values_at(:opnsense_api_key, :opnsense_api_secret))
+          .to_return(body: '{"rows":[]}')
+      end
+      expect(Service::Opnsense).to receive(:new).with(connection).exactly(3).times.and_call_original
+      parsed = { instance: {}, peer: {} }
+      allow_any_instance_of(Service::ProtonWireguard).to receive(:import).with('test-wireguard-input')
+                                                                         .and_return(parsed)
+      rotation = instance_double(Service::ProtonWireguardRotation)
+      expect(Service::ProtonWireguardRotation).to receive(:new).with(connection).twice.and_return(rotation)
+      expect(rotation).to receive(:rotate).with(parsed, instance_uuid: 'instance', peer_uuid: 'peer', rename_peer: true)
+                                          .twice.and_return(instance_name: 'proton-instance', peer_name: 'proton-peer')
+
+      page = @client.get('/tools')
+      expect(page.status).to eq(200)
+      imported = @client.post('/wireguard-import', wireguardconfig: 'test-wireguard-input',
+                                                   wireguardinstance: 'instance', wireguardpeer: 'peer',
+                                                   wireguardrenamepeer: 'true',
+                                                   _csrf: @client.token_for('/wireguard-import'))
+      expect(imported.status).to eq(200)
+      expect(imported.body).to include('updated instance proton-instance and peer proton-peer')
+      targets = status_api_get('/api/tools/wireguard-targets')
+      expect(targets.status).to eq(200)
+      expect(JSON.parse(targets.body)).to eq('wireguard_targets' => { 'instances' => [], 'peers' => [] })
+      api_imported = wireguard_api_import
+      expect(api_imported.status).to eq(200)
+      expect(JSON.parse(api_imported.body)).to eq(
+        'wireguard_import' => { 'instance_name' => 'proton-instance', 'peer_name' => 'proton-peer' }
+      )
+      [page, imported, targets, api_imported].each do |response|
+        expect(response.body).not_to include(connection[:opnsense_api_key], connection[:opnsense_api_secret],
+                                             'unreadable-unrelated-credential', 'enc:v1:', 'test-wireguard-input')
+      end
+      requests.each { |request| expect(request).to have_been_requested.times(3) }
+    end
+
+    it 'uses only the required encrypted OPNsense credentials for web and API tools' do
+      expect_working_wireguard(opnsense_connection)
+    end
+
+    %i[missing_key corrupt_key].each do |failure|
+      it "uses authoritative ENV connection values without key access despite #{failure}" do
+        ENV.update('OPN_INTERFACE_ADDR' => 'https://env-firewall', 'OPN_SSL_VERIFY' => 'false',
+                   'OPN_API_KEY' => 'env-private-key', 'OPN_API_SECRET' => 'env-private-secret')
+        failure == :missing_key ? File.unlink(key_path) : File.write(key_path, 'corrupt-private-key-file')
+        expect(Service::SettingsEncryption).not_to receive(:new)
+        expect(Service::SettingsEncryptionKey).not_to receive(:new)
+
+        expect_working_wireguard(opnsense_interface_addr: 'https://env-firewall', opnsense_ssl_verify: false,
+                                 opnsense_api_key: 'env-private-key', opnsense_api_secret: 'env-private-secret')
+
+        if failure == :missing_key
+          expect(File.exist?(key_path)).to be(false)
+        else
+          expect(File.read(key_path)).to eq('corrupt-private-key-file')
+        end
+      end
+    end
+
+    %i[opnsense_api_key opnsense_api_secret missing_key corrupt_key].each do |failure| # rubocop:disable Metrics/BlockLength
+      it "fails closed before client construction for required credential failure #{failure}" do
+        forbidden = Setting.select_map(:value) + [File.read(key_path), 'opn-private-key', 'opn-private-secret']
+        case failure
+        when :missing_key then File.unlink(key_path)
+        when :corrupt_key then File.write(key_path, 'corrupt-private-key-file')
+        else Setting[name: failure.to_s].update(value: 'enc:v1:unreadable-required-credential')
+        end
+        allow_any_instance_of(Service::ProtonWireguard).to receive(:import).and_return(instance: {}, peer: {})
+        expect(Service::Opnsense).not_to receive(:new)
+        expect(Service::ProtonWireguardRotation).not_to receive(:new)
+        expect(@client.get('/settings').status).to eq(200)
+        csrf = @client.token_for('/wireguard-import')
+        operations = [
+          -> { @client.get('/tools') },
+          -> { @client.post('/wireguard-import', wireguardconfig: 'test-wireguard-input', _csrf: csrf) },
+          -> { status_api_get('/api/tools/wireguard-targets') },
+          -> { wireguard_api_import }
+        ]
+        operations.each do |operation|
+          expect(&operation).to raise_error(Service::Settings::ConfigurationError) do |error|
+            expect(error.cause).to be_nil
+            expect(error.full_message).not_to include(*forbidden, 'unreadable-required-credential',
+                                                      'corrupt-private-key-file', 'enc:v1:')
+          end
+        end
+      end
+    end
+
+    it 'keeps disabled responses, login, Bearer authentication and CSRF checks ahead of credential reads' do
+      settings.set(:opnsense_skip, true)
+      File.unlink(key_path)
+      expect(Service::SettingsEncryption).not_to receive(:new)
+      expect(Service::Opnsense).not_to receive(:new)
+      expect(Service::ProtonWireguard).not_to receive(:new)
+      expect(Service::ProtonWireguardRotation).not_to receive(:new)
+      anonymous = SettingsSessionClient.new(@app)
+      expect(URI(anonymous.get('/tools')['location']).path).to eq('/login')
+      expect(URI(anonymous.post('/wireguard-import')['location']).path).to eq('/login')
+      expect(@client.post('/wireguard-import').status).to eq(403)
+      unauthenticated = Rack::MockRequest.new(@app)
+      expect(unauthenticated.get('/api/tools/wireguard-targets').status).to eq(401)
+      expect(unauthenticated.post('/api/tools/wireguard-import').status).to eq(401)
+      expect(@client.get('/tools').body).to include(Framework::Web::WIREGUARD_IMPORT_UNAVAILABLE)
+      response = @client.post('/wireguard-import', _csrf: @client.token_for('/wireguard-import'))
+      expect(response.status).to eq(200)
+      expect(response.body).to include(Framework::Web::WIREGUARD_IMPORT_UNAVAILABLE)
+      [status_api_get('/api/tools/wireguard-targets'), wireguard_api_import].each do |result|
+        expect(result.status).to eq(503)
+        expect(JSON.parse(result.body)).to eq('error' => Framework::API::WIREGUARD_IMPORT_UNAVAILABLE)
+      end
+    end
+  end
+
+  context 'running loop frequency' do # rubocop:disable Metrics/BlockLength
+    before do
+      now = Time.now
+      allow(Time).to receive(:now).and_return(now)
+    end
+
+    def expect_running_freshness(connected) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+      %w[/ /partials/status].each do |path|
+        response = @client.get(path)
+        expect(response.status).to eq(200)
+        expect(response.body.scan("class=\"#{connected ? 'green' : 'red'}-dot\"").size).to eq(3)
+        expect(response.body).not_to include('Saved synchronization settings require a restart')
+      end
+      health = status_api_get('/api/health')
+      expect(health.status).to eq(connected ? 200 : 503)
+      expect(JSON.parse(health.body)).to eq(
+        'port_source' => 'proton',
+        'health' => %w[protonvpn opnsense qbit].to_h { |source| [source, connected ? 200 : 503] }
+      )
+      stats = status_api_get('/api/stats')
+      expect(stats.status).to eq(200)
+      body = JSON.parse(stats.body)
+      expect(body['stats'].values.map { |source| source.fetch('connected') }).to eq([connected] * 3)
+      expect(body).not_to have_key('configured_port_source')
+      expect(body).not_to have_key('restart_required')
+    end
+
+    [
+      ['1', 20, true, false], ['3600', 200, false, true], [' +0045 ', 20, true, true]
+    ].each do |value, age, before, after|
+      it "keeps running freshness after saving #{value.strip}, then applies it after restart" do
+        job = start_synchronization
+        original_config = job.instance_variable_get(:@config).dup
+        client_variables = %i[@port_source @opnsense @qbit]
+        original_clients = client_variables.map { |variable| job.instance_variable_get(variable) }
+        DB[:stats].update(last_checked: Time.now - age)
+        expect_running_freshness(before)
+        expect(Qbop).not_to receive(:perform_async)
+
+        expect_settings_redirect(save(:loop_freq, value))
+
+        expect(Service::Settings.new.value(:loop_freq)).to eq(Integer(value, 10))
+        about = status_api_get('/api/about')
+        expect(JSON.parse(about.body).dig('env_variables', 'loop_freq')).to eq(Integer(value, 10))
+        expect_running_freshness(before)
+        expect(job.instance_variable_get(:@config)).to eq(original_config)
+        expect(client_variables.map { |variable| job.instance_variable_get(variable) }).to eq(original_clients)
+
+        restarted = start_synchronization
+        expect(restarted.instance_variable_get(:@config)[:loop_freq]).to eq(Integer(value, 10))
+        expect_running_freshness(after)
+      end
+    end
+
+    [[1, 20, false], [3600, 200, true]].each do |frequency, age, connected|
+      it "keeps running freshness after clearing #{frequency} until restart restores the default" do
+        settings.set(:loop_freq, frequency)
+        job = start_synchronization
+        DB[:stats].update(last_checked: Time.now - age)
+        expect_running_freshness(connected)
+
+        expect_settings_redirect(clear(:loop_freq))
+
+        expect(Setting[name: 'loop_freq']).to be_nil
+        expect(Service::Settings.new.value(:loop_freq)).to eq(45)
+        expect(job.instance_variable_get(:@config)[:loop_freq]).to eq(frequency)
+        expect_running_freshness(connected)
+
+        restarted = start_synchronization
+        expect(restarted.instance_variable_get(:@config)[:loop_freq]).to eq(45)
+        expect_running_freshness(!connected)
+      end
+    end
+  end
+
+  %i[malformed missing_key corrupt_key].each do |failure| # rubocop:disable Metrics/BlockLength
+    it "permits cold startup, fresh login and Settings recovery with #{failure} credentials" do # rubocop:disable Metrics/BlockLength
+      forbidden = make_credential_unreadable(failure)
+      key_before = File.binread(key_path) if File.exist?(key_path)
+      allow(Service::SettingsEncryption).to receive(:new).and_call_original
+      settings.set(:ui_mode, 'light')
+      Service::Seed.new
+      expect(Source[name: 'proton']).not_to be_nil
+      @app = Framework::Application.build(session_secret_path: File.join(File.dirname(key_path), 'session_secret.txt'))
+      @client = SettingsSessionClient.new(@app)
+
+      login = @client.get('/login')
+      expect(login.status).to eq(200)
+      expect(login.body).to include('/css/light.css')
+      csrf = CGI.unescapeHTML(login.body[/name="_csrf" value="([^"]+)"/, 1])
+      response = @client.post('/login', login: 'admin@example.com', password: 'correct horse battery staple',
+                                        _csrf: csrf)
+      expect(response.status).to eq(302)
+      expect(@client.get('/').status).to eq(200)
+      expect(status_api_get('/api/health').status).to eq(503)
+      page = @client.get('/settings')
+      expect(page.status).to eq(200)
+      expect(card(page, :gluetun_api_key)).to include('Configured in qbop', 'type="password"')
+      expect(Service::SettingsEncryption).not_to have_received(:new)
+      [login.body, page.body, @client.session.inspect, @client.access_log.string,
+       @client.errors.string].each do |output|
+        expect(output).not_to include(*forbidden)
+      end
+      if key_before
+        expect(File.binread(key_path)).to eq(key_before)
+      else
+        expect(File.exist?(key_path)).to be(false)
+      end
+
+      if failure == :malformed
+        expect_settings_redirect(save(:gluetun_api_key, 'private-replacement-credential'))
+        expect(Service::Settings.new.value(:gluetun_api_key)).to eq('private-replacement-credential')
+      else
+        stored = Setting[name: 'gluetun_api_key'].value
+        expect_settings_redirect(save(:gluetun_api_key, 'private-replacement-credential'))
+        expect(Setting[name: 'gluetun_api_key'].value).to eq(stored)
+        expect(@client.get('/settings').body).to include('Credential could not be saved.')
+      end
+      expect_settings_redirect(clear(:gluetun_api_key))
+      expect(Setting[name: 'gluetun_api_key']).to be_nil
+      page = @client.get('/settings')
+      expect(page.status).to eq(200)
+      [page.body, @client.session.inspect, @client.access_log.string, @client.errors.string].each do |output|
+        expect(output).not_to include(*forbidden, 'private-replacement-credential')
+      end
+    end
+  end
+
+  [%w[proton gluetun], %w[gluetun proton]].each do |initial, target| # rubocop:disable Metrics/BlockLength
+    [false, true].each do |target_has_statistics| # rubocop:disable Metrics/BlockLength
+      it "keeps #{initial} status after saving #{target}, with target statistics #{target_has_statistics}" do # rubocop:disable Metrics/BlockLength
+        settings.set(:port_source, initial)
+        job = start_synchronization
+        original_config = job.instance_variable_get(:@config).dup
+        Source[name: initial].stat.update(current_port: 12_345)
+        DB[:stats].update(last_checked: Time.now)
+        expect(Source[name: target]).to be_nil
+        Source.create(name: target).seed_tables if target_has_statistics
+        expect(Qbop).not_to receive(:perform_async)
+
+        expect_settings_redirect(save(:port_source, target))
+
+        %w[/ /partials/status].each do |path|
+          response = @client.get(path)
+          expect(response.status).to eq(200)
+          expect(response.body).to include("Configured port source: #{target}.", 'current port: 12345',
+                                           "Showing #{initial} statistics until qbop restarts.")
+        end
+        health = status_api_get('/api/health')
+        expect(health.status).to eq(200)
+        expect(JSON.parse(health.body)).to include('port_source' => initial, 'configured_port_source' => target,
+                                                   'restart_required' => true,
+                                                   'health' => { 'protonvpn' => 200, 'opnsense' => 200, 'qbit' => 200 })
+        stats = status_api_get('/api/stats')
+        expect(stats.status).to eq(200)
+        expect(JSON.parse(stats.body).dig('stats', 'protonvpn', 'current_port')).to eq(12_345)
+        expect(job.instance_variable_get(:@config)).to eq(original_config)
+        expect(job.instance_variable_get(:@port_source).name).to eq(initial)
+        expect(Source[name: target]).to be_nil unless target_has_statistics
+
+        start_synchronization
+        Source[name: target].stat.update(current_port: 51_820)
+        DB[:stats].update(last_checked: Time.now)
+        response = @client.get('/')
+        expect(response.status).to eq(200)
+        expect(response.body).to include('current port: 51820')
+        expect(response.body).not_to include('Saved synchronization settings require a restart')
+        health = status_api_get('/api/health')
+        expect(health.status).to eq(200)
+        expect(JSON.parse(health.body)).to include('port_source' => target)
+        expect(JSON.parse(health.body).keys).to contain_exactly('port_source', 'health')
+      end
+    end
+  end
+
+  { opnsense_skip: %w[OPN_SKIP opnsense], qbit_skip: %w[QBIT_SKIP qbit] }.each do |key, (label, source)|
+    [false, true].each do |initial|
+      it "keeps startup #{label}=#{initial} in status and health until restart" do
+        settings.set(key, initial)
+        start_synchronization
+        DB[:stats].update(last_checked: Time.now)
+        Source[name: source].stat.update(last_checked: Time.now - 10_000)
+
+        expect_settings_redirect(save(key, (!initial).to_s))
+
+        page = @client.get('/partials/status')
+        expect(page.status).to eq(200)
+        expect(page.body).to include('Saved synchronization settings require a restart')
+        expect(page.body.include?("skipped per the #{label} setting")).to eq(initial)
+        health = status_api_get('/api/health')
+        expect(health.status).to eq(initial ? 200 : 503)
+        expect(JSON.parse(health.body).dig('health', source)).to eq(initial ? 'skipped' : 503)
+        expect(JSON.parse(health.body)['restart_required']).to be(true)
+
+        start_synchronization
+        health = status_api_get('/api/health')
+        expect(health.status).to eq(initial ? 503 : 200)
+        expect(JSON.parse(health.body).dig('health', source)).to eq(initial ? 503 : 'skipped')
+        expect(JSON.parse(health.body)).not_to have_key('restart_required')
+      end
+    end
+  end
+
+  it 'uses the existing browser login and setup requirements for the page and both POST routes' do
+    anonymous = SettingsSessionClient.new(@app)
+    [anonymous.get('/settings'), anonymous.post('/settings/loop_freq', value: '60'),
+     anonymous.post('/settings/loop_freq/delete')].each do |response|
+      expect(response.status).to eq(302)
+      expect(URI(response['location']).path).to eq('/login')
+    end
+    expect(Setting.count).to eq(0)
+    DB[:account_password_hashes].delete
+    DB[:accounts].delete
+    expect(URI(anonymous.get('/settings')['location']).path).to eq('/setup')
+  end
+
+  it 'renders authenticated settings, navigation and six groups without importing rows or exposing auth settings' do
+    page = @client.get('/settings')
+
+    expect(page.status).to eq(200)
+    expect(page['cache-control']).to include('no-store')
+    expect(page.body).to include('class="menu-item active" href="/settings">settings</a>', '/css/settings.css')
+    %w[Application ProtonVPN Gluetun OPNsense qBittorrent Logging].each do |group|
+      expect(page.body).to include("<span>#{group}</span>")
+    end
+    expect(page.body.scan('id="setting-card-').size).to eq(25)
+    expect(card(page, :loop_freq)).to include('<strong>Default</strong>', 'type="number"', 'value="45"', 'min="1"')
+    expect(card(page, :port_source)).to include('<select', 'value="proton" selected', 'value="gluetun"')
+    expect(card(page, :qbit_skip)).to include('<select', 'value="true"', 'value="false" selected')
+    expect(card(page, :qbit_addr)).to include('Not configured', 'type="url"')
+    expect(page.body).not_to include('WEB_AUTH_ENABLED', 'LOCAL_LOGIN_ENABLED', 'OIDC_',
+                                     '/settings/opn_proton_alias_name')
+    expect(Setting.count).to eq(0)
+    expect(File.exist?(key_path)).to be(false)
+  end
+
+  it 'groups every setting inside native collapsible sections that are initially closed' do
+    page = @client.get('/settings')
+    sections = page.body.scan(%r{<details\sclass="settings-section"([^>]*)>\s*
+                                 <summary\sclass="settings-section-summary">\s*<span>([^<]+)</span>
+                                 .*?</summary>(.*?)</details>}mx)
+    expected = {
+      'Application' => %w[ui_mode loop_freq required_attempts port_source],
+      'ProtonVPN' => %w[proton_gateway],
+      'Gluetun' => %w[gluetun_addr gluetun_api_key gluetun_user gluetun_pass gluetun_ssl_verify],
+      'OPNsense' => %w[opnsense_skip opnsense_interface_addr opnsense_api_key opnsense_api_secret
+                       opnsense_alias_name opnsense_ssl_verify],
+      'qBittorrent' => %w[qbit_skip qbit_addr qbit_api_key qbit_user qbit_pass qbit_ssl_verify],
+      'Logging' => %w[log_lines log_reverse log_to_stdout]
+    }
+
+    expect(sections.map { |_, name, _| name }).to eq(expected.keys)
+    sections.each do |attributes, name, content|
+      expect(attributes).not_to include(' open')
+      expect(content.scan(/id="setting-card-([^"]+)"/).flatten).to eq(expected.fetch(name))
+    end
+    expect(page.body).to include('<span class="settings-section-count">(5)</span>')
+  end
+
+  it 'groups settings in named fieldsets with accessible inline editors without duplicate editable values' do
+    settings.set(:opnsense_alias_name, 'forwarded_port')
+    page = @client.get('/settings')
+
+    %i[loop_freq ui_mode opnsense_alias_name].each do |key|
+      entry = card(page, key)
+      form = entry[%r{<form action="/settings/#{key}".*?</form>}m]
+      expect(entry).to match(%r{\A<fieldset[^>]*>\s*<legend>#{settings.metadata(key).label}</legend>})
+      expect(entry).to include('class="setting-meta"')
+      expect(form).to include('class="setting-form form-group"', 'class="setting-editor',
+                              "<label for=\"setting-#{key}\" class=\"setting-label-hidden\">", '>Save</button>')
+      expect(entry).not_to include('Current value:')
+    end
+    expect(card(page, :loop_freq)).to include('<strong>Default</strong>', 'Restart required', 'value="45"')
+    expect(card(page, :ui_mode)).not_to include('Restart required')
+    expect(card(page, :opnsense_alias_name)).to include('Configured in qbop', 'value="forwarded_port"',
+                                                        '/settings/opnsense_alias_name/delete')
+  end
+
+  it 'shows a stored non-secret value as configured in qbop with a separate clear form' do
+    settings.set(:qbit_addr, 'http://qbit:8080')
+
+    entry = card(@client.get('/settings'), :qbit_addr)
+
+    expect(entry).to include('Configured in qbop', 'value="http://qbit:8080"', '/settings/qbit_addr/delete')
+    expect(entry).not_to include(' disabled', 'placeholder=', 'New credential', 'Replacement credential')
+  end
+
+  { qbit_addr: ['QBIT_ADDR', 'http://environment-qbit:8080'], qbit_skip: %w[QBIT_SKIP false],
+    qbit_ssl_verify: %w[QBIT_SSL_VERIFY false] }.each do |key, (name, value)|
+    it "renders authoritative #{name} as read-only, including meaningful false booleans" do
+      ENV[name] = value
+
+      entry = card(@client.get('/settings'), key)
+
+      expect(entry).to include("Managed by environment: #{name}", ' disabled')
+      expect(entry).to include('Current value:') if key == :qbit_addr
+      expect(entry).not_to include("/settings/#{key}/delete")
+    end
+  end
+
+  it 'keeps ignorable blank placeholders editable and identifies the actual winning alias ENV' do
+    ENV.update('QBIT_ADDR' => ' ', 'UI_MODE' => '', 'OPN_ALIAS_NAME' => ' ', 'OPN_PROTON_ALIAS_NAME' => 'legacy_alias')
+    page = @client.get('/settings')
+
+    %i[qbit_addr ui_mode].each do |key|
+      expect(card(page, key)).not_to include('Managed by environment', ' required disabled', 'type="submit" disabled')
+    end
+    expect(card(page, :opnsense_alias_name)).to include('Managed by environment: OPN_PROTON_ALIAS_NAME', ' disabled')
+  end
+
+  it 'renders blank authoritative PORT_SOURCE as managed and invalid without failing the page' do
+    ENV['PORT_SOURCE'] = ''
+
+    page = @client.get('/settings')
+
+    expect(page.status).to eq(200)
+    expect(card(page, :port_source)).to include('Managed by environment: PORT_SOURCE', ' disabled',
+                                                'PORT_SOURCE must be proton or gluetun')
+  end
+
+  it 'shows an inactive stored override underneath ENV without revealing that stored value' do
+    settings.set(:qbit_addr, 'http://private-inactive-qbit:8080')
+    ENV['QBIT_ADDR'] = 'http://environment-qbit:8080'
+
+    entry = card(@client.get('/settings'), :qbit_addr)
+
+    expect(entry).to include('Managed by environment: QBIT_ADDR', 'override is also stored but is currently inactive',
+                             'value="http://environment-qbit:8080"', '/settings/qbit_addr/delete')
+    expect(entry).not_to include('private-inactive-qbit')
+  end
+
+  it 'redacts credentials embedded in legacy ENV URLs and hides unsupported URL query material' do
+    ENV['GLUETUN_ADDR'] = 'http://private-url-user:private-url-password@gluetun:8000/control'
+    ENV['QBIT_ADDR'] = 'http://qbit:8080/?token=private-query-token'
+
+    page = @client.get('/settings')
+
+    expect(card(page, :gluetun_addr)).to include('http://***@gluetun:8000/control')
+    expect(card(page, :qbit_addr)).to include('[invalid URL]')
+    expect(page.body).not_to include('private-url-user', 'private-url-password', 'private-query-token')
+  end
+
+  { loop_freq: [' +0060 ', '60'], required_attempts: %w[05 5], ui_mode: [' LIGHT ', 'light'],
+    log_reverse: %w[TRUE true] }.each do |key, (input, stored)|
+    it "saves #{key} canonically through service validation and redirects without submitted values" do
+      response = save(key, input)
+
+      expect_settings_redirect(response)
+      expect(Setting[name: key.to_s].value).to eq(stored)
+      expect(response['location']).not_to include(input)
+      page = @client.get('/settings')
+      expect(page.body).to include("#{key.to_s.upcase} saved.")
+      expect(@client.get('/settings').body).not_to include("#{key.to_s.upcase} saved.")
+    end
+  end
+
+  it 'shows static validation errors after redirect and never reflects an invalid submitted value' do
+    submitted = '<script>invalid-private-input</script>'
+
+    response = save(:loop_freq, submitted)
+
+    expect_settings_redirect(response)
+    expect(Setting.count).to eq(0)
+    expect(@client.get('/settings').body).to include('LOOP_FREQ must be a complete integer greater than 0.')
+    expect(@client.session.inspect).not_to include(submitted, 'invalid-private-input')
+    expect(@client.access_log.string).not_to include(submitted, 'invalid-private-input')
+  end
+
+  %w[unknown opn_proton_alias_name oidc_client_secret web_auth_enabled].each do |key|
+    it "rejects #{key} with a safe 404 even with valid CSRF" do
+      @client.get('/settings')
+      path = "/settings/#{key}"
+      response = @client.post(path, value: 'private-input', _csrf: @client.token_for(path))
+
+      expect(response.status).to eq(404)
+      expect(response.body).to eq('Setting not found.')
+      expect(response['cache-control']).to include('no-store')
+      expect(Setting.count).to eq(0)
+    end
+  end
+
+  it 'enforces ENV management server-side and permits clearing only the inactive DB override' do
+    settings.set(:qbit_addr, 'http://stored-qbit:8080')
+    settings.set(:loop_freq, 60)
+    ENV['QBIT_ADDR'] = 'http://environment-qbit:8080'
+
+    response = save(:qbit_addr, 'http://attempted-qbit:8080')
+
+    expect_settings_redirect(response)
+    expect(Setting[name: 'qbit_addr'].value).to eq('http://stored-qbit:8080')
+    expect(@client.get('/settings').body).to include('QBIT_ADDR is managed by environment and cannot be edited here.')
+    expect_settings_redirect(clear(:qbit_addr))
+    expect(Setting[name: 'qbit_addr']).to be_nil
+    expect(Setting[name: 'loop_freq'].value).to eq('60')
+    expect(Service::Settings.new.value(:qbit_addr)).to eq('http://environment-qbit:8080')
+    expect(ENV['QBIT_ADDR']).to eq('http://environment-qbit:8080')
+  end
+
+  it 'clears a DB override back to its default and requires an existing row to clear' do
+    settings.set(:loop_freq, 60)
+
+    expect_settings_redirect(clear(:loop_freq))
+    expect(Service::Settings.new.value(:loop_freq)).to eq(45)
+    page = @client.get('/settings')
+    expect(card(page, :loop_freq)).not_to include('/settings/loop_freq/delete')
+    path = '/settings/loop_freq/delete'
+    expect(@client.post(path, _csrf: @client.token_for(path)).status).to eq(404)
+    expect(@client.get('/settings/loop_freq/delete').status).to eq(404)
+  end
+
+  it 'leaves unconfigured credential fields empty without saved-value placeholders' do
+    page = @client.get('/settings')
+
+    SpecSettingsSecrets::CREDENTIALS.each_key do |key|
+      expect(card(page, key)).to include('>New credential</label>')
+      field = card(page, key)[/<input id="setting-#{key}"[^>]*>/]
+      expect(field).not_to include('value=', 'placeholder=')
+    end
+  end
+
+  it 'renders all eight credentials with placeholders only when managed by qbop without reading ciphertext' do
+    values = SpecSettingsSecrets::CREDENTIALS.keys.to_h { |key| [key, "database-private-#{key}"] }
+    values.each { |key, value| settings.set(key, value) }
+    stored = Setting.select_map(:value)
+    key_material = File.read(key_path)
+    File.unlink(key_path)
+    expect(Service::SettingsEncryption).not_to receive(:new)
+    page = @client.get('/settings')
+
+    expect(page.status).to eq(200)
+    values.each_key do |key|
+      entry = card(page, key)
+      field = entry[/<input id="setting-#{key}"[^>]*>/]
+      expect(entry).to include('Configured in qbop', '>Replacement credential</label>')
+      expect(field).to include('type="password"', 'autocomplete="new-password"', 'placeholder="***"')
+      expect(field).not_to include('value=')
+    end
+    SpecSettingsSecrets::CREDENTIALS.each_value { |name, _| ENV[name] = "env-private-#{name}" }
+    page = @client.get('/settings')
+    SpecSettingsSecrets::CREDENTIALS.each do |key, (name, _)|
+      expect(card(page, key)).to include("Managed by environment: #{name}", 'currently inactive',
+                                         '>New credential</label>')
+      field = card(page, key)[/<input id="setting-#{key}"[^>]*>/]
+      expect(field).not_to include('value=', 'placeholder=')
+    end
+    expect(page.body).not_to include(*values.values, *stored, key_material, 'enc:v1:', 'env-private-')
+  end
+
+  it 'renders malformed DB secrets as configured without decrypting them' do
+    Setting.create(name: 'qbit_pass', value: 'private-malformed-ciphertext')
+    expect(Service::SettingsEncryption).not_to receive(:new)
+
+    page = @client.get('/settings')
+
+    expect(page.status).to eq(200)
+    expect(card(page, :qbit_pass)).to include('Configured in qbop')
+    expect(page.body).not_to include('private-malformed-ciphertext')
+  end
+
+  it 'encrypts a submitted secret, preserves spaces, and keeps HTML, flash, logs and About/API output safe' do
+    value = ' new-private-qbit-password '
+    response = save(:qbit_pass, value)
+
+    expect_settings_redirect(response)
+    stored = Setting[name: 'qbit_pass'].value
+    expect(stored).to start_with('enc:v1:')
+    expect(stored).not_to include(value)
+    expect(Service::Settings.new.value(:qbit_pass)).to eq(value)
+    expect(@client.session.inspect).not_to include(value, stored)
+    page = @client.get('/settings')
+    expect(page.body).not_to include(value, stored)
+    expect(page.body).to include('QBIT_PASS saved.', 'Restart qbop to apply this change')
+    expect(@client.access_log.string).not_to include(value, stored)
+    expect(@client.errors.string).not_to include(value, stored)
+    expect(@client.get('/about').body).to include('QBIT_PASS: ***')
+    api_key = ApiKey.issue('settings compatibility test')
+    about = Rack::MockRequest.new(@app).get('/api/about', 'HTTP_AUTHORIZATION' => "Bearer #{api_key.token}")
+    expect(JSON.parse(about.body)['env_variables']['qbit_pass']).to eq('***')
+    expect(about.body).not_to include(value, stored, 'environment_override', 'database_value_present')
+  end
+
+  ['', ' ', "submitted-private-secret\n"].each do |input|
+    it 'rejects blank or invalid secret replacement without overwriting or leaking the existing credential' do
+      settings.set(:qbit_pass, 'existing-private-password')
+      stored = Setting[name: 'qbit_pass'].value
+
+      response = save(:qbit_pass, input)
+
+      expect_settings_redirect(response)
+      expect(Setting[name: 'qbit_pass'].value).to eq(stored)
+      expect(@client.session.inspect).not_to include('submitted-private-secret', 'existing-private-password', stored)
+      page = @client.get('/settings')
+      expect(page.body).to include('QBIT_PASS must be a valid, nonblank string without control characters.')
+      expect(page.body).not_to include('submitted-private-secret', 'existing-private-password', stored)
+      expect(@client.access_log.string).not_to include('submitted-private-secret', 'existing-private-password')
+    end
+  end
+
+  it 'rejects replacement of ENV-managed secrets and clears an inactive DB secret without altering ENV auth' do
+    settings.set(:gluetun_api_key, 'database-private-key')
+    settings.set(:qbit_pass, 'database-private-password')
+    key_material = File.read(key_path)
+    ciphertext = Setting[name: 'gluetun_api_key'].value
+    ENV['GLUETUN_API_KEY'] = 'environment-private-key'
+
+    expect_settings_redirect(save(:gluetun_api_key, 'attempted-private-key'))
+    expect(Setting[name: 'gluetun_api_key'].value).to eq(ciphertext)
+    expect_settings_redirect(clear(:gluetun_api_key))
+    expect(Setting[name: 'gluetun_api_key']).to be_nil
+    expect(Service::Helpers.new.env_variables[:gluetun_api_key]).to eq('environment-private-key')
+    expect(Service::Settings.new.value(:qbit_pass)).to eq('database-private-password')
+    expect(File.read(key_path)).to eq(key_material)
+    expect_settings_redirect(clear(:qbit_pass))
+    expect(Setting.count).to eq(0)
+    expect(File.read(key_path)).to eq(key_material)
+  end
+
+  it 'handles credential storage failures through PRG with a static error and no key-management details' do
+    settings.set(:qbit_pass, 'existing-private-password')
+    File.unlink(key_path)
+
+    response = save(:gluetun_api_key, 'submitted-private-key')
+
+    expect_settings_redirect(response)
+    page = @client.get('/settings')
+    expect(page.body).to include('Credential could not be saved.')
+    expect(page.body).not_to include('submitted-private-key', 'existing-private-password', 'encryption key', key_path)
+    expect(@client.session.inspect).not_to include('submitted-private-key')
+    expect(File.exist?(key_path)).to be(false)
+  end
+
+  it 'escapes user-controlled ENV, DB and flash text in HTML and attributes' do
+    value = '"><script>alert("xss")</script>'
+    settings.set(:opnsense_alias_name, value)
+    ENV['PROTON_GATEWAY'] = value
+    page = @client.get('/settings')
+
+    expect(card(page, :opnsense_alias_name)).to include(Rack::Utils.escape_html(value))
+    expect(card(page, :proton_gateway)).to include(Rack::Utils.escape_html(value))
+    expect(page.body).not_to include(value, '<script>alert(')
+    allow_any_instance_of(Service::Settings).to receive(:set)
+      .and_raise(Service::Settings::ValidationError, '<unsafe-error>')
+    response = save(:loop_freq, 'invalid')
+    expect_settings_redirect(response)
+    page = @client.get('/settings')
+    expect(page.body).to include('&lt;unsafe-error&gt;')
+    expect(page.body).not_to include('<unsafe-error>')
+  end
+
+  it 'shows restart notices for job settings on save and clear, without restarting jobs or probing clients' do
+    expect(Qbop).not_to receive(:perform_async)
+    [Service::Gluetun, Service::Opnsense, Service::Qbit].each { |client| expect(client).not_to receive(:new) }
+
+    expect_settings_redirect(save(:loop_freq, '60'))
+    expect(@client.get('/settings').body).to include('LOOP_FREQ saved. Restart qbop to apply this change')
+    expect_settings_redirect(clear(:loop_freq))
+    expect(@client.get('/settings').body).to include('LOOP_FREQ cleared. Restart qbop to apply this change')
+    expect_settings_redirect(save(:ui_mode, 'light'))
+    page = @client.get('/settings')
+    notice = page.body[%r{<div class="terminal-alert terminal-alert-primary" role="status">.*?</div>}m]
+    expect(notice).to include('UI_MODE saved.')
+    expect(notice).not_to include('Restart')
+    expect(page.body).to include('/css/light.css')
+  end
+
+  { loop_freq: [' +0045 ', '45'], port_source: %w[proton proton],
+    qbit_skip: %w[FALSE false] }.each do |key, (input, stored)|
+    it "pins the unchanged #{key} default and clears it without a restart notice" do
+      original = Service::Settings.new.value(key)
+      expect(card(@client.get('/settings'), key)).to include('<strong>Default</strong>')
+
+      expect_settings_redirect(save(key, input))
+      expect(Setting[name: key.to_s].value).to eq(stored)
+      expect(Service::Settings.new.resolve(key)).to have_attributes(value: original, source: :database)
+      page = @client.get('/settings')
+      expect_settings_notice(page, key, 'saved', restart: false)
+      expect(card(page, key)).to include('Configured in qbop', '/delete', 'Restart required')
+
+      expect_settings_redirect(clear(key))
+      expect(Setting[name: key.to_s]).to be_nil
+      expect(Service::Settings.new.resolve(key)).to have_attributes(value: original, source: :default)
+      page = @client.get('/settings')
+      expect_settings_notice(page, key, 'cleared', restart: false)
+      expect(card(page, key)).to include('<strong>Default</strong>', 'Restart required')
+      expect(card(page, key)).not_to include('/delete')
+    end
+  end
+
+  it 'compares normalized numeric values when replacing an existing override' do
+    settings.set(:loop_freq, 60)
+
+    expect_settings_redirect(save(:loop_freq, ' +0060 '))
+
+    expect(Setting[name: 'loop_freq'].value).to eq('60')
+    expect_settings_notice(@client.get('/settings'), :loop_freq, 'saved', restart: false)
+  end
+
+  { opnsense_interface_addr: ['OPN_INTERFACE_ADDR', '', 'http://opnsense', true],
+    opnsense_skip: ['OPN_SKIP', ' ', 'false', false] }.each do |key, (name, fallback, stored, restart)|
+    it "compares the effective #{key} value when clearing to a legacy blank ENV fallback" do
+      ENV[name] = fallback
+      settings.set(key, stored)
+      expect(Service::Settings.new.resolve(key).source).to eq(:database)
+
+      expect_settings_redirect(clear(key))
+
+      expect(Setting[name: key.to_s]).to be_nil
+      expect(Service::Settings.new.resolve(key)).to have_attributes(value: fallback, source: :environment)
+      expect(ENV[name]).to eq(fallback)
+      expect_settings_notice(@client.get('/settings'), key, 'cleared', restart: restart)
+    end
+  end
+
+  ['http://environment-qbit:8080', 'http://different-stored-qbit:8080'].each do |stored|
+    it 'omits restart notices when clearing an inactive override leaves authoritative ENV unchanged' do
+      settings.set(:qbit_addr, stored)
+      ENV['QBIT_ADDR'] = 'http://environment-qbit:8080'
+
+      expect_settings_redirect(clear(:qbit_addr))
+
+      expect(Setting[name: 'qbit_addr']).to be_nil
+      expect(Service::Settings.new.value(:qbit_addr)).to eq('http://environment-qbit:8080')
+      expect(ENV['QBIT_ADDR']).to eq('http://environment-qbit:8080')
+      expect_settings_notice(@client.get('/settings'), :qbit_addr, 'cleared', restart: false)
+    end
+  end
+
+  { log_lines: '75', log_reverse: 'true' }.each do |key, input|
+    it "omits restart notices when saving or clearing a changed dynamic #{key} value" do
+      expect_settings_redirect(save(key, input))
+      expect_settings_notice(@client.get('/settings'), key, 'saved', restart: false)
+      expect_settings_redirect(clear(key))
+      expect_settings_notice(@client.get('/settings'), key, 'cleared', restart: false)
+    end
+  end
+
+  { ' existing-private-password ' => false, ' different-private-password ' => true }.each do |input, restart|
+    it 'compares secret replacements without exposing current or submitted plaintext' do
+      previous = ' existing-private-password '
+      settings.set(:qbit_pass, previous)
+      previous_ciphertext = Setting[name: 'qbit_pass'].value
+
+      response = save(:qbit_pass, input)
+
+      expect_settings_redirect(response)
+      ciphertext = Setting[name: 'qbit_pass'].value
+      expect(ciphertext).to start_with('enc:v1:')
+      expect(ciphertext).not_to include(input)
+      expect(Service::Settings.new.value(:qbit_pass)).to eq(input)
+      page = @client.get('/settings')
+      expect_settings_notice(page, :qbit_pass, 'saved', restart: restart)
+      [response.body, page.body, @client.session.inspect, @client.access_log.string,
+       @client.errors.string].each do |output|
+        expect(output).not_to include(previous, input, previous_ciphertext, ciphertext)
+      end
+    end
+  end
+
+  %w[environment-private-password different-stored-private-password].each do |stored|
+    it 'clears an inactive secret without decrypting it or claiming the effective ENV credential changed' do
+      settings.set(:qbit_pass, stored)
+      ENV['QBIT_PASS'] = 'environment-private-password'
+      File.unlink(key_path)
+      expect(Service::SettingsEncryption).not_to receive(:new)
+
+      response = clear(:qbit_pass)
+
+      expect_settings_redirect(response)
+      expect(Setting[name: 'qbit_pass']).to be_nil
+      expect(Service::Settings.new.value(:qbit_pass)).to eq('environment-private-password')
+      expect(ENV['QBIT_PASS']).to eq('environment-private-password')
+      page = @client.get('/settings')
+      expect_settings_notice(page, :qbit_pass, 'cleared', restart: false)
+      [response.body, page.body, @client.session.inspect, @client.access_log.string, @client.errors.string]
+        .each { |output| expect(output).not_to include(stored, 'environment-private-password') }
+    end
+  end
+
+  [nil, ' '].each do |fallback|
+    it 'shows a restart notice when clearing a secret changes its effective value to absent or legacy blank ENV' do
+      ENV['QBIT_PASS'] = fallback if fallback
+      previous = 'private-password-to-clear'
+      settings.set(:qbit_pass, previous)
+      ciphertext = Setting[name: 'qbit_pass'].value
+
+      response = clear(:qbit_pass)
+
+      expect_settings_redirect(response)
+      expect(Setting[name: 'qbit_pass']).to be_nil
+      expect(Service::Settings.new.value(:qbit_pass)).to eq(fallback)
+      expect(ENV['QBIT_PASS']).to eq(fallback)
+      page = @client.get('/settings')
+      expect_settings_notice(page, :qbit_pass, 'cleared', restart: true)
+      [response.body, page.body, @client.session.inspect, @client.access_log.string,
+       @client.errors.string].each do |output|
+        expect(output).not_to include(previous, ciphertext)
+      end
+    end
+  end
+
+  it 'permits replacing and clearing unreadable secrets without exposing comparison failures' do
+    settings.set(:qbit_pass, 'old-private-password')
+    Setting[name: 'qbit_pass'].update(value: 'private-malformed-ciphertext')
+
+    expect_settings_redirect(save(:qbit_pass, 'replacement-private-password'))
+    expect(Service::Settings.new.value(:qbit_pass)).to eq('replacement-private-password')
+    expect_settings_notice(@client.get('/settings'), :qbit_pass, 'saved', restart: true)
+    Setting[name: 'qbit_pass'].update(value: 'private-malformed-ciphertext')
+    expect_settings_redirect(clear(:qbit_pass))
+    expect(Setting[name: 'qbit_pass']).to be_nil
+    page = @client.get('/settings')
+    expect_settings_notice(page, :qbit_pass, 'cleared', restart: true)
+    [page.body, @client.session.inspect, @client.access_log.string, @client.errors.string].each do |output|
+      expect(output).not_to include('old-private-password', 'replacement-private-password',
+                                    'private-malformed-ciphertext', 'could not be decrypted')
+    end
+  end
+
+  it 'requires valid path-bound CSRF for both mutations, including when browser authentication is disabled' do
+    settings.set(:loop_freq, 60)
+    page = @client.get('/settings')
+    save_path = '/settings/loop_freq'
+    clear_path = '/settings/loop_freq/delete'
+    [[save_path, { value: '90' }], [clear_path, {}]].each do |path, params|
+      [nil, 'invalid-token', token(page, '/settings/ui_mode')].each do |csrf|
+        response = @client.post(path, params.merge(_csrf: csrf))
+        expect(response.status).to eq(403)
+        expect(response['cache-control']).to include('no-store')
+        expect(Setting[name: 'loop_freq'].value).to eq('60')
+      end
+    end
+    expect_settings_redirect(@client.post(save_path, value: '90', _csrf: token(page, save_path)))
+    ENV['WEB_AUTH_ENABLED'] = 'false'
+    open_app = Framework::Application.build(session_secret_path: File.join(File.dirname(key_path),
+                                                                           'session_secret.txt'))
+    open_client = SettingsSessionClient.new(open_app)
+    open_page = open_client.get('/settings')
+    expect(open_page.status).to eq(200)
+    expect(open_client.post(clear_path).status).to eq(403)
+    expect_settings_redirect(open_client.post(clear_path, _csrf: token(open_page, clear_path)))
+    expect(Setting[name: 'loop_freq']).to be_nil
+  end
+end

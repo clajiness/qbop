@@ -1,0 +1,6 @@
+<ul>
+  <% nav_items.each do |label, path| %>
+  <li><a class="menu-item<%= ' active' if active == label %>" href="<%= path %>"><%= label %></a></li>
+  <% end %>
+  <%= erb :_logout, layout: false %>
+</ul>

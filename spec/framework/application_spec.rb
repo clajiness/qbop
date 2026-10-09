@@ -294,8 +294,8 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
     about_page = client.get('/about')
     expect(about_page.body).to include('<h4><em>account</em></h4>', 'href="/account"', 'href="/api-keys"')
     account_position = about_page.body.index('<h4><em>account</em></h4>')
-    environment_position = about_page.body.index('<h4><em>env variables</em></h4>')
-    expect(account_position).to be < environment_position
+    configuration_position = about_page.body.index('<h4><em>configuration</em></h4>')
+    expect(account_position).to be < configuration_position
   end
 
   it 'renders the shared navigation with the current section active' do
@@ -310,14 +310,49 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
       '/api-keys' => ['api docs', '/api-docs'],
       '/tools' => ['tools', '/tools'],
       '/logs' => ['logs', '/logs'],
-      '/about' => ['about', '/about']
+      '/about' => ['about', '/about'],
+      '/settings' => ['settings', '/settings']
     }.each do |path, (label, href)|
       response = client.get(path)
 
       expect(response.status).to eq(200)
       expect(response.body.scan('<div class="terminal-nav">').length).to eq(1)
-      expect(response.body).to include("class=\"menu-item active\" href=\"#{href}\">#{label}</a>")
+      menus = response.body.scan(%r{<nav class="terminal-menu[^"]*"[^>]*>(.*?)</nav>}m).flatten
+      expect(menus.size).to eq(2)
+      menus.each do |menu|
+        expect(menu).to include("class=\"menu-item active\" href=\"#{href}\">#{label}</a>")
+        expect(menu.scan('menu-item active').size).to eq(1)
+      end
     end
+  end
+
+  it 'renders every navigation action in a closed mobile disclosure and preserves protected POST sign out' do
+    create_account
+    client = ApplicationSessionClient.new(app)
+    login(client)
+    page = client.get('/settings')
+    desktop = page.body[%r{<nav class="terminal-menu nav-desktop"[^>]*>(.*?)</nav>}m, 1]
+    mobile = page.body[%r{<details class="nav-mobile">\s*<summary>menu</summary>(.*?)</details>}m, 1]
+    expected_links = [['/', 'stats'], ['/history', 'history'], ['/tools', 'tools'], ['/logs', 'logs'],
+                      ['/api-docs', 'api docs'], ['/settings', 'settings'], ['/about', 'about']]
+
+    expect(page.body).to include('/css/navigation.css')
+    [desktop, mobile].each do |menu|
+      expect(menu).not_to be_nil
+      expect(menu.scan(%r{<a class="menu-item(?: active)?" href="([^"]+)">([^<]+)</a>})).to eq(expected_links)
+      expect(menu).to include('action="/logout" method="post"', 'type="submit">sign out</button>')
+      expect(menu).not_to include('href="/logout"')
+      expect(menu.index('href="/about"')).to be < menu.index('action="/logout"')
+      expect(menu).to match(/name="_csrf" value="[^"]+"/)
+    end
+    expect(client.post('/logout').status).to eq(403)
+    expect(client.get('/settings').status).to eq(200)
+
+    mobile_token = CGI.unescapeHTML(mobile.match(/name="_csrf" value="([^"]+)"/)[1])
+    logout = client.post('/logout', _csrf: mobile_token)
+    expect(logout.status).to eq(302)
+    expect(redirect_path(logout)).to eq('/login')
+    expect(redirect_path(client.get('/settings'))).to eq('/login')
   end
 
   it 'protects the OPNsense WireGuard import with browser CSRF validation' do
@@ -684,7 +719,7 @@ RSpec.describe Framework::Application do # rubocop:disable Metrics/BlockLength
       '<h4><em>api keys</em></h4>', 'action="/api-keys"', issued_key.api_key.token_prefix
     )
     expect(keys_page.body.scan('href="/api-keys"').length).to eq(0)
-    expect(keys_page.body.scan('href="/api-docs">api docs</a>').length).to eq(1)
+    expect(keys_page.body.scan('href="/api-docs">api docs</a>').length).to eq(2)
   end
 
   it 'creates an API key with CSRF and displays its secret exactly once' do

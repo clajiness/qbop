@@ -1,6 +1,7 @@
 require 'time'
 require_relative 'event_logger'
 require_relative 'gluetun_url'
+require_relative 'settings'
 
 module Service
   # The Helpers class provides utility methods for accessing environment variables
@@ -9,36 +10,21 @@ module Service
     HISTORY_PAGE_SIZES = [25, 50, 100].freeze
     PUBLIC_IP_PROVIDERS = %w[akamai cloudflare google opendns].freeze
 
-    def env_variables # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
-      {
-        ui_mode: format_ui_mode(ENV['UI_MODE'] || 'dark'),
+    def env_variables
+      Settings.keys.to_h { |key| [key, settings.value(key)] }.merge(
         script_version: app_version,
         commit_sha: commit_sha,
-        loop_freq: loop_frequency,
-        required_attempts: validate_required_attempts(ENV['REQUIRED_ATTEMPTS'] || 3),
-        port_source: ENV.fetch('PORT_SOURCE', 'proton'),
-        proton_gateway: environment_value('PROTON_GATEWAY', '10.2.0.1'),
-        gluetun_addr: environment_value('GLUETUN_ADDR', 'http://gluetun:8000'),
-        gluetun_api_key: environment_value('GLUETUN_API_KEY'),
-        gluetun_user: environment_value('GLUETUN_USER'),
-        gluetun_pass: environment_value('GLUETUN_PASS'),
-        gluetun_ssl_verify: true?(ENV['GLUETUN_SSL_VERIFY'] || 'false'),
-        opnsense_skip: ENV['OPN_SKIP'] || 'false',
-        opnsense_interface_addr: ENV['OPN_INTERFACE_ADDR'],
-        opnsense_api_key: ENV['OPN_API_KEY'],
-        opnsense_api_secret: ENV['OPN_API_SECRET'],
-        opnsense_alias_name: environment_value('OPN_ALIAS_NAME', environment_value('OPN_PROTON_ALIAS_NAME')),
-        opnsense_ssl_verify: true?(ENV['OPN_SSL_VERIFY'] || 'false'),
-        qbit_skip: ENV['QBIT_SKIP'] || 'false',
-        qbit_addr: ENV['QBIT_ADDR'],
-        qbit_api_key: environment_value('QBIT_API_KEY'),
-        qbit_user: ENV['QBIT_USER'],
-        qbit_pass: ENV['QBIT_PASS'],
-        qbit_ssl_verify: true?(ENV['QBIT_SSL_VERIFY'] || 'false'),
-        log_lines: ENV['LOG_LINES'] || 50,
-        log_reverse: ENV['LOG_REVERSE'] || 'false',
-        log_to_stdout: ENV['LOG_TO_STDOUT'] || 'false',
         web_auth_enabled: ENV['WEB_AUTH_ENABLED'] || 'true'
+      )
+    end
+
+    # WireGuard tools use only the OPNsense connection, independent of synchronization settings.
+    def wireguard_config
+      {
+        opnsense_interface_addr: settings.value(:opnsense_interface_addr),
+        opnsense_ssl_verify: settings.value(:opnsense_ssl_verify),
+        opnsense_api_key: settings.value(:opnsense_api_key),
+        opnsense_api_secret: settings.value(:opnsense_api_secret)
       }
     end
 
@@ -73,23 +59,18 @@ module Service
     end
 
     def validate_loop_frequency(loop_freq)
-      frequency = Integer(loop_freq, exception: false)
-      frequency&.positive? ? frequency : 45
+      Settings.validate_loop_frequency(loop_freq)
     end
 
     def loop_frequency
-      validate_loop_frequency(environment_value('LOOP_FREQ', 45))
+      settings.value(:loop_freq)
     end
 
     def validate_required_attempts(required_attempts)
-      if required_attempts&.to_i&.between?(1, 10)
-        required_attempts&.to_i
-      else
-        3
-      end
+      Settings.validate_required_attempts(required_attempts)
     end
 
-    def validate_log_lines(log_lines, default = env_variables[:log_lines])
+    def validate_log_lines(log_lines, default = settings.value(:log_lines))
       lines = log_lines.to_i
       return lines.clamp(1, 5000) if lines.positive?
 
@@ -175,7 +156,7 @@ module Service
       'unknown'
     end
 
-    def connected_to_service?(last_checked)
+    def connected_to_service?(last_checked, loop_frequency: self.loop_frequency)
       last_checked_time = time_value(last_checked)
 
       !!(last_checked_time && last_checked_time >= (Time.now - (loop_frequency * 3)))
@@ -198,7 +179,7 @@ module Service
       return [] if log_lines.nil?
 
       output = tail_lines('log/qbop.log', validate_log_lines(log_lines))
-      reverse = true?(env_variables[:log_reverse]) if reverse.nil?
+      reverse = true?(settings.value(:log_reverse)) if reverse.nil?
       output.reverse! if reverse
 
       output[-1] = output.last.strip if output.any?
@@ -260,7 +241,7 @@ module Service
     def logger_instance
       default = EventLogger.new('log/qbop.log', 10, 5_120_000)
 
-      if true?(env_variables[:log_to_stdout])
+      if true?(settings.value(:log_to_stdout))
         Logger.new($stdout)
       else
         default
@@ -271,16 +252,15 @@ module Service
 
     private
 
+    def settings
+      @settings ||= Settings.new
+    end
+
     def tail_lines(path, line_limit)
       File.foreach(path).each_with_object([]) do |line, output|
         output.shift if output.length == line_limit
         output << line
       end
-    end
-
-    def environment_value(name, default = nil)
-      value = ENV[name]
-      value.nil? || value.strip.empty? ? default : value
     end
 
     def time_value(value)

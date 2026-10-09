@@ -2,6 +2,7 @@ require 'bundler/setup'
 Bundler.require(:default)
 
 require 'tmpdir'
+require_relative '../support/database_helper'
 require_relative '../../service/helpers'
 
 HELPERS_SPEC_ENV_KEYS = %w[
@@ -38,6 +39,8 @@ HELPERS_SPEC_ENV_KEYS = %w[
 ].freeze
 
 RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
+  before { SpecDatabase.reset! }
+
   around do |example|
     original_env = HELPERS_SPEC_ENV_KEYS.to_h { |key| [key, ENV[key]] }
     HELPERS_SPEC_ENV_KEYS.each { |key| ENV.delete(key) }
@@ -48,6 +51,65 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
   end
 
   describe '#env_variables' do # rubocop:disable Metrics/BlockLength
+    it 'preserves all legacy blank values and types with an empty settings table' do
+      %w[UI_MODE LOG_LINES LOG_REVERSE LOG_TO_STDOUT GLUETUN_ADDR GLUETUN_SSL_VERIFY OPN_SKIP
+         OPN_INTERFACE_ADDR OPN_ALIAS_NAME OPN_PROTON_ALIAS_NAME OPN_SSL_VERIFY QBIT_SKIP QBIT_ADDR
+         QBIT_SSL_VERIFY].each { |key| ENV[key] = '' }
+
+      expect(described_class.new.env_variables).to include(
+        ui_mode: '', log_lines: '', log_reverse: '', log_to_stdout: '', gluetun_addr: 'http://gluetun:8000',
+        gluetun_ssl_verify: false, opnsense_skip: '', opnsense_interface_addr: '', opnsense_alias_name: nil,
+        opnsense_ssl_verify: false, qbit_skip: '', qbit_addr: '', qbit_ssl_verify: false
+      )
+      expect(Setting.count).to eq(0)
+    end
+
+    it 'preserves the complete default configuration with an empty settings table' do
+      expect(described_class.new.env_variables).to eq(
+        ui_mode: 'dark', script_version: 'development', commit_sha: 'unknown', loop_freq: 45,
+        required_attempts: 3, port_source: 'proton', proton_gateway: '10.2.0.1',
+        gluetun_addr: 'http://gluetun:8000', gluetun_api_key: nil, gluetun_user: nil, gluetun_pass: nil,
+        gluetun_ssl_verify: false, opnsense_skip: 'false', opnsense_interface_addr: nil,
+        opnsense_api_key: nil, opnsense_api_secret: nil, opnsense_alias_name: nil,
+        opnsense_ssl_verify: false, qbit_skip: 'false', qbit_addr: nil, qbit_api_key: nil,
+        qbit_user: nil, qbit_pass: nil, qbit_ssl_verify: false, log_lines: 50, log_reverse: 'false',
+        log_to_stdout: 'false', web_auth_enabled: 'true'
+      )
+      expect(Setting.count).to eq(0)
+    end
+
+    it 'uses the four stored settings without changing other configuration' do
+      { loop_freq: '60', required_attempts: '7', port_source: 'gluetun', proton_gateway: '10.7.0.1' }
+        .each { |name, value| Setting.create(name: name.to_s, value: value) }
+
+      expect(described_class.new.env_variables).to include(
+        loop_freq: 60, required_attempts: 7, port_source: 'gluetun', proton_gateway: '10.7.0.1',
+        gluetun_api_key: nil, opnsense_api_key: nil, qbit_pass: nil, script_version: 'development'
+      )
+      expect(Setting.count).to eq(4)
+    end
+
+    it 'retains resolved settings for one helper and reads new values in a new helper' do
+      Setting.create(name: 'loop_freq', value: '60')
+      helpers = described_class.new
+      expect(helpers.env_variables[:loop_freq]).to eq(60)
+      Setting[name: 'loop_freq'].update(value: '120')
+
+      expect(helpers.loop_frequency).to eq(60)
+      expect(helpers.env_variables[:loop_freq]).to eq(60)
+      expect(described_class.new.env_variables[:loop_freq]).to eq(120)
+    end
+
+    it 'keeps credentials environment-managed without importing environment settings' do
+      ENV.update('LOOP_FREQ' => '30', 'REQUIRED_ATTEMPTS' => '5', 'PROTON_GATEWAY' => '10.8.0.1',
+                 'QBIT_PASS' => 'example-password')
+
+      expect(described_class.new.env_variables).to include(
+        loop_freq: 30, required_attempts: 5, qbit_pass: 'example-password'
+      )
+      expect(Setting.count).to eq(0)
+    end
+
     it 'defaults to Proton and loads Gluetun defaults without requiring new settings' do
       expect(described_class.new.env_variables).to include(
         port_source: 'proton', gluetun_addr: 'http://gluetun:8000', gluetun_api_key: nil,
@@ -353,6 +415,14 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
   end
 
   describe '#validate_log_lines' do
+    it 'uses a stored default and preserves defensive normalization of manual values' do
+      { '75' => 75, '5abc' => 5, 'invalid' => 50, '-5' => 50, '7000' => 5000 }.each do |input, expected|
+        Setting.dataset.insert_conflict(target: :name, update: { value: input }).insert(name: 'log_lines', value: input)
+
+        expect(described_class.new.validate_log_lines(nil)).to eq(expected)
+      end
+    end
+
     it 'returns a positive line count' do
       expect(Service::Helpers.new.validate_log_lines('500')).to eq(500)
     end
@@ -590,6 +660,21 @@ RSpec.describe Service::Helpers do # rubocop:disable Metrics/BlockLength
 
   describe '#logger_instance' do
     require 'logger'
+    [false, true].each do |stdout|
+      it "selects stdout=#{stdout} without resolving unrelated encrypted credentials" do
+        Service::Settings.new.set(:log_to_stdout, stdout)
+        Setting.create(name: 'qbit_pass', value: 'enc:v1:unreadable-credential')
+        file_logger = instance_double(Service::EventLogger)
+        stdout_logger = instance_double(Logger)
+        allow(Service::EventLogger).to receive(:new).and_return(file_logger)
+        allow(Logger).to receive(:new).with($stdout).and_return(stdout_logger)
+        expect(Service::SettingsEncryption).not_to receive(:new)
+
+        expect(described_class.new.logger_instance).to equal(stdout ? stdout_logger : file_logger)
+        expect(Setting.count).to eq(2)
+      end
+    end
+
     it 'returns a logger instance' do
       logger = Service::Helpers.new.logger_instance
       expect(logger).to be_a(Logger)
