@@ -4,6 +4,14 @@
 
 The shared job builds one unique `staging-<run-id>-<attempt>` multiarch candidate, validates it, then calls `image_publisher.rb` to promote an immutable digest. That Ruby file has three commands: `check`, `prepare`, and `publish`. It is the only production tag writer. There is no recovery database, legacy Dockerfile adapter, or disposable publishing namespace.
 
+## Build caching
+
+Normal branch builds (including `main`), release builds, and pull-request validation import and export the GitHub Actions BuildKit cache using the shared `scope=qbop` and `mode=max` exports. The Dockerfile copies `Gemfile` and `Gemfile.lock` before application source, allowing unchanged dependency layers to be reused across runs.
+
+Security rebuilds keep `pull: true` and `no-cache: true`, and leave both cache inputs empty: they neither import nor export the persistent cache. The pinned upstream digest, Debian upgrades, frozen gem installation, and validation of both architectures remain unchanged.
+
+The shared scope follows [GitHub's cache access restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache): normal builds can reuse default-branch caches, but sibling branches and different release tags cannot share their own caches directly. PRs can read base-branch caches; their exports are isolated to the PR merge ref. Cache eviction, storage limits, and API throttling can reduce reuse or interrupt cache transfers; see the [Docker cache backend documentation](https://docs.docker.com/build/cache/backends/gha/). Cache hits are an optimization, and a missing cache causes a normal rebuild.
+
 ## Rebuilds and tag policy
 
 The monitor selects the highest numeric published `vX.Y.Z` GitHub Release, excluding drafts and prereleases. It reads that commit's Dockerfile and `.ruby-version`, then resolves the exact Ruby slim tag's multiarch digest. A build is needed when any current alias is missing, the four aliases disagree, or their recorded source/base identity differs from the current release and upstream digest. Unchanged, completely published images are skipped. **Actions → Upstream security rebuild → Run workflow → force** requests a fresh build even without a digest change; select the default branch.
