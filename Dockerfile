@@ -1,13 +1,17 @@
 # Description: Dockerfile for qbop
-FROM ruby:4.0.7-slim
+ARG BASE_IMAGE=ruby:4.0.9-slim
+FROM ${BASE_IMAGE}
 
 # set the working directory
 WORKDIR /opt/qbop/
 
 # install necessary packages
 RUN \
-apt update; \
-apt install -y build-essential pkg-config natpmpc wireguard dnsutils;
+    apt-get update -o APT::Update::Error-Mode=any \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential pkg-config natpmpc wireguard dnsutils \
+    && rm -rf /var/lib/apt/lists/*
 
 # create qbop user and group
 RUN groupadd -g 1234 qbop && useradd -m -u 1234 -g qbop qbop;
@@ -16,7 +20,7 @@ RUN groupadd -g 1234 qbop && useradd -m -u 1234 -g qbop qbop;
 COPY Gemfile Gemfile.lock /opt/qbop/
 RUN chown -R qbop:qbop /opt/qbop/
 USER qbop
-RUN bundle config set without 'development test' && bundle install;
+RUN bundle config set without 'development test' && BUNDLE_FROZEN=true bundle install
 
 # copy application source and create necessary directories
 USER root

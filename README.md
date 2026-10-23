@@ -92,6 +92,23 @@ The legacy `v2` tag remains available for installations that have not yet upgrad
 
 The app displays `main` for main-branch images and the exact version for release images.
 
+### Automated container security rebuilds
+
+The **Upstream security rebuild** workflow checks the latest stable release's Ruby base-image digest daily. It rebuilds only when that digest changes or publication is incomplete. To refresh Debian packages between upstream changes, select the default branch in **Actions → Upstream security rebuild → Run workflow** and enable **force**. There are no unconditional periodic rebuilds.
+
+Rebuilds use the exact released source, Ruby version, `Gemfile`, and `Gemfile.lock`. Gems are installed frozen; application code, Ruby, and gems are never automatically upgraded. The release must contain the updated Dockerfile; initial rollout requires a compatible normal release.
+
+Normal builds and security rebuilds share one publisher and Actions lock. Each image is staged and checked on AMD64 and ARM64 before promotion. For current release `v3.6.0`, security rebuilds refresh `latest`, `v3.6.0`, `v3.6`, and `v3`. Existing `sha-*` tags remain immutable; security rebuilds leave branch tags and superseded releases unchanged. Normal release reruns preserve security refreshes.
+
+GHCR tag updates are not atomic. A failure may leave mixed tags; inspect Actions and rerun the workflow to finish publication. See [image publishing and manual recovery](docs/image-publishing.md) for details and staging cleanup.
+
+**Running containers need to be updated explicitly:**
+
+```bash
+docker compose pull qbop
+docker compose up -d --force-recreate qbop
+```
+
 ## Configuration
 
 New installations can configure the 25 application, integration, and logging settings through **settings** at `/settings`; values are saved in qbop's SQLite database. Environment variables remain fully supported for users who prefer Compose-managed configuration. Authentication and OIDC settings remain environment-only.
