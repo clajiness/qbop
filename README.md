@@ -82,8 +82,9 @@ Available tags:
 
 - `latest` → most recent release
 - `main` → most recent build from the main branch
-- `<branch>` → latest branch build; `/` and other invalid tag characters become `-`
-- `sha-<12-character commit SHA>` → build for that commit
+- `<branch>` → latest branch build; normalized names include a stable hash suffix (see [tagging rules](docs/image-publishing.md#development-branch-names))
+- `build-<commit-sha12>-<run-id>-<attempt>` → immutable, validated and published staging candidate
+- `sha-<12-character commit SHA>` → legacy reference; preserved unchanged, no new tags are created
 - `v<major>` → latest release for that major version, e.g. `v3`
 - `v<major>.<minor>` → latest patch release for that minor version, e.g. `v3.0`
 - `v<major>.<minor>.<patch>` → exact release, e.g. `v3.0.0`
@@ -98,7 +99,7 @@ The **Upstream security rebuild** workflow checks the latest stable release's Ru
 
 Rebuilds use the exact released source, Ruby version, `Gemfile`, and `Gemfile.lock`. Gems are installed frozen; application code, Ruby, and gems are never automatically upgraded. The release must contain the updated Dockerfile; initial rollout requires a compatible normal release.
 
-Normal builds and security rebuilds share one publisher and Actions lock. Each image is staged and checked on AMD64 and ARM64 before promotion. For current release `v3.6.0`, security rebuilds refresh `latest`, `v3.6.0`, `v3.6`, and `v3`. Existing `sha-*` tags remain immutable; security rebuilds leave branch tags and superseded releases unchanged. Normal release reruns preserve security refreshes.
+Normal builds and security rebuilds share one publisher and Actions lock. Each image is staged and checked on AMD64 and ARM64 before promotion. For current release `v3.6.0`, security rebuilds refresh `latest`, `v3.6.0`, `v3.6`, and `v3`. Legacy `sha-*` tags are untouched by all publishing, and their namespace remains reserved. Security rebuilds leave branch tags and superseded releases unchanged. Normal release reruns preserve security refreshes.
 
 GHCR tag updates are not atomic. A failure may leave mixed tags; inspect Actions and rerun the workflow to finish publication. See [image publishing and manual recovery](docs/image-publishing.md) for details and staging cleanup.
 

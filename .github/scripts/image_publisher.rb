@@ -11,7 +11,8 @@ class ImagePublisher # rubocop:disable Metrics/ClassLength
   SHA = /\A[0-9a-f]{40}\z/
   DIGEST = /\Asha256:[0-9a-f]{64}\z/
   BASE = /\Aruby:([0-9]+\.[0-9]+\.[0-9]+)-slim(?:-[a-z]+)?\z/
-  RESERVED = /\A(?:latest|v[0-9]+(?:\.[0-9]+){0,2}|sha-[0-9a-f]{12}|staging-.*)\z/
+  IMAGE_TAG = /\A[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}\z/
+  RESERVED = /\A(?:latest|v[0-9]+(?:\.[0-9]+){0,2}|(?:sha|build|staging)-.*)\z/
   RUNTIME_CHECK = <<~'CHECK'.freeze
     require 'digest'
     abort 'Ruby changed' unless RUBY_VERSION == ARGV.shift
@@ -190,11 +191,38 @@ class ImagePublisher # rubocop:disable Metrics/ClassLength
     ref = @env.fetch('GITHUB_REF')
     return validate(TAG, ref.delete_prefix('refs/tags/'), 'release tag') unless branch?
 
-    tag = validate(/\A[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}\z/,
-                   ref.delete_prefix('refs/heads/').gsub(/[^a-zA-Z0-9._-]+/, '-'), 'branch tag')
+    branch_tag(ref.delete_prefix('refs/heads/'))
+  end
+
+  def branch_tag(name)
+    tag = name.gsub(/[^A-Za-z0-9_.-]+/, '-')
     raise Error, 'Branch name collides with a reserved image tag.' if RESERVED.match?(tag)
 
-    tag
+    return tag if tag == name && IMAGE_TAG.match?(tag)
+
+    tag = "branch-#{tag}" unless /\A[A-Za-z0-9_]/.match?(tag)
+    "#{tag[0, 115]}-#{Digest::SHA256.hexdigest(name)[0, 12]}"
+  end
+
+  def build_tag
+    run_id = validate(/\A[1-9][0-9]*\z/, @env['GITHUB_RUN_ID'], 'run ID')
+    attempt = validate(/\A[1-9][0-9]*\z/, @env['GITHUB_RUN_ATTEMPT'], 'run attempt')
+    validate(IMAGE_TAG, "build-#{commit[0, 12]}-#{run_id}-#{attempt}", 'build tag')
+  end
+
+  def check_build_tag!(tag, digest)
+    existing = published([tag])[tag]
+    if existing && existing != digest
+      raise Error, "Build tag #{tag} already points to a different digest; refusing overwrite."
+    end
+
+    existing
+  end
+
+  def promote(tag, digest)
+    fresh!
+    summary("Promoting #{image}:#{tag} to #{digest}")
+    run('docker', 'buildx', 'imagetools', 'create', '--tag', "#{image}:#{tag}", "#{image}@#{digest}")
   end
 
   def authorize! # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -318,18 +346,25 @@ class ImagePublisher # rubocop:disable Metrics/ClassLength
 
     # Normal reruns keep the exact release image, including any security refresh.
     digest = !branch? && !security? && exact ? exact : @env.fetch('STAGED_DIGEST')
+    permanent_tag = build_tag if digest == @env.fetch('STAGED_DIGEST')
+    check_build_tag!(permanent_tag, digest) if permanent_tag
     validate_image!(digest)
-    sha_tag = "sha-#{commit[0, 12]}"
-    tags.unshift(sha_tag) if !security? && !published([sha_tag])[sha_tag]
     tags.each do |tag|
       next if published([tag])[tag] == digest
 
-      fresh!
-      summary("Promoting #{image}:#{tag} to #{digest}")
-      run('docker', 'buildx', 'imagetools', 'create', '--tag', "#{image}:#{tag}", "#{image}@#{digest}")
+      promote(tag, digest)
     end
     unless published(tags).values.all?(digest)
       raise Error, "Publication verification failed for #{digest}; inspect tags and rerun."
+    end
+
+    if permanent_tag
+      promote(permanent_tag, digest) unless check_build_tag!(permanent_tag, digest)
+      unless published([permanent_tag])[permanent_tag] == digest
+        raise Error, "Build tag verification failed for #{permanent_tag}; inspect tags and rerun."
+      end
+
+      tags << permanent_tag
     end
 
     summary("Published #{tags.join(', ')} at #{digest}")

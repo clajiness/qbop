@@ -14,27 +14,49 @@ A pinned Ruby patch tag can eventually stop receiving upstream updates. A succes
 
 The release Dockerfile must already support the `BASE_IMAGE` argument, frozen installation, and Debian upgrades. An incompatible release fails with a request to publish a compatible normal release. **Initial rollout requires a normal application release containing the updated Dockerfile.** Merging the automation alone cannot retrofit the existing release. Publisher files must also be on the default branch before publishing runs can use them.
 
-For current release `v3.6.0`, the mutable tags are `v3.6.0`, `v3.6`, `v3`, and `latest`. All reference the same validated multiarch digest. Security rebuilds never touch `sha-*`, branch tags such as `main`, or superseded exact release tags. Normal releases additionally create an absent `sha-<12-character-commit>` tag. Existing SHA tags never move. Branch builds update their normalized branch tag and create an absent SHA tag; release aliases, SHA tags, and `staging-*` are reserved against branch-name collisions.
+For current release `v3.7.0`, the mutable tags are `v3.7.0`, `v3.7`, `v3`, and `latest`. All reference the same validated multiarch digest. Security rebuilds never touch branch tags such as `main` or superseded exact release tags. The `sha-<12-character-commit>` convention is legacy: no publication creates, overwrites, deletes, or migrates SHA tags. Historical references remain available unchanged, and the `sha-*` namespace stays reserved against branch collisions. Use `build-*` tags to identify individual validated images.
 
-Normal release reruns reuse the existing exact release image, preserving security refreshes. They can fill missing or inconsistent current aliases. Older release workflows are rejected entirely once a newer stable GitHub Release or a newer image in a relevant alias exists; historical release-line publishing is unsupported. Moved Git tags or conflicting exact-release source identities fail and require investigation.
+| Tag | Meaning |
+| --- | --- |
+| `sha-<commit-sha12>` | Legacy first image for a source commit; preserved unchanged, no longer created |
+| `build-<commit-sha12>-<run-id>-<attempt>` | Successfully validated and published staging candidate; write-once |
+| `v3.7.0`, `v3.7`, `v3`, `latest` | Current maintained stable release image; mutable |
+| `main`, other branch tags | Most recently published image for that branch; mutable |
+| `staging-<run-id>-<attempt>` | Candidate awaiting validation and promotion |
+
+A staging candidate successfully published as a branch, release, or security image receives a permanent build tag, for example `build-c68b05eb615d-40008926516-1`. Build tags identify published candidates, rather than every workflow execution: the selected digest must equal the current staging digest. The commit prefix is the first 12 lowercase hexadecimal characters of the source commit; the run ID and attempt are the positive decimal `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT` supplied by Actions. Rerunning a job increments the attempt, while a new workflow run has a new run ID. No workflow inputs or extra metadata service are required.
+
+Build tags point to the validated multiarch digest and are assigned only after the normal branch/release tags have been promoted and verified. An existing build tag at that digest is accepted without a write; a conflicting digest fails without overwriting it. Conflicts are checked before any tag changes and again immediately before assigning the build tag. Existing build tags survive subsequent branch, release, and security publications.
+
+Normal release reruns reuse the existing exact release image, preserving security refreshes. When this discards a different staging digest, neither the unused candidate nor the reused image receives a new build tag; original build tags remain unchanged. If the staging and selected release digests match, the candidate remains eligible for a build tag after successful publication. Reruns can fill missing or inconsistent current aliases. Older release workflows are rejected entirely once a newer stable GitHub Release or a newer image in a relevant alias exists; historical release-line publishing is unsupported. Moved Git tags or conflicting exact-release source identities fail and require investigation.
+
+### Development branch names
+
+Branch publishing remains automatic. A name already matching `[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}` is preserved, including case: `main` stays `main`, and `feature-foo` stays `feature-foo`.
+
+Other names replace each run of characters outside `[A-Za-z0-9_.-]` with `-`. If the result cannot start a Docker tag, it gets a `branch-` prefix. This readable portion is truncated to 115 characters, then suffixed with `-` and the first 12 lowercase hexadecimal characters of SHA-256 of the **original full Git branch name**, without `refs/heads/`. The result is deterministic, ASCII, and at most 128 characters. For example, `feature/foo` now publishes as `feature-foo-f932032607fa`, distinct from `feature-foo`. Long names with the same truncated prefix also get different hash suffixes unless their short hashes collide.
+
+Names whose normalized form is `latest`, a numeric release alias (`v3`, `v3.7`, `v3.7.0`), or starts with `sha-`, `build-`, or `staging-` are rejected before publishing. This includes slash forms such as `build/example`. These reserved namespaces take precedence over preserving otherwise valid branch names.
+
+**Branch tag migration:** names that previously required normalization now receive the hash suffix. Update deployments using those branch images to the new tag; existing tags are not deleted or migrated. Valid, unreserved names retain their tags. The complete `sha-*` namespace is now reserved, including names such as `sha-feature`. The short hash makes accidental collisions unlikely but is not a uniqueness registry; a deliberately named valid branch could still equal another branch's generated tag.
 
 ## Validation and concurrency
 
 Before promotion, the publisher checks both AMD64 and ARM64 manifests and source/base labels. Isolated containers verify the released Ruby version, actual CPU architecture, byte-for-byte Gemfile/lockfile contents, and application startup with local HTTP. Failed validation does not change production tags.
 
-One `qbop-release-publish` Actions concurrency group covers the entire shared job, including building. This deliberately serializes builds as well as publication, avoiding competing candidates and extra orchestration. It does not cancel the running job and queues pending jobs with `queue: max`; see [GitHub concurrency behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency). Source refs, the current release, registry versions, and the security base digest are checked again before individual tag writes. Existing SHA tags are preserved, and final digest reads verify publication.
+One `qbop-release-publish` Actions concurrency group covers the entire shared job, including building. This deliberately serializes builds as well as publication, avoiding competing candidates and extra orchestration. It does not cancel the running job and queues pending jobs with `queue: max`; see [GitHub concurrency behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency). Source refs, the current release, registry versions, and the security base digest are checked again before individual tag writes. Legacy SHA tags are preserved, and final digest reads verify publication.
 
 Historical workflow definitions predating this system and direct registry writes bypass its coordination. Maintainers must avoid running old direct-publishing workflows against production. The lock does not provide a registry-enforced permission boundary or an atomic transaction with GitHub release creation.
 
 ## Failure recovery and cleanup
 
-GHCR updates tags individually. A failed or cancelled run can leave a mixture of validated old and new images. The publisher does not roll back tags or automatically recover a previous candidate. The Actions log and summary identify the attempted tag, digest, and failed command.
+GHCR updates tags individually. A failed or cancelled run can leave a mixture of validated old and new images. A validation or alias-promotion failure creates no new build tag. A failure after alias verification can leave those aliases published without a build tag, or leave the build tag written if its final verification failed. The publisher does not roll back tags or automatically recover a previous candidate. The Actions log and summary identify the attempted tag, digest, and failed command. Build-tag immutability is enforced by this serialized publisher; direct external registry writes can bypass it.
 
-Inspect the failure, fix credentials/configuration if necessary, then rerun the failed shared publishing job or the whole workflow in Actions. The shared job builds again. Security retries can promote a new candidate across all four aliases; normal release retries preserve the existing exact release digest. Unchanged upstream state does not suppress a retry while aliases are missing or disagree. If the release or upstream digest has changed, start a fresh security workflow instead of retrying stale inputs. The daily check will also detect incomplete state. Manual force remains available.
+Inspect the failure, fix credentials/configuration if necessary, then rerun the failed shared publishing job or the whole workflow in Actions. The shared job builds again. Security retries can promote a new candidate across all four aliases; normal release retries preserve the existing exact release digest. Unchanged upstream state does not suppress a retry while aliases are missing or disagree. If the release or upstream digest has changed, start a fresh security workflow instead of retrying stale inputs. The daily check also detects incomplete aliases, but missing build tags alone do not trigger rebuilds. Manual force remains available.
 
 Commands use ordinary CLI exit codes and Actions job timeouts. Registry/API errors fail the run; there is no custom backoff or process supervisor. Inspect and rerun transient failures. A cancelled or full-queue job may also need a manual rerun. Schedules can be delayed or disabled; periodically check that the daily workflow is running.
 
-Staging cleanup is manual. Do not delete GHCR package versions merely because they have a staging tag: the same digest may also have production aliases, and multiarch indexes depend on platform manifests that can appear untagged. Leaving staging references is acceptable.
+Staging cleanup is manual. Permanent build tags accumulate intentionally. Do not delete GHCR package versions merely because they have a staging tag: the same digest may also have production aliases, permanent build tags, or legacy SHA references, and multiarch indexes depend on platform manifests that can appear untagged. Leaving staging references is acceptable.
 
 Mutable tags do not update running containers automatically. Pull the selected image and recreate the container, for example with `docker compose pull` followed by `docker compose up -d`. Pin `ghcr.io/clajiness/qbop@sha256:…` when an exact container build is required; users on superseded releases must upgrade for further maintenance.
 
@@ -53,7 +75,7 @@ Steps marked **GHCR writes** can publish staging or production images. Merge als
    git push -u origin feature/automated-image-rebuilds
    ```
 
-   Before initial merge, the branch-push publishing job cannot load the new publisher from `main` and may fail. This does not prevent the separate credential-free PR build from running. After rollout, branch pushes publish branch/SHA images normally.
+   Before initial merge, the branch-push publishing job cannot load the new publisher from `main` and may fail. This does not prevent the separate credential-free PR build from running. After rollout, branch pushes publish branch images with permanent build tags normally.
 
 2. **Open a PR against `main`:**
 
@@ -72,7 +94,7 @@ Steps marked **GHCR writes** can publish staging or production images. Merge als
 
    Require successful `CI` security, lint, and test jobs, plus the `Docker` pull-request build. Distinguish the initial branch-push bootstrap failure described above from PR check failures. Inspect any failed required check before merging; local tests do not substitute for these hosted runs.
 
-4. **Merge after successful review/checks — GHCR writes.** Merge the PR in GitHub. The merge triggers normal `main`/SHA publishing and enables daily monitoring. Verify `Actions → Docker` for the merge commit succeeds. Until the next step, the security check will reject the old release's incompatible Dockerfile.
+4. **Merge after successful review/checks — GHCR writes.** Merge the PR in GitHub. The merge triggers normal `main` publishing with a permanent build tag and enables daily monitoring. Verify `Actions → Docker` for the merge commit succeeds. Until the next step, the security check will reject the old release's incompatible Dockerfile.
 
 5. **Publish a new compatible application release — GHCR writes.** Select a new stable `vX.Y.Z` tag; do not reuse an existing release. Fetch the merged source, verify that commit contains the new Dockerfile/publisher, then explicitly set the new version:
 
@@ -116,7 +138,7 @@ Steps marked **GHCR writes** can publish staging or production images. Merge als
    snapshot_tags() {
      local tag tag_digest
      for tag in "$PUBLISH_RELEASE" "${PUBLISH_RELEASE%.*}" "${PUBLISH_RELEASE%%.*}" latest \
-                "sha-${PUBLISH_COMMIT:0:12}" main "$PUBLISH_PREVIOUS_RELEASE"; do
+                main "$PUBLISH_PREVIOUS_RELEASE"; do
        tag_digest="$(image_digest "$tag")"
        printf '%s\t%s\n' "$tag" "$tag_digest"
      done
@@ -128,7 +150,7 @@ Steps marked **GHCR writes** can publish staging or production images. Merge als
    done
    ```
 
-   Keep this file outside commits. The SHA image may have been created by the earlier `main` build and therefore have a different digest/version label from the release aliases. Its source commit must match, and its existing digest must remain unchanged.
+   Keep this file outside commits. New publications do not create SHA tags. If deployments use existing legacy `sha-*` references, record their digests separately and confirm those references remain unchanged after the rebuild. Permanent build tags appear in the publishing run summary when its staging candidate was used.
 
 8. **Force a security rebuild — GHCR writes:**
 
@@ -159,7 +181,7 @@ Steps marked **GHCR writes** can publish staging or production images. Merge als
 10. **Verify protected tags stayed unchanged:**
 
     ```bash
-    for tag in "sha-${PUBLISH_COMMIT:0:12}" main "$PUBLISH_PREVIOUS_RELEASE"; do
+    for tag in main "$PUBLISH_PREVIOUS_RELEASE"; do
       PUBLISH_BEFORE="$(awk -v tag="$tag" '$1 == tag {print $2}' qbop-tags-before.tsv)"
       test -n "$PUBLISH_BEFORE"
       test "$(image_digest "$tag")" = "$PUBLISH_BEFORE"
