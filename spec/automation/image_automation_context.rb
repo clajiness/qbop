@@ -16,6 +16,7 @@ RSpec.shared_context 'image automation' do
   let(:staged_digest) { "sha256:#{'c' * 64}" }
   let(:image) { 'ghcr.io/clajiness/qbop' }
   let(:sha_tag) { "sha-#{commit[0, 12]}" }
+  let(:build_tag) { "build-#{commit[0, 12]}-#{env.fetch('GITHUB_RUN_ID')}-#{env.fetch('GITHUB_RUN_ATTEMPT')}" }
   let(:registry) { {} }
   let(:indexes) { {} }
   let(:configs) { {} }
@@ -25,7 +26,8 @@ RSpec.shared_context 'image automation' do
     { 'GITHUB_REPOSITORY' => 'clajiness/qbop', 'GITHUB_ACTIONS' => 'true', 'GITHUB_EVENT_NAME' => 'push',
       'GITHUB_REF' => "refs/tags/#{release}", 'GITHUB_SHA' => commit, 'SOURCE_SHA' => commit,
       'RELEASE_TAG' => release, 'PUBLISH_KIND' => 'normal', 'BASE_IMAGE' => base, 'BASE_DIGEST' => digest,
-      'STAGED_DIGEST' => staged_digest, 'FORCE' => 'false' }
+      'STAGED_DIGEST' => staged_digest, 'FORCE' => 'false',
+      'GITHUB_RUN_ID' => '40008926516', 'GITHUB_RUN_ATTEMPT' => '1' }
   end
   let(:dockerfile) { File.read(File.expand_path('../../Dockerfile', __dir__)) }
 
