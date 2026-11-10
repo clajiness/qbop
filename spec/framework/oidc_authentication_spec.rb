@@ -240,6 +240,29 @@ RSpec.describe 'OpenID Connect browser authentication' do # rubocop:disable Metr
     expect(@authorization_params.fetch('code_challenge')).not_to be_empty
   end
 
+  it 'uses the configured public URL throughout sign-in with forged host headers' do
+    create_account
+    allow(@client).to receive(:request_headers).and_wrap_original do |original|
+      original.call.merge(
+        'HTTP_HOST' => 'attacker.example',
+        'HTTP_X_FORWARDED_HOST' => 'forwarded.attacker.example',
+        'HTTP_X_FORWARDED_PROTO' => 'http'
+      )
+    end
+
+    response = begin_authorization
+
+    expect(response.status).to eq(302)
+    expect(@authorization_params.fetch('redirect_uri')).to eq(
+      "#{OIDC_SPEC_PUBLIC_URL}#{Framework::AuthenticationConfig::OIDC_CALLBACK_PATH}"
+    )
+    expect(complete_authorization.status).to eq(302)
+    expect(@token_request_params.fetch('redirect_uri')).to eq(
+      "#{OIDC_SPEC_PUBLIC_URL}#{Framework::AuthenticationConfig::OIDC_CALLBACK_PATH}"
+    )
+    expect(@client.get('/auth-state').body).to eq("authenticated:#{DB[:accounts].get(:id)}")
+  end
+
   it 'verifies a signed response, links the existing account, and reuses the exact identity' do
     create_account
     account_id = DB[:accounts].get(:id)
