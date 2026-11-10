@@ -21,6 +21,7 @@ module Framework
     def self.configure_provider(auth, config) # rubocop:disable Metrics/MethodLength
       auth.omniauth_provider secure_provider,
                              name: 'openid_connect',
+                             full_host: config.oidc_public_url,
                              issuer: config.oidc_issuer,
                              discovery: true,
                              scope: %i[openid email],
