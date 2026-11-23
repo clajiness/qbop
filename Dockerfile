@@ -1,5 +1,5 @@
 # Description: Dockerfile for qbop
-ARG BASE_IMAGE=ruby:4.0.9-slim
+ARG BASE_IMAGE=ruby:4.0.10-slim
 FROM ${BASE_IMAGE}
 
 # set the working directory
@@ -10,7 +10,7 @@ RUN \
     apt-get update -o APT::Update::Error-Mode=any \
     && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential pkg-config natpmpc wireguard dnsutils \
+        build-essential pkg-config natpmpc wireguard-tools dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
 # create qbop user and group
